@@ -1,4 +1,17 @@
 /*
+ * SDGOODS 开放平台基础工程 · 应用层示例
+ * https://github.com/SDGOODS/SDGOODS-ESP32S3
+ *
+ * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ *
+ * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ *
+ * 个人学习、研究与业余项目免费使用；商业用途需事前书面授权，见 LICENSING.md。
+ * 分发时必须完整保留本声明 —— 这是许可条款，不是建议。
+ */
+
+/*
  * apps_registry.c —— 应用注册表（应用层）
  *
  * 这是「应用层 ⇄ 平台层」的唯一接线点，同时定义了启动台上显示哪些应用。
@@ -38,6 +51,7 @@
 #include "ui_plane.h"
 #include "ui_tetris.h"
 #include "ui_snake.h"
+#include "ui_about.h"        /* 「关于」：品牌 / 公司 / 固件版本 / 授权提示 */
 /* >>> new_app.py: 新应用 include 插到这里 >>> */
 
 /* ===========================================================================
@@ -55,6 +69,7 @@ static const sdgoods_app_t s_apps[] = {
     { "俄罗斯方块", ui_tetris_start, ui_tetris_poll },
     { "贪吃蛇",     ui_snake_start,  ui_snake_poll  },
     { "示例",       ui_app_template_show, ui_app_template_poll },
+    { "关于",       ui_about_page_show, ui_about_page_poll },
     /* >>> new_app.py: 新应用插到这里（保持缩进即可） >>> */
 };
 

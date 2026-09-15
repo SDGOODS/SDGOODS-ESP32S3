@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# SDGOODS 开放平台基础工程 · 开发工具
+# https://github.com/SDGOODS/SDGOODS-ESP32S3
+#
+# Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+# SPDX-License-Identifier: Apache-2.0
+#
+# 本工具以 Apache-2.0 发布：可自由商用。详见 LICENSING.md。
+#
 # -*- coding: utf-8 -*-
 """ESP32「一键截屏」接收端：把设备经 USB 串口发来的 base64 位图还原成 PNG。
 

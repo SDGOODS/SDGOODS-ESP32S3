@@ -48,6 +48,21 @@ main/                              应用层
     patches/        对 LVGL 组件的补丁
 ```
 
+**许可也是按这两层分的**（改代码时别改错）：
+
+| 目录 | 许可 | 说明 |
+|---|---|---|
+| `components/sdgoods_board/` | Apache-2.0 | 可自由商用、可闭源 |
+| `main/`（应用层） | PolyForm NC 1.0.0 | 非商业免费，商用需授权 |
+| `main/patches/` | MIT | LVGL 衍生 —— **不可更改** |
+| `components/sdgoods_board/fonts/` | SIL OFL 1.1 | Noto Sans SC 衍生 —— **不可更改** |
+
+后两处的许可是上游决定的，我们无权追加限制 —— 所以即使根 `LICENSE` 限定了应用层的
+商业使用，**也不适用于这两个目录**。详见根目录 [LICENSING.md](../LICENSING.md)。
+
+新建 `.c` / `.h` / `.py` 之后跑一次 `python3 tools/add_license_headers.py --apply`
+补上声明（幂等，已带声明的会跳过）。
+
 ### 为什么要有这层划分
 
 平台代码（屏驱动、LVGL 移植、I2S 时序、PSRAM 弹跳预算这些）参数都是**实测调出来的**，

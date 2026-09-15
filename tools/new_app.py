@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# SDGOODS 开放平台基础工程 · 开发工具
+# https://github.com/SDGOODS/SDGOODS-ESP32S3
+#
+# Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+# SPDX-License-Identifier: Apache-2.0
+#
+# 本工具以 Apache-2.0 发布：可自由商用。详见 LICENSING.md。
+#
 """生成一个新应用的骨架，并自动接进构建与启动台。
 
 一条命令搞定 3 件容易漏掉的事

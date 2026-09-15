@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# SDGOODS 开放平台基础工程 · 开发工具
+# https://github.com/SDGOODS/SDGOODS-ESP32S3
+#
+# Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+# SPDX-License-Identifier: Apache-2.0
+#
+# 本工具以 Apache-2.0 发布：可自由商用。详见 LICENSING.md。
+#
 # -*- coding: utf-8 -*-
 """
 字体度量：离线核对「换了字体/加了文案之后，文字会不会溢出或变成方框」。

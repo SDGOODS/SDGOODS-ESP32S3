@@ -1,4 +1,17 @@
 /*
+ * SDGOODS 开放平台基础工程 · 应用层示例
+ * https://github.com/SDGOODS/SDGOODS-ESP32S3
+ *
+ * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ *
+ * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ *
+ * 个人学习、研究与业余项目免费使用；商业用途需事前书面授权，见 LICENSING.md。
+ * 分发时必须完整保留本声明 —— 这是许可条款，不是建议。
+ */
+
+/*
  * main.c —— 应用层装配点（Application entry）
  *
  * 这个文件属于**应用层**：它决定「用哪些应用、首屏是什么、怎么接线」。
@@ -18,9 +31,23 @@
 
 #include "sdgoods_board.h"    /* 平台层：板级支持包总入口 */
 #include "apps_registry.h"    /* 应用层：应用清单与首屏接线 */
+#include "build_version.h"    /* 自动生成：版本号 + SDGOODS 品牌信息 */
+
+static const char *TAG = "SDGOODS";
 
 void app_main(void)
 {
+    /* 品牌与版本横幅 —— 固件自带的「身份证」。
+       看串口日志或 dump 固件都能看出源头与授权状态。
+       文案统一从 build_version.h 取，不要在别处另写一份字面量。 */
+    ESP_LOGI(TAG, "========================================================");
+    ESP_LOGI(TAG, " %s · %s", SDGOODS_BRAND, SDGOODS_PRODUCT);
+    ESP_LOGI(TAG, " %s", SDGOODS_VENDOR);
+    ESP_LOGI(TAG, " 固件版本 %s", BUILD_VERSION_STR);
+    ESP_LOGI(TAG, " %s", SDGOODS_LICENSE_TAG);
+    ESP_LOGI(TAG, " %s", SDGOODS_HOMEPAGE);
+    ESP_LOGI(TAG, "========================================================");
+
     /* 静音噪音大的子系统日志（只留 warn 以上），让串口日志聚焦在自己的代码上。
        调试某个子系统时，把它改成 ESP_LOG_INFO 或 DEBUG。 */
     esp_log_level_set("wifi", ESP_LOG_WARN);

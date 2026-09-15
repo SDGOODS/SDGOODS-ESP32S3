@@ -141,6 +141,27 @@ esptool.py --chip esp32s3 --port <串口> --baud 921600 write_flash 0x0 merged.b
 - 屏：**360×360 ST77916 QSPI 圆屏**，带电容触摸。
 - Flash：≥ 4 MB（固件约 1.72 MB）。本工程默认按 32 MB 配置。
 
+### 发固件给别人时：必须随包带上许可文件
+
+这不是可选项。平台层是 **Apache-2.0**，该许可第 4 条要求**再分发时携带许可全文与
+NOTICE 文件**；应用层的 **PolyForm Noncommercial** 也要求把许可条款一并传递给接收者。
+
+所以固件包里至少要有这几份（从仓库根目录直接拷进 `release/fixNN/`）：
+
+```
+merged.bin
+LICENSE                            # 根许可（应用层 PolyForm NC）
+NOTICE                             # 第三方组件归属声明
+LICENSING.md                       # 授权范围与商用申请（接收方最该看的一份）
+components/sdgoods_board/LICENSE   # 平台层 Apache-2.0 全文
+```
+
+`flash.sh` / 包内 `README.md` 里也建议写一行：
+「个人免费使用；商业用途需授权，详见 LICENSING.md」。
+
+> 顺带一提：对方烧完固件后，串口开机日志会打印品牌与授权横幅，
+> 启动台第 6 格的「关于」页也能看到版本与授权状态 —— 不必额外解释。
+
 ## 5. 字体：新增中文文案后必须重生成
 
 屏幕上出现**方框（□）**就是子集字体缺字。字体分两套，职责不同：

@@ -13,8 +13,8 @@
 
 #pragma once
 
-/* 应用入口页：6 个圆形按钮的启动器，第一个为「小鸟」(Flappy Bird) */
+/* 「关于」页：品牌、公司、固件版本与授权提示。
+   同时充当固件层面的 SDGOODS 标识露出点 —— 与启动日志、源文件头呼应。 */
 
-void ui_app_page_show(void);
-void ui_app_page_poll(void);
-void ui_app_page_resume(void);
+void ui_about_page_show(void);
+void ui_about_page_poll(void);

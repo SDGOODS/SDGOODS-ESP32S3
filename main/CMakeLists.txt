@@ -18,6 +18,7 @@ idf_component_register(
         "apps/ui_scan_page.c"
         "apps/ui_rec_page.c"
         "apps/ui_other_page.c"
+        "apps/ui_about.c"       # 「关于」：品牌 / 公司 / 版本 / 授权（启动台第 6 格）
 
         # --- 应用骨架 / 示例（自己写的新应用加在这一段） ---
         "apps/app_template.c"

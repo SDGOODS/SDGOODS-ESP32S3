@@ -74,6 +74,24 @@ idf.py -p <串口> flash monitor
     改回 PSRAM 或调大 queue 会出黑条/红线）
   - `lcd/st77916.c` 的 vendor 初始化序列与 SPI 队列深度/分片大小
   - `src/audio_recplay.c` 的 I2S 与功放启停时序（关功放有 64ms 淡出防爆音）
+- **不要改许可分层**（这是对外的法律承诺，不是注释）：
+
+  | 目录 | 许可 | 能不能改 |
+  |---|---|---|
+  | `components/sdgoods_board/` | Apache-2.0 | ✅ 可商用，保留声明即可 |
+  | `main/`（应用层） | PolyForm NC 1.0.0 | ⚠️ 非商业，商用要授权 |
+  | `main/patches/` | MIT | ❌ **不可改** —— LVGL 衍生，我们无权追加限制 |
+  | `components/sdgoods_board/fonts/` | SIL OFL 1.1 | ❌ **不可改** —— Noto Sans SC 衍生 |
+
+- **新建 `.c` / `.h` / `.py` 必须带许可头**。写完之后跑一次：
+
+  ```bash
+  python3 tools/add_license_headers.py --apply   # 幂等，已带声明的会跳过
+  ```
+
+  漏了不会编译报错，但一个新文件没有任何声明 = 许可不明，
+  会让认真读许可的人不敢用（这跟"能不能编译"是两件事）。
+  `main/patches/` 与 `fonts/` 会被脚本刻意跳过，那是正确的。
 
 ### 平台层需要回调应用层时：注册制
 
@@ -254,4 +272,6 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
 - [ ] 回调名没有撞 libc（`on_exit` / `on_read` / `on_write` 等）
 - [ ] 改玩法的话：联机四条铁律 + same-tick 顺序都遵守了
 - [ ] `board_pins.h`、`lvgl_port.c` 的缓冲配置没被顺手改掉
+- [ ] 新建的 `.c` / `.h` / `.py` 都带了许可头（`python3 tools/add_license_headers.py`）
+- [ ] 没动 `main/patches/` 与 `fonts/` 的许可声明（这两处的许可由上游决定，不可更改）
 - [ ] 截屏验证过画面（UI 类改动）

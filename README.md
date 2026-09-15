@@ -1,18 +1,20 @@
 # SDGOODS-ESP32S3 · 圆屏次元桌面设备
 
-[![Build](https://github.com/USERNAME/SDGOODS-ESP32S3/actions/workflows/build.yml/badge.svg)](https://github.com/USERNAME/SDGOODS-ESP32S3/actions/workflows/build.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Build](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml/badge.svg)](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml)
+[![Platform: Apache-2.0](https://img.shields.io/badge/platform-Apache--2.0-blue.svg)](LICENSE)
+[![Apps: PolyForm NC](https://img.shields.io/badge/apps-PolyForm%20NC-orange.svg)](LICENSING.md)
 
 一块 **ESP32-S3 + 360×360 圆形触摸屏** 桌面设备的完整固件：开机动画 → 主页 → 一组小游戏和工具页。
 从零手写的 UI 框架与游戏逻辑，包含**双人蓝牙联机对战的飞机大战**、贪吃蛇、俄罗斯方块，
 以及一套**串口一键截屏**调试链路。
 
-**这份代码同时是「谷仓 SDGOODS 开放平台」的二次开发基础。** 工程刻意分成了两层：
+**这份代码同时是「谷仓 SDGOODS 开放平台」的二次开发基础。** 工程刻意分成了两层，
+连许可也是分开的：
 
-| 层 | 目录 | 你要不要动 |
-|---|---|---|
-| **平台层**（板级支持包） | `components/sdgoods_board/` | 一般**不用动** —— 屏驱动、LVGL 移植、触摸、音频、应用框架、中文字体都在这 |
-| **应用层** | `main/apps/` | ★ **你的应用写在这里** |
+| 层 | 目录 | 你要不要动 | 能商用吗 |
+|---|---|---|---|
+| **平台层**（板级支持包） | `components/sdgoods_board/` | 一般**不用动** —— 屏驱动、LVGL 移植、触摸、音频、应用框架、中文字体都在这 | ✅ Apache-2.0，随便用、可闭源 |
+| **应用层** | `main/apps/` | ★ **你的应用写在这里** | ⚠️ 个人免费，商用需授权 |
 
 加一个自己的应用只要一条命令：
 
@@ -136,6 +138,7 @@ python3 tools/new_app.py my_app "我的应用"
 | 改飞机玩法 / 联机逻辑 | [`docs/ARCHITECTURE.md` §6](docs/ARCHITECTURE.md) —— **联机同步四条铁律**，违反会让两台设备敌机分叉 |
 | 改引脚 / 换屏幕 | `components/sdgoods_board/include/board_pins.h` + `components/sdgoods_board/lcd/` |
 | 改完怎么自己验证 | `tools/screenshot_recv.py` 一键截屏看画面（AI 也能直接看图） |
+| **想拿去做商业产品 / 要授权** | [`LICENSING.md`](LICENSING.md) —— 平台层本来就可免费商用，只有应用层需要谈 |
 
 几个最容易踩的坑（**都在 `AGENTS.md` 里展开了**）：
 
@@ -152,9 +155,14 @@ python3 tools/new_app.py my_app "我的应用"
 ```
 .
 ├── AGENTS.md                       # ★ 给 AI 编程助手的开发约定（二次开发先读这个）
+├── LICENSING.md                    # ★ 授权范围 / 商业授权申请 / 什么算商业用途（FAQ）
+├── TRADEMARK.md                    # SDGOODS 标识与商标使用规范
+├── NOTICE                          # 第三方组件归属声明
+├── LICENSE                         # 应用层许可：PolyForm Noncommercial 1.0.0
 │
-├── components/sdgoods_board/       # === 平台层（板级支持包，一般不用改）===
-│   ├── include/                    # 应用层可见的全部接口
+├── components/sdgoods_board/       # === 平台层（Apache-2.0，可自由商用）===
+│   ├── LICENSE                     #   Apache-2.0 全文
+│   ├── include/                    #   应用层可见的全部接口
 │   │   ├── sdgoods_board.h         #   ← 一行 include 拿到全部平台能力
 │   │   ├── sdgoods_ui.h            #   圆屏 UI 栅格常量 SDG_UI_*
 │   │   ├── sdgoods_hooks.h         #   平台↔应用 的注册接口（见 ARCHITECTURE §2）
@@ -162,22 +170,23 @@ python3 tools/new_app.py my_app "我的应用"
 │   │   ├── ui_app_shell.h          #   应用外壳：统一菜单/退出/暂停
 │   │   ├── lvgl_port.h  st77916.h  touch_input.h  power_off.h
 │   │   └── audio_recplay.h  wifi_scan.h  ble_scan.h  hw_info.h  screenshot.h
-│   ├── src/                        # 实现（LVGL 移植 / 触摸 / 音频 / 框架 / 开机流程…）
-│   ├── lcd/                        # ST77916 QSPI 面板驱动 + 厂商初始化序列
-│   ├── fonts/                      # 中文子集字体（由 tools/gen_fonts.py 生成）
+│   ├── src/                        #   实现（LVGL 移植 / 触摸 / 音频 / 框架 / 开机流程…）
+│   ├── lcd/                        #   ST77916 QSPI 面板驱动 + 厂商初始化序列
+│   ├── fonts/                      #   中文子集字体（gen_fonts.py 生成，SIL OFL 1.1）
 │   └── CMakeLists.txt
 │
-├── main/                           # === 应用层（二次开发主要在这里）===
-│   ├── main.c                      # 装配点：初始化平台 + apps_register() 接线
+├── main/                           # === 应用层（PolyForm NC，二次开发主要在这里）===
+│   ├── main.c                      #   装配点：初始化平台 + apps_register() 接线
 │   ├── apps/
-│   │   ├── apps_registry.c/.h      # ★ 应用清单（启动台显示什么、谁被轮询）
-│   │   ├── app_template.c/.h       # ★ 新应用骨架（也是启动台上的「示例」应用）
-│   │   ├── ui_home.c               # 主页
-│   │   ├── ui_app_page.c           # 应用启动台（表驱动，加应用不用改它）
-│   │   ├── ui_plane.c  plane_net.c # 飞机大战 + 双人蓝牙联机
+│   │   ├── apps_registry.c/.h      #   ★ 应用清单（启动台显示什么、谁被轮询）
+│   │   ├── app_template.c/.h       #   ★ 新应用骨架（也是启动台上的「示例」应用）
+│   │   ├── ui_home.c               #   主页
+│   │   ├── ui_app_page.c           #   应用启动台（表驱动，加应用不用改它）
+│   │   ├── ui_about.c              #   「关于」：品牌 / 公司 / 版本 / 授权提示
+│   │   ├── ui_plane.c  plane_net.c #   飞机大战 + 双人蓝牙联机
 │   │   ├── ui_snake.c  ui_tetris.c ui_flappy.c
 │   │   └── ui_demo_page.c  ui_scan_page.c  ui_rec_page.c  ui_other_page.c
-│   ├── patches/                    # ★ 对第三方组件（LVGL）的补丁，随源码提交、自动应用
+│   ├── patches/                    # ★ 对 LVGL 的补丁；沿用 MIT，不受应用层非商业条款约束
 │   └── CMakeLists.txt
 │
 ├── tools/
@@ -199,16 +208,32 @@ python3 tools/new_app.py my_app "我的应用"
 
 ## 📄 许可证与第三方
 
-本项目代码以 **MIT** 许可证发布，见 [LICENSE](LICENSE)。
+**本工程是「源码开放（source available）」，不是 OSI 意义上的开源软件** —— 因为应用层
+限制了商业使用领域。我们把这件事说清楚，所以文档里不用"开源"二字。
 
-| 依赖 | 许可证 | 说明 |
+许可**按层分级**。一句话：**平台层随便商用，应用层个人免费、商用需授权。**
+
+| 部分 | 许可证 | 商业使用 |
 |---|---|---|
-| [LVGL 8.3](https://github.com/lvgl/lvgl) | MIT | 由 ESP-IDF 组件管理器自动下载，未随本仓库分发；对其中 GIF 解码器的改动见 `main/patches/` |
-| [Noto Sans SC](https://github.com/notofonts/noto-cjk) | **SIL OFL 1.1** | 中文字体子集的字形来源，可自由嵌入与再分发（含商用） |
-| [lv_font_conv](https://github.com/lvgl/lv_font_conv) | MIT | 生成子集字体的工具（开发期依赖） |
-| ESP-IDF | Apache-2.0 | 乐鑫官方 SDK |
+| `components/sdgoods_board/`（平台层：驱动 / LVGL 移植 / 触摸 / 音频 / 外壳 / 字体机制） | [Apache-2.0](components/sdgoods_board/LICENSE) | ✅ 免费，无需授权 |
+| `tools/`（构建与调试脚本） | Apache-2.0 | ✅ 免费，无需授权 |
+| `main/`（应用层：导航页 / 小游戏 / 示例） | [PolyForm NC 1.0.0](LICENSE) | ⚠️ 需事前书面授权 |
+| `main/patches/`（LVGL 补丁） | MIT | ✅ 免费（LVGL 原许可，不可更改） |
+| `components/sdgoods_board/fonts/`（子集字体） | SIL OFL 1.1 | ✅ 免费（字体原许可，不可更改） |
+
+**为什么这么分？** 我们希望你毫无顾虑地拿这块板子做产品 —— 所以平台层给的是
+Apache-2.0，可以闭源、可以卖钱、不必回馈代码。应用层是我们演示"这块屏能玩什么"
+的代码，个人随便玩，商业用途请先谈一声。
+
+- 商业授权怎么申请、什么算商业用途 → **[LICENSING.md](LICENSING.md)**（含 FAQ）
+- SDGOODS 标识与商标怎么用 → **[TRADEMARK.md](TRADEMARK.md)**
+- 第三方组件与归属声明 → **[NOTICE](NOTICE)**
 
 > [!NOTE]
+> `main/patches/` 是**对 LVGL 源代码的衍生作品**，因此继续以 **MIT** 分发 ——
+> 即使根 `LICENSE` 限定了应用层的商业使用，**该限制不适用于此目录**。
+> 我们无权对别人的 MIT 代码追加限制，也不想在一个文件里塞两套互相冲突的许可。
+>
 > `components/sdgoods_board/fonts/*.c` 是**字体子集**（扫描源码字符集后只取用到的字形），
 > 不是完整字库。字形来自 **Noto Sans SC**（SIL OFL 1.1，版权 © 2014-2021 Adobe，
 > 保留字体名 'Source'），每个生成文件头部都带了完整的版权与许可声明 —— 这是 OFL 的要求，请勿删除。
@@ -216,6 +241,15 @@ python3 tools/new_app.py my_app "我的应用"
 >
 > `components/sdgoods_board/src/boot_anim_gif.c` 是开机动画的帧数据，
 > 请确认你拥有其素材的分发权，或替换为你自己的动画。
+
+### SDGOODS 标识
+
+每个源文件头部都带版权行与 `SPDX-License-Identifier`；应用层文件还多一行
+`Required Notice:` —— **这不是装饰**：PolyForm Noncommercial 的 Notices 条款要求任何分发
+都必须把许可条款和这行声明一并传递下去，去掉即失去使用授权。
+
+固件层面也有品牌露出：首页页脚、`build_version.h` 里的品牌宏、开机串口日志的版本横幅，
+以及启动台上的「关于」页。这样即使有人只拿到一颗烧好的芯片，也能看出它的源头。
 
 ---
 

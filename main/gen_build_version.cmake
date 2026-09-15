@@ -15,6 +15,15 @@ file(WRITE "${_out}"
 "/* 本文件由 gen_build_version.cmake 自动生成，请勿手动编辑。\n"
 "   版本号为编译时间 MMDDHHMM，每次编译自动刷新。 */\n"
 "#define BUILD_VERSION_STR \"${BUILD_VERSION}\"\n"
+"\n"
+"/* ---- SDGOODS 品牌信息：固件的「身份证」 ----\n"
+"   任何需要品牌文案的地方（启动日志、关于页、串口 dump）都从这里取，\n"
+"   不要另写一份字面量 —— 改一次就全改（含中文，改动后记得重跑 tools/gen_fonts.py）。 */\n"
+"#define SDGOODS_BRAND        \"SDGOODS\"\n"
+"#define SDGOODS_PRODUCT      \"谷仓次元屏\"\n"
+"#define SDGOODS_VENDOR       \"深圳希德创新网络有限公司 (SDGOODS)\"\n"
+"#define SDGOODS_HOMEPAGE     \"https://github.com/SDGOODS/SDGOODS-ESP32S3\"\n"
+"#define SDGOODS_LICENSE_TAG  \"个人免费 · 商用需授权\"\n"
 )
 
 message(STATUS "build_version.h -> ${BUILD_VERSION}")
