@@ -56,6 +56,7 @@ python3 tools/new_app.py my_app "我的应用"    # 生成骨架 + 自动注册�
 - 串口一键截屏：设备端 LVGL 快照 → base64 分块 → 电脑端 `tools/screenshot_recv.py` 还原 PNG
 - `tools/plane_stat.py`：连双串口边玩边统计道具掉落分布、火力档位、受击次数
 - `tools/gen_fonts.py`：按源码字符集重新生成中文子集字体（带缺字校验）
+- `tools/font_metrics.py`：**离线核对文字宽度** —— 不烧板子就能判断某个文案会不会溢出按钮/圆屏
 
 ---
 
@@ -131,7 +132,7 @@ python3 tools/new_app.py my_app "我的应用"
 |---|---|
 | 用 AI 改代码（**强烈建议先读**） | [`AGENTS.md`](AGENTS.md) —— 编译方式、两层边界、硬约束、提交前检查清单 |
 | 加一个应用 / 改启动台按钮 | `python3 tools/new_app.py`，或 [`docs/ARCHITECTURE.md` §3](docs/ARCHITECTURE.md) |
-| 改界面 / 加中文文案 | 改完**必须**跑 `tools/gen_fonts.py`，否则出方框 |
+| 改界面 / 加中文文案 | 改完**必须**跑 `tools/gen_fonts.py`，否则出方框；用 `tools/font_metrics.py` 先看会不会超宽 |
 | 改飞机玩法 / 联机逻辑 | [`docs/ARCHITECTURE.md` §6](docs/ARCHITECTURE.md) —— **联机同步四条铁律**，违反会让两台设备敌机分叉 |
 | 改引脚 / 换屏幕 | `components/sdgoods_board/include/board_pins.h` + `components/sdgoods_board/lcd/` |
 | 改完怎么自己验证 | `tools/screenshot_recv.py` 一键截屏看画面（AI 也能直接看图） |
@@ -183,6 +184,7 @@ python3 tools/new_app.py my_app "我的应用"
 │   ├── new_app.py                  # ★ 一条命令生成新应用并自动接线
 │   ├── fetch_fonts.py              # 下载 OFL 源字体（Noto Sans SC）
 │   ├── gen_fonts.py                # 重新生成中文子集字体（带缺字校验）
+│   ├── font_metrics.py             # 离线核对文字宽度（会不会溢出/缺字）
 │   ├── screenshot_recv.py          # 电脑端：接收串口数据还原 PNG
 │   └── plane_stat.py               # 飞机道具体验数据统计
 │

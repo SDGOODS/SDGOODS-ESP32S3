@@ -161,6 +161,20 @@ python3 tools/gen_fonts.py --check        # 只校验当前字体是否缺字（
 > 所以写了很多中文注释后重新生成字体，体积会略增 —— 这是有意的取舍：
 > 漏一个字就是屏幕上一个方框，几 KB 体积不算什么。
 
+### 换字体 / 加长文案后：量一下宽度
+
+改了字体文件或把某条文案改长了，**先离线量宽度再烧板子**（烧一次一分钟，量一次一秒）：
+
+```bash
+python3 tools/font_metrics.py                       # 内置的本项目关键文案表
+python3 tools/font_metrics.py --strings "俄罗斯方块,按电源键返回"
+```
+
+它从生成的字体里解析 `glyph_dsc`（前进宽度，1/16 px）与 `cmaps`，算出渲染宽度，
+标出**缺字**与**超宽**（默认上限：圆按钮 76px、整行 340px），并跟仓库首个提交的旧字体对比。
+注意设备端串口只有 `'s'` 截屏命令、**没有导航命令**，所以"手势到不了的界面"（启动台、菜单）
+在烧板子之前只能靠这个工具确认。
+
 ---
 
 ## 5. 内存：这块芯片最容易踩的坑
@@ -234,6 +248,7 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
 - [ ] `idf.py build` 真的过了（不是"应该能过"）
 - [ ] 新应用已注册进 `apps_registry.c`（启动台有按钮 + poll 被调用）
 - [ ] 新增中文字符已重跑 `tools/gen_fonts.py`，且 `--check` 零缺字
+      （文案改长的另跑 `tools/font_metrics.py` 看是否超宽）
 - [ ] 没有在平台层 `#include` 应用层的头文件（分层没被破坏）
 - [ ] 没有把大数组/大缓冲放到栈上或内部 SRAM
 - [ ] 回调名没有撞 libc（`on_exit` / `on_read` / `on_write` 等）

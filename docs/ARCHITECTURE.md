@@ -233,6 +233,9 @@ Server 侧不再触发 `GATTS_CONNECT_EVT`、Client 侧 `esp_ble_gattc_open()` �
 - 字形来源是 **Noto Sans SC**（SIL OFL 1.1），生成文件头部带版权声明（OFL 要求，勿删）。
 - 新增文案 → 必须重跑 `tools/gen_fonts.py`，否则出方框；
   用 `tools/gen_fonts.py --check` 可快速校验当前字体是否缺字。
+- 换字体 / 改长文案后，先跑 `tools/font_metrics.py` 离线量宽度（会不会超出按钮或圆屏），
+  再烧板子截屏确认 —— 设备端串口只有 `'s'` 截屏命令，没有导航命令，
+  手势到不了的界面（启动台、菜单）没法用串口翻过去看。
 - 开机动画：`src/boot_anim_gif.c` 是一段 GIF 的字节数组（不是解码器），
   由 LVGL 内置 GIF 解码器播放，canvas 在 PSRAM。
 
