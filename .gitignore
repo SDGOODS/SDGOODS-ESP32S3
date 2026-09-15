@@ -1,0 +1,28 @@
+# ---- ESP-IDF 构建产物 ----
+build/
+build_*/
+*.bin
+*.elf
+*.map
+*.lst
+flasher_args.json
+flash_args
+project_description.json
+sdkconfig.old
+sdkconfig.ci
+
+# 依赖（由组件管理器按 dependencies.lock 自动下载）
+managed_components/
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+
+# ---- 临时日志 / 抓包产物 ----
+*.log
+*.tmp
