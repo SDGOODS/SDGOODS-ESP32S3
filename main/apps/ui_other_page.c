@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -20,6 +23,7 @@
 #include "esp_timer.h"
 #include "hw_info.h"
 #include "lvgl.h"
+#include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "st77916.h"
 #include "ui_home.h"
 #include "ui_swipe_back.h"
@@ -76,7 +80,8 @@ static void set_num(lv_obj_t *lbl, int v)
 static void set_bat(void)
 {
     char buf[40];
-    snprintf(buf, sizeof(buf), "电池电压: %.2fV", (double)hw_info_bat_v());
+    snprintf(buf, sizeof(buf), SDG_T("电池电压: %.2fV", "Battery: %.2fV"),
+             (double)hw_info_bat_v());
     lv_label_set_text(s_bat, buf);
 }
 
@@ -121,13 +126,13 @@ void ui_other_page_show(void)
     ui_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *title = lv_label_create(s_scr);
-    lv_label_set_text(title, "其他");
+    lv_label_set_text(title, SDG_T("其他", "More"));
     lv_obj_set_style_text_font(title, &si_yuan_black_icon_14, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 48);
 
     lv_obj_t *sub = lv_label_create(s_scr);
-    lv_label_set_text(sub, "读取设备其他硬件信息");
+    lv_label_set_text(sub, SDG_T("读取设备其他硬件信息", "Device hardware info"));
     lv_obj_set_style_text_font(sub, &si_yuan_black_icon_14, 0);
     lv_obj_set_style_text_color(sub, gray, 0);
     lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 88);
@@ -142,7 +147,7 @@ void ui_other_page_show(void)
     lv_obj_set_flex_align(gyro, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_clear_flag(gyro, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_align(gyro, LV_ALIGN_TOP_LEFT, ROW_X, 178);
-    make_txt(gyro, "陀螺仪: x");
+    make_txt(gyro, SDG_T("陀螺仪: x", "Gyro: x"));
     s_gx = make_gyro_num(gyro);
     make_txt(gyro, "y");
     s_gy = make_gyro_num(gyro);
@@ -150,13 +155,15 @@ void ui_other_page_show(void)
     s_gz = make_gyro_num(gyro);
 
     char buf[40];
-    snprintf(buf, sizeof(buf), "可用空间: %.1f MB", hw_info_space_mb());
+    snprintf(buf, sizeof(buf), SDG_T("可用空间: %.1f MB", "Free space: %.1f MB"),
+             hw_info_space_mb());
     make_row(s_scr, 216, buf);
-    snprintf(buf, sizeof(buf), "屏幕亮度: %u%%", (unsigned)Get_Backlight());
+    snprintf(buf, sizeof(buf), SDG_T("屏幕亮度: %u%%", "Brightness: %u%%"),
+             (unsigned)Get_Backlight());
     make_row(s_scr, 254, buf);
 
     lv_obj_t *hint = lv_label_create(s_scr);
-    lv_label_set_text(hint, "按电源键返回");
+    lv_label_set_text(hint, SDG_T("按电源键返回", "Power key to go back"));
     lv_obj_set_style_text_font(hint, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(hint, gray, 0);
     lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 296);

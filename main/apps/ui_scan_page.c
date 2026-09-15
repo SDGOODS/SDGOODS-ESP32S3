@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -22,6 +25,7 @@
 #include "lvgl.h"
 
 #include "board_pins.h"
+#include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "ui_home.h"
 #include "ui_swipe_back.h"
 
@@ -104,7 +108,7 @@ void ui_scan_page_show(const char *title, const char *sub_fmt, ui_scan_fn_t scan
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 48);
 
     s_sub = lv_label_create(s_scr);
-    lv_label_set_text(s_sub, "扫描中...");
+    lv_label_set_text(s_sub, SDG_T("扫描中...", "Scanning..."));
     lv_obj_set_style_text_font(s_sub, &si_yuan_black_icon_14, 0);
     lv_obj_set_style_text_color(s_sub, gray, 0);
     lv_obj_align(s_sub, LV_ALIGN_TOP_MID, 0, 88);
@@ -118,7 +122,7 @@ void ui_scan_page_show(const char *title, const char *sub_fmt, ui_scan_fn_t scan
     }
 
     lv_obj_t *hint = lv_label_create(s_scr);
-    lv_label_set_text(hint, "按电源键返回");
+    lv_label_set_text(hint, SDG_T("按电源键返回", "Power key to go back"));
     lv_obj_set_style_text_font(hint, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(hint, gray, 0);
     lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 296);

@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -17,17 +20,21 @@
  * ---------------------------------------------------------------------------
  * 最快上手方式（推荐）：
  *
- *     python3 tools/new_app.py 应用名 "按钮文字"
+ *     python3 tools/new_app.py 应用名 "按钮文字" "Button text"
  *
  * 它会复制本文件成 main/apps/ui_应用名.c/.h，替换掉里面的应用名与按钮文字，
  * 并自动帮你注册进启动台（apps_registry.c）与构建（CMakeLists.txt）。
  *
  * 手动接一个应用也可以，只需 3 步（见 apps_registry.c 顶部注释）。
+ *
+ * 界面文案请写成 SDG_T("中文", "English") —— 固件默认英文显示，
+ * 用户可在 DEMO 页切换语言（见 sdgoods_i18n.h）。英文不需要动字体子集，
+ * 新增中文才需要重跑 tools/gen_fonts.py。
  * ---------------------------------------------------------------------------
  *
  * 这个骨架演示了写一个应用要做的全部事情：
  *   · 建屏、画界面（用平台提供的圆屏栅格常量 SDG_UI_*）
- *   · 用 ui_app_shell 接入标准交互（顶部下滑菜单 / 音量 / 退出 / 截屏）
+ *   · 用 ui_app_shell 接入标准交互（顶部下滑菜单 / 音量 / 退出）
  *   · 退出时清理资源
  *   · 提供 poll 函数供主循环推进（本例用不上，留了空实现）
  *
@@ -94,7 +101,7 @@ static void on_btn_click(lv_event_t *e)
     s_count++;
     if (s_cnt_lbl) {
         char buf[32];
-        snprintf(buf, sizeof(buf), "点了 %d 次", s_count);
+        snprintf(buf, sizeof(buf), SDG_T("点了 %d 次", "%d taps"), s_count);
         lv_label_set_text(s_cnt_lbl, buf);
     }
     audio_sfx_flap();   /* 平台音效：短促提示音（BGM 未播放时是静默的，安全） */
@@ -115,14 +122,14 @@ void ui_app_template_show(void)
 
     /* 标题（用 SDG_UI_TITLE_Y 与其它页面保持同一水平线） */
     lv_obj_t *title = lv_label_create(s_scr);
-    lv_label_set_text(title, "我的应用");
+    lv_label_set_text(title, SDG_T("我的应用", "My App"));
     lv_obj_set_style_text_font(title, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, SDG_UI_TITLE_Y);
 
     /* 中间：一个显示状态的标签 */
     s_cnt_lbl = lv_label_create(s_scr);
-    lv_label_set_text(s_cnt_lbl, "点了 0 次");
+    lv_label_set_text(s_cnt_lbl, SDG_T("点了 0 次", "0 taps"));
     lv_obj_set_style_text_font(s_cnt_lbl, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(s_cnt_lbl, lv_color_hex(0xFFEC27), 0);
     lv_obj_align(s_cnt_lbl, LV_ALIGN_CENTER, 0, -50);
@@ -139,7 +146,7 @@ void ui_app_template_show(void)
     lv_obj_add_event_cb(btn, on_btn_click, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *blbl = lv_label_create(btn);
-    lv_label_set_text(blbl, "点我");
+    lv_label_set_text(blbl, SDG_T("点我", "Tap me"));
     lv_obj_set_style_text_font(blbl, &si_yuan_black_icon_14, 0);
     lv_obj_set_style_text_color(blbl, lv_color_white(), 0);
     lv_obj_center(blbl);

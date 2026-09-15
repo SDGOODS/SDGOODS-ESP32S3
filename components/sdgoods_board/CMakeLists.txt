@@ -14,6 +14,9 @@ idf_component_register(
         "src/ble_scan.c"
         "src/screenshot.c"
 
+        # --- 语言（默认英文，DEMO 页可切中文） ---
+        "src/sdgoods_i18n.c"
+
         "src/sdgoods_hooks.c"
 
         # --- 应用框架与开机流程 ---

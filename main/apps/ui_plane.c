@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -19,6 +22,7 @@
 #include "board_pins.h"
 #include "driver/gpio.h"
 #include "lvgl.h"
+#include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "st77916.h"
 #include "ui_app_page.h"
 #include "audio_recplay.h"
@@ -536,7 +540,7 @@ static void apply_difficulty(void)
     }
     if (s_level_lbl) {
         char buf[32];
-        snprintf(buf, sizeof(buf), "第%d关", s_level);
+        snprintf(buf, sizeof(buf), SDG_T("第%d关", "Lv%d"), s_level);
         lv_label_set_text(s_level_lbl, buf);
     }
 }
@@ -556,9 +560,9 @@ static lv_obj_t *make_item_badge(lv_obj_t *parent, int kind)
 {
     lv_color_t bg = PIX_ITEM_BOMB;        /* 炸弹：青 */
     lv_color_t fg = lv_color_black();
-    const char *glyph = "弹";
+    const char *glyph = SDG_T("弹", "B");
     if (kind == ITEM_FIRE) {
-        bg = PIX_ITEM_FIRE; glyph = "火";                 /* 火力：琥珀 */
+        bg = PIX_ITEM_FIRE; glyph = SDG_T("火", "F");                 /* 火力：琥珀 */
     } else if (kind == ITEM_LIFE) {
         bg = PIX_ITEM_LIFE; fg = PIX_LIFE_TXT; glyph = "♥"; /* 生命：浅粉底 + 深红爱心 */
     }
@@ -613,9 +617,10 @@ static void refresh_score_label(void)
     if (!s_score_lbl) return;
     char buf[48];
     if (s_mode == 1) {
-        snprintf(buf, sizeof(buf), "我 %d  队友 %d", s_my_score, s_peer_state.score);
+        snprintf(buf, sizeof(buf), SDG_T("我 %d  队友 %d", "Me %d  Mate %d"),
+                     s_my_score, s_peer_state.score);
     } else {
-        snprintf(buf, sizeof(buf), "分数: %d", s_score);
+        snprintf(buf, sizeof(buf), SDG_T("分数: %d", "Score: %d"), s_score);
     }
     lv_label_set_text(s_score_lbl, buf);
 }
@@ -665,7 +670,7 @@ static void apply_item(int kind)
         s_power_sec_shown = -1;    /* 触发 HUD 立即刷新 */
         s_power_hud_mode  = -1;    /* 让 HUD 重新按「生效中」上色 */
         char t[24];
-        snprintf(t, sizeof(t), "火力 %d列", power_cols(s_power_level));
+        snprintf(t, sizeof(t), SDG_T("火力 %d列", "Power %d"), power_cols(s_power_level));
         show_toast(t);
         ESP_LOGI("plane", "item: FIRE level=%d cols=%d (%d ticks)",
                  s_power_level, power_cols(s_power_level), POWER_TICKS);
@@ -673,20 +678,20 @@ static void apply_item(int kind)
         if (s_lives < MAX_LIVES) {
             s_lives++;
             refresh_hearts();
-            show_toast("生命 +1");
+            show_toast(SDG_T("生命 +1", "Life +1"));
             ESP_LOGI("plane", "item: LIFE +1 (lives=%d/%d)", s_lives, MAX_LIVES);
         } else {
             /* 命已满：折算分数，道具不浪费 */
             s_my_score += 5;
             s_score += 5;
             apply_difficulty();
-            show_toast("生命已满 +5");
+            show_toast(SDG_T("生命已满 +5", "Life full +5"));
             ESP_LOGI("plane", "item: LIFE full -> +5 score");
         }
     } else {
         clear_all_enemies(true);   /* 本机吃炸弹：计分 */
         s_bomb_seq++;              /* 广播炸弹事件，对端同步清屏（不计分） */
-        show_toast("清屏!");
+        show_toast(SDG_T("清屏!", "Clear!"));
         ESP_LOGI("plane", "item: BOMB seq=%d", s_bomb_seq);
     }
     audio_sfx_flap();
@@ -785,12 +790,12 @@ static void reset_game(void)
     }
     if (s_score_lbl) {
         if (s_mode == 1) {
-            lv_label_set_text(s_score_lbl, "我 0  队友 0");
+            lv_label_set_text(s_score_lbl, SDG_T("我 0  队友 0", "Me 0  Mate 0"));
         } else {
-            lv_label_set_text(s_score_lbl, "分数: 0");
+            lv_label_set_text(s_score_lbl, SDG_T("分数: 0", "Score: 0"));
         }
     }
-    if (s_level_lbl) lv_label_set_text(s_level_lbl, "第1关");
+    if (s_level_lbl) lv_label_set_text(s_level_lbl, SDG_T("第1关", "Lv1"));
     if (s_msg) {
         lv_obj_add_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_style_text_color(s_msg, lv_color_white(), 0);   /* 复位提示颜色（结束界面为红色，重开后恢复白色） */
@@ -857,9 +862,11 @@ static void plane_tick(lv_timer_t *t)
         s_wait_ticks++;
         if (s_wait_ticks % 20 == 0) {
             if (s_wait_ticks > 1200) {   /* 约 20s 仍未找到 */
-                lv_label_set_text(s_msg, "正在搜索对手蓝牙…\n（约 20s 未找到\n请确认对方也进入双人模式）");
+                lv_label_set_text(s_msg, SDG_T("正在搜索对手蓝牙…\n（约 20s 未找到\n请确认对方也进入双人模式）",
+                                   "Searching for peer...\n(if not found in ~20s,\nmake sure peer picked Duo)"));
             } else {
-                lv_label_set_text(s_msg, "正在搜索对手蓝牙…\n等待对方连接");
+                lv_label_set_text(s_msg, SDG_T("正在搜索对手蓝牙…\n等待对方连接",
+                                   "Searching for peer...\nWaiting for connection"));
             }
             lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
         }
@@ -889,10 +896,14 @@ static void plane_tick(lv_timer_t *t)
                 char buf[96];   /* 含内联着色标记 "#FF2D2D ...#"，需比纯文本留更多余量 */
                 if (phase == 1) {
                     snprintf(buf, sizeof(buf),
-                             "#FF2D2D 游戏结束#\n双方阵亡\n分数: %d 第%d关\n点击重玩", s_score, s_level);
+                             SDG_T("#FF2D2D 游戏结束#\n双方阵亡\n分数: %d 第%d关\n点击重玩",
+                             "#FF2D2D Game Over#\nBoth down\nScore: %d  Lv%d"),
+                 s_score, s_level);
                 } else {
                     snprintf(buf, sizeof(buf),
-                             "#FF2D2D 你已阵亡#\n等待对方…\n分数: %d 第%d关", s_score, s_level);
+                             SDG_T("#FF2D2D 你已阵亡#\n等待对方…\n分数: %d 第%d关",
+                             "#FF2D2D You are down#\nWaiting for peer...\nScore: %d  Lv%d"),
+                 s_score, s_level);
                 }
                 lv_label_set_text(s_msg, buf);
                 lv_obj_set_style_text_color(s_msg, lv_color_white(), 0);   /* 正文白色，仅标题内联标红 */
@@ -943,12 +954,13 @@ static void plane_tick(lv_timer_t *t)
                 if (sec < 1) sec = 1;
                 if (sec != s_power_sec_shown) {
                     s_power_sec_shown = sec;
-                    snprintf(pb, sizeof(pb), "火力 %d列 %ds", power_cols(s_power_level), sec);
+                    snprintf(pb, sizeof(pb), SDG_T("火力 %d列 %ds", "Power %d  %ds"),
+                             power_cols(s_power_level), sec);
                     lv_label_set_text(s_power_lbl, pb);
                 }
             } else if (mode == 2 && s_power_sec_shown != 0) {
                 s_power_sec_shown = 0;   /* 用 0 表示「暗色档位提示」已写好 */
-                snprintf(pb, sizeof(pb), "火力 %d列", power_cols(s_power_level));
+                snprintf(pb, sizeof(pb), SDG_T("火力 %d列", "Power %d"), power_cols(s_power_level));
                 lv_label_set_text(s_power_lbl, pb);
             }
         }
@@ -1032,11 +1044,12 @@ static void plane_tick(lv_timer_t *t)
                     s_score += e->pts;
                     if (s_mode == 1 && s_score_lbl) {
                         char buf[48];
-                        snprintf(buf, sizeof(buf), "我 %d  队友 %d", s_my_score, s_peer_state.score);
+                        snprintf(buf, sizeof(buf), SDG_T("我 %d  队友 %d", "Me %d  Mate %d"),
+                     s_my_score, s_peer_state.score);
                         lv_label_set_text(s_score_lbl, buf);
                     } else if (s_score_lbl) {
                         char buf[32];
-                        snprintf(buf, sizeof(buf), "分数: %d", s_score);
+                        snprintf(buf, sizeof(buf), SDG_T("分数: %d", "Score: %d"), s_score);
                         lv_label_set_text(s_score_lbl, buf);
                     }
                     apply_difficulty();
@@ -1142,9 +1155,13 @@ over:
     char buf[96];   /* 含内联着色标记 "#FF2D2D ...#"，需比纯文本留更多余量 */
     if (s_mode == 1) {
         /* 联机：先死时实际为「等待模式」，提示由 plane_tick 按对端存活状态刷新；这里给个初值 */
-        snprintf(buf, sizeof(buf), "#FF2D2D 你已阵亡#\n等待对方…\n分数: %d 第%d关", s_score, s_level);
+        snprintf(buf, sizeof(buf), SDG_T("#FF2D2D 你已阵亡#\n等待对方…\n分数: %d 第%d关",
+                             "#FF2D2D You are down#\nWaiting for peer...\nScore: %d  Lv%d"),
+                 s_score, s_level);
     } else {
-        snprintf(buf, sizeof(buf), "#FF2D2D 游戏结束#\n分数: %d 第%d关\n点击重玩\n按键返回", s_score, s_level);
+        snprintf(buf, sizeof(buf), SDG_T("#FF2D2D 游戏结束#\n分数: %d 第%d关\n点击重玩\n按键返回",
+                             "#FF2D2D Game Over#\nScore: %d  Lv%d\nTap to retry\nKey to go back"),
+                 s_score, s_level);
     }
     lv_label_set_text(s_msg, buf);
     lv_obj_set_style_text_color(s_msg, lv_color_white(), 0);   /* 正文白色，仅标题内联标红 */
@@ -1225,7 +1242,8 @@ static void ready_tap_poll(void)
             if (s_btn_single) lv_obj_add_flag(s_btn_single, LV_OBJ_FLAG_HIDDEN);
             if (s_btn_multi)  lv_obj_add_flag(s_btn_multi,  LV_OBJ_FLAG_HIDDEN);
             plane_net_begin(on_net_recv, on_net_conn);
-            lv_label_set_text(s_msg, "正在搜索对手蓝牙…\n等待对方连接");
+            lv_label_set_text(s_msg, SDG_T("正在搜索对手蓝牙…\n等待对方连接",
+                                   "Searching for peer...\nWaiting for connection"));
             lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
         }
         /* 落在按钮区外（顶部提示等）忽略，避免误开局 */
@@ -1280,7 +1298,7 @@ static void net_conn_changed_async(void *p)
         s_waiting_conn = false;
         s_wait_ticks = 0;
         if (s_state != ST_PLAY) {
-            lv_label_set_text(s_msg, "已连接! 点击开始游戏");
+            lv_label_set_text(s_msg, SDG_T("已连接! 点击开始游戏", "Connected! Tap to start"));
             lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
         }
     } else {
@@ -1288,7 +1306,7 @@ static void net_conn_changed_async(void *p)
         if (s_state != ST_PLAY) {
             s_waiting_conn = true;
             s_wait_ticks = 0;
-            lv_label_set_text(s_msg, "对方断开 重新搜索中…");
+            lv_label_set_text(s_msg, SDG_T("对方断开 重新搜索中…", "Peer left, searching..."));
             lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
         }
     }
@@ -1325,7 +1343,8 @@ static void update_peer_plane(void)
      * 否则本地收到对端包后会把自己的分数显示成双方总分。 */
     if (s_score_lbl) {
         char buf[48];
-        snprintf(buf, sizeof(buf), "我 %d  队友 %d", s_my_score, s_peer_state.score);
+        snprintf(buf, sizeof(buf), SDG_T("我 %d  队友 %d", "Me %d  Mate %d"),
+                     s_my_score, s_peer_state.score);
         lv_label_set_text(s_score_lbl, buf);
     }
 
@@ -1390,7 +1409,8 @@ static void update_peer_bullets(void)
                     s_score += e->pts;   /* 对端子弹击落只计入总贡献，不计入本机「我」的分 */
                     if (s_score_lbl) {
                         char buf[48];
-                        snprintf(buf, sizeof(buf), "我 %d  队友 %d", s_my_score, s_peer_state.score);
+                        snprintf(buf, sizeof(buf), SDG_T("我 %d  队友 %d", "Me %d  Mate %d"),
+                     s_my_score, s_peer_state.score);
                         lv_label_set_text(s_score_lbl, buf);
                     }
                     apply_difficulty();
@@ -1495,14 +1515,14 @@ void ui_plane_start(void)
     lv_obj_add_event_cb(tap, on_tap, LV_EVENT_RELEASED, NULL);
 
     s_score_lbl = lv_label_create(s_scr);
-    lv_label_set_text(s_score_lbl, "分数: 0");
+    lv_label_set_text(s_score_lbl, SDG_T("分数: 0", "Score: 0"));
     lv_obj_set_style_text_font(s_score_lbl, &cn_font_14, 0);
     lv_obj_set_style_text_color(s_score_lbl, lv_color_white(), 0);
     lv_obj_clear_flag(s_score_lbl, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_align(s_score_lbl, LV_ALIGN_TOP_MID, 0, 12);
 
     s_level_lbl = lv_label_create(s_scr);
-    lv_label_set_text(s_level_lbl, "第1关");
+    lv_label_set_text(s_level_lbl, SDG_T("第1关", "Lv1"));
     lv_obj_set_style_text_font(s_level_lbl, &cn_font_14, 0);
     lv_obj_set_style_text_color(s_level_lbl, lv_color_hex(0xFFEC27), 0);
     lv_obj_clear_flag(s_level_lbl, LV_OBJ_FLAG_CLICKABLE);
@@ -1510,7 +1530,7 @@ void ui_plane_start(void)
 
     /* HUD：火力等级 + 剩余时间（吃到「火」道具后显示，默认隐藏） */
     s_power_lbl = lv_label_create(s_scr);
-    lv_label_set_text(s_power_lbl, "火力 1列 0s");
+    lv_label_set_text(s_power_lbl, SDG_T("火力 1列 0s", "Power 1  0s"));
     lv_obj_set_style_text_font(s_power_lbl, &cn_font_14, 0);
     lv_obj_set_style_text_color(s_power_lbl, PIX_ITEM_FIRE, 0);
     lv_obj_clear_flag(s_power_lbl, LV_OBJ_FLAG_CLICKABLE);
@@ -1560,12 +1580,13 @@ void ui_plane_start(void)
     lv_obj_set_style_text_align(s_msg, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_align(s_msg, LV_ALIGN_CENTER, 0, -72);
-    lv_label_set_text(s_msg, "拖动飞机躲避敌机\n自动开火 击落得分\n选择下方模式开始");
+    lv_label_set_text(s_msg, SDG_T("拖动飞机躲避敌机\n自动开火 击落得分\n选择下方模式开始",
+                                   "Drag to dodge enemies\nAuto fire, score hits\nPick a mode below"));
     lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
 
     /* 对方分数标签（多人时显示，默认隐藏） */
     s_peer_lbl = lv_label_create(s_scr);
-    lv_label_set_text(s_peer_lbl, "队友: 0");
+    lv_label_set_text(s_peer_lbl, SDG_T("队友: 0", "Mate: 0"));
     lv_obj_set_style_text_font(s_peer_lbl, &cn_font_14, 0);
     lv_obj_set_style_text_color(s_peer_lbl, PIX_PEER, 0);
     lv_obj_clear_flag(s_peer_lbl, LV_OBJ_FLAG_CLICKABLE);
@@ -1581,7 +1602,7 @@ void ui_plane_start(void)
     lv_obj_set_style_bg_opa(s_btn_single, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(s_btn_single, 0, 0);
     lv_obj_t *lb1 = lv_label_create(s_btn_single);
-    lv_label_set_text(lb1, "单人");
+    lv_label_set_text(lb1, SDG_T("单人", "Solo"));
     lv_obj_set_style_text_font(lb1, &cn_font_16, 0);
     lv_obj_set_style_text_color(lb1, lv_color_black(), 0);
     lv_obj_center(lb1);
@@ -1596,7 +1617,7 @@ void ui_plane_start(void)
     lv_obj_set_style_bg_opa(s_btn_multi, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(s_btn_multi, 0, 0);
     lv_obj_t *lb2 = lv_label_create(s_btn_multi);
-    lv_label_set_text(lb2, "双人");
+    lv_label_set_text(lb2, SDG_T("双人", "Duo"));
     lv_obj_set_style_text_font(lb2, &cn_font_16, 0);
     lv_obj_set_style_text_color(lb2, lv_color_white(), 0);
     lv_obj_center(lb2);

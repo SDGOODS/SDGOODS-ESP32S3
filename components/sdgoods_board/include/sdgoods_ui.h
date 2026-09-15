@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 平台层（BSP）
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 平台层（板级支持包 BSP）
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: Apache-2.0
  *
  * 本文件属于平台层，以 Apache-2.0 发布：可自由商用、可闭源分发，
@@ -45,3 +48,13 @@
 
 #define SDG_UI_TITLE_Y    35
 #define SDG_UI_FOOTER_Y   296
+
+/* ---- 派生量：给「按数量自适应排布」用（启动台 / DEMO 页靠它们算坐标）----
+ * 有了这几个量，往应用清单里加应用就不用回来手改坐标了：
+ *   一行的总宽 = n*BTN_SIZE + (n-1)*间距；左起第一个按钮的 x = 圆屏中心 - 总宽/2
+ * 行高取栅格原值，所以 1 行按钮落在两行之间的正中（142），与主页按钮行同高。 */
+#define SDG_UI_BTN_PITCH   (SDG_UI_BTN2_X - SDG_UI_BTN1_X)        /* 94：相邻按钮左上角的 x 差 */
+#define SDG_UI_ROW1_Y      SDG_UI_BTN1_Y                          /* 93 */
+#define SDG_UI_ROW2_Y      SDG_UI_BTN4_Y                          /* 191 */
+#define SDG_UI_ROW_MID_Y   ((SDG_UI_ROW1_Y + SDG_UI_ROW2_Y) / 2)  /* 142：单行时的垂直居中高度 */
+#define SDG_UI_CENTER_X    (SDG_UI_BTN2_X + SDG_UI_BTN_SIZE / 2)  /* 180：圆屏水平中心 */

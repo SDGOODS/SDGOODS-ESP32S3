@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -20,6 +23,7 @@
 #include "board_pins.h"
 #include "driver/gpio.h"
 #include "lvgl.h"
+#include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "st77916.h"
 #include "ui_app_page.h"
 #include "audio_recplay.h"
@@ -392,10 +396,10 @@ static void reset_game(void)
     spawn_pipe();
 
     if (s_score_lbl) {
-        lv_label_set_text(s_score_lbl, "分数: 0");
+        lv_label_set_text(s_score_lbl, SDG_T("分数: 0", "Score: 0"));
     }
     if (s_level_lbl) {
-        lv_label_set_text(s_level_lbl, "第1关");
+        lv_label_set_text(s_level_lbl, SDG_T("第1关", "Lv1"));
     }
     if (s_msg) {
         lv_obj_add_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
@@ -493,7 +497,7 @@ static void flappy_tick(lv_timer_t *t)
             p->scored = true;
             s_score++;
             char buf[32];
-            snprintf(buf, sizeof(buf), "分数: %d", s_score);
+            snprintf(buf, sizeof(buf), SDG_T("分数: %d", "Score: %d"), s_score);
             lv_label_set_text(s_score_lbl, buf);
 
             /* 每通过 PIPES_PER_LEVEL 根水管升一关，提升难度并提示 */
@@ -503,12 +507,12 @@ static void flappy_tick(lv_timer_t *t)
                 apply_difficulty();
                 if (s_level_lbl) {
                     char lbuf[32];
-                    snprintf(lbuf, sizeof(lbuf), "第%d关", s_level);
+                    snprintf(lbuf, sizeof(lbuf), SDG_T("第%d关", "Lv%d"), s_level);
                     lv_label_set_text(s_level_lbl, lbuf);
                 }
                 if (s_toast) {
                     char tbuf[16];
-                    snprintf(tbuf, sizeof(tbuf), "第%d关", s_level);
+                    snprintf(tbuf, sizeof(tbuf), SDG_T("第%d关", "Lv%d"), s_level);
                     lv_label_set_text(s_toast, tbuf);
                     lv_obj_clear_flag(s_toast, LV_OBJ_FLAG_HIDDEN);
                     s_toast_hide_at = s_ticks + 75; /* 约1.2秒后隐藏 */
@@ -550,12 +554,14 @@ static void flappy_tick(lv_timer_t *t)
     if (dead) {
         s_state = ST_OVER;
         char buf[64];
-        snprintf(buf, sizeof(buf), "游戏结束\n分数: %d 第%d关", s_score, s_level);
+        snprintf(buf, sizeof(buf), SDG_T("游戏结束\n分数: %d 第%d关",
+                                              "Game Over\nScore: %d  Lv%d"),
+                 s_score, s_level);
         lv_label_set_text(s_msg, buf);
         lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(s_msg);
         if (s_over_hint) {
-            lv_label_set_text(s_over_hint, "点击重玩\n按键返回");
+            lv_label_set_text(s_over_hint, SDG_T("点击重玩\n按键返回", "Tap to retry\nKey to go back"));
             lv_obj_clear_flag(s_over_hint, LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(s_over_hint);
         }
@@ -664,7 +670,7 @@ void ui_flappy_start(void)
     }
 
     s_score_lbl = lv_label_create(s_scr);
-    lv_label_set_text(s_score_lbl, "分数: 0");
+    lv_label_set_text(s_score_lbl, SDG_T("分数: 0", "Score: 0"));
     lv_obj_set_style_text_font(s_score_lbl, &cn_font_14, 0);
     lv_obj_set_style_text_color(s_score_lbl, lv_color_white(), 0);
     lv_obj_clear_flag(s_score_lbl, LV_OBJ_FLAG_CLICKABLE);
@@ -672,7 +678,7 @@ void ui_flappy_start(void)
 
     /* 关卡指示（左上角） */
     s_level_lbl = lv_label_create(s_scr);
-    lv_label_set_text(s_level_lbl, "第1关");
+    lv_label_set_text(s_level_lbl, SDG_T("第1关", "Lv1"));
     lv_obj_set_style_text_font(s_level_lbl, &cn_font_14, 0);
     lv_obj_set_style_text_color(s_level_lbl, lv_color_hex(0xFFEC27), 0);
     lv_obj_clear_flag(s_level_lbl, LV_OBJ_FLAG_CLICKABLE);
@@ -725,10 +731,10 @@ void ui_flappy_start(void)
     s_ticks = 0;
     s_bird_y = FIELD_H / 2.0f;
     lv_obj_set_pos(s_bird, BIRD_X - 1, (lv_coord_t)s_bird_y);
-    if (s_score_lbl) lv_label_set_text(s_score_lbl, "分数: 0");
-    if (s_level_lbl) lv_label_set_text(s_level_lbl, "第1关");
+    if (s_score_lbl) lv_label_set_text(s_score_lbl, SDG_T("分数: 0", "Score: 0"));
+    if (s_level_lbl) lv_label_set_text(s_level_lbl, SDG_T("第1关", "Lv1"));
     if (s_msg) {
-        lv_label_set_text(s_msg, "点击屏幕开始");
+        lv_label_set_text(s_msg, SDG_T("点击屏幕开始", "Tap to start"));
         lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
     }
 

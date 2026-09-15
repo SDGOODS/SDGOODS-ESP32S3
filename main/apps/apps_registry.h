@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -31,10 +34,15 @@
  * 一个「应用入口」= 启动台上的一个圆按钮
  * ------------------------------------------------------------------------- */
 typedef struct {
-    /* 按钮上显示的文字。也是「有没有像素图标」的查找键（见 ui_app_page.c）。
+    /* 按钮文字（中文 / 英文）。渲染时按当前界面语言二选一（sdgoods_i18n）。
        ⚠️ 含中文就等于占用字体子集 —— 新字必须先重跑 tools/gen_fonts.py，
           否则屏上是方框。 */
-    const char *label;
+    const char *label_zh;
+    const char *label_en;
+    /* 像素图标键（见 ui_app_page.c 的 icon_map_for）："bird" / "plane" …
+       没有图标填 NULL，届时退化成显示文字标签。
+       注意它是**语言无关**的固定串 —— 别拿按钮文字当键，切语言后就查不到了。 */
+    const char *icon;
     /* 点按钮后进入应用（通常是 ui_xxx_show / ui_xxx_start） */
     void (*show)(void);
     /* 每帧推进；没有逐帧逻辑就填 NULL */

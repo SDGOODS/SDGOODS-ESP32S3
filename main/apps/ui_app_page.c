@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -19,6 +22,7 @@
 #include "driver/gpio.h"
 #include "lvgl.h"
 #include "apps_registry.h"   /* g_sdgoods_app：应用清单（增删应用改那里，不用动本文件） */
+#include "sdgoods_i18n.h"    /* SDG_T：按钮与标题文案中英切换 */
 #include "ui_home.h"
 #include "ui_swipe_back.h"
 
@@ -28,6 +32,7 @@ LV_FONT_DECLARE(si_yuan_black_icon_16);
 static lv_obj_t *s_scr;
 static bool s_active;   /* 当前是否为活动页（进入子页时置 false，避免 poll 误触发返回） */
 static bool s_key_down;
+static uint32_t s_lang_seq;   /* 建屏时的语言版本号；和当前不一致就重建 */
 
 /* 点按钮 → 进入应用。
  * 应用是谁、怎么进入，全部来自 apps_registry.c 的清单，本文件不需要知道任何应用。 */
@@ -44,16 +49,21 @@ static void on_app_btn(lv_event_t *e)
 /* ==================== 像素风图标 ====================
  * 12x12 像素图 × ICON_SCALE = 48px 图标，用 canvas 逐像素绘制（真像素风，非色块）。
  * 调色板：'.'=透明 'K'=描边黑 'Y'=小鸟黄 'O'=喙橙 'W'=白/机身银白
- *         'B'=座舱蓝 'R'=红 'D'=小鸟翼尾(深黄) 'C'=青 'P'=紫 'G'=蛇身绿
+ *         'B'=座舱蓝 'D'=小鸟翼尾(深黄) 'R'/'C'/'P'/'G' 暂无图标使用，留给新应用
  *
  * 想给自己的应用加图标：在下面加一个 12 行 x 12 列的字符数组，
- * 再在 icon_map_for() 里按按钮文字（label）返回它即可。
+ * 再在 icon_map_for() 里按**图标键**返回它即可（键写在 apps_registry.c 的
+ * s_apps[] 表里，与界面语言无关）。
  * 不加图标也没关系 —— 会退化成显示文字标签。
  * ======================================================== */
 #define ICON_MAP_W  12
 #define ICON_SCALE  4
 #define ICON_PX     (ICON_MAP_W * ICON_SCALE)      /* 48 */
 #define ICON_BUF_SZ (ICON_PX * ICON_PX * 3)        /* TRUE_COLOR_ALPHA: 2B 颜色 + 1B alpha */
+
+/* 启动台最多显示几个应用（图标缓冲按这个数量静态分配）。
+   超过这个数的应用仍会被轮询，只是没有按钮入口。 */
+#define SDG_UI_LAUNCHER_MAX 6
 
 /* 小鸟（朝右：白眼 + 橙喙 + 深黄翼尾） */
 static const char *const ICON_BIRD_MAP[ICON_MAP_W] = {
@@ -87,65 +97,33 @@ static const char *const ICON_PLANE_MAP[ICON_MAP_W] = {
     "...KKKKKK...",
 };
 
-/* 俄罗斯方块（2×2 四色方块：紫/青/黄/红，像素风） */
-static const char *const ICON_TETRIS_MAP[ICON_MAP_W] = {
-    "............",
-    ".PPPP..CCCC.",
-    ".PPPP..CCCC.",
-    ".PPPP..CCCC.",
-    ".PPPP..CCCC.",
-    ".PPPP..CCCC.",
-    "............",
-    ".YYYY..RRRR.",
-    ".YYYY..RRRR.",
-    ".YYYY..RRRR.",
-    ".YYYY..RRRR.",
-    ".YYYY..RRRR.",
-};
-
-/* 贪吃蛇（绿色蛇身 + 红色食物） */
-static const char *const ICON_SNAKE_MAP[ICON_MAP_W] = {
-    "............",
-    "..GGGGGG....",
-    ".G........G.",
-    ".G.GGGGGG.G.",
-    ".G.G....G.G.",
-    ".G.G.RR.G.G.",
-    ".G.G.RR.G.G.",
-    ".G.G....G.G.",
-    ".G.GGGGGG.G.",
-    ".G........G.",
-    "..GGGGGG....",
-    "............",
-};
-
 static lv_color_t icon_color(char c)
 {
     switch (c) {
     case 'K': return lv_color_hex(0x101820);   /* 描边黑 */
-    case 'Y': return lv_color_hex(0xFFEC27);   /* 小鸟黄 / O 块 */
+    case 'Y': return lv_color_hex(0xFFEC27);   /* 小鸟黄 */
     case 'O': return lv_color_hex(0xFF8A00);   /* 喙橙 */
     case 'W': return lv_color_hex(0xDEE2E6);   /* 机身银白 */
-    case 'B': return lv_color_hex(0x3B82F6);   /* 座舱蓝 / J 块 */
-    case 'R': return lv_color_hex(0xFF004D);   /* 红 / Z 块 */
-    case 'D': return lv_color_hex(0xF0A500);   /* 翼尾深黄 */
-    case 'C': return lv_color_hex(0x29ADFF);   /* I 块青 */
-    case 'P': return lv_color_hex(0x9B5DE5);   /* T 块紫 */
-    case 'G': return lv_color_hex(0x00E436);   /* 蛇身绿 */
+    case 'B': return lv_color_hex(0x3B82F6);   /* 座舱蓝 */
+    case 'D': return lv_color_hex(0xF0A500);   /* 小鸟翼尾深黄 */
+    case 'R': return lv_color_hex(0xFF004D);   /* 红   ┐ */
+    case 'C': return lv_color_hex(0x29ADFF);   /* 青   │ 暂无图标使用， */
+    case 'P': return lv_color_hex(0x9B5DE5);   /* 紫   │ 留给新应用 */
+    case 'G': return lv_color_hex(0x00E436);   /* 绿   ┘ */
     default:  return lv_color_white();
     }
 }
 
-/* 按按钮文字查像素图。没有对应图标的返回 NULL（调用方会退化成文字标签）。 */
-static const char *const *icon_map_for(const char *label)
+/* 按图标键查像素图。没有对应图标的返回 NULL（调用方会退化成文字标签）。
+   键是语言无关的固定串（apps_registry.h 的 icon 字段）——**不要**用按钮文字当键：
+   切到英文后按钮文字变了，就再也查不到图标。 */
+static const char *const *icon_map_for(const char *key)
 {
-    if (!label) {
+    if (!key) {
         return NULL;
     }
-    if (strcmp(label, "小鸟") == 0)       return ICON_BIRD_MAP;
-    if (strcmp(label, "飞机") == 0)       return ICON_PLANE_MAP;
-    if (strcmp(label, "俄罗斯方块") == 0) return ICON_TETRIS_MAP;
-    if (strcmp(label, "贪吃蛇") == 0)     return ICON_SNAKE_MAP;
+    if (strcmp(key, "bird") == 0)  return ICON_BIRD_MAP;
+    if (strcmp(key, "plane") == 0) return ICON_PLANE_MAP;
     return NULL;
 }
 
@@ -179,9 +157,18 @@ static void draw_pixel_icon(lv_obj_t *btn, uint8_t *buf, const char *const *map)
 }
 
 /* 每个图标一份常驻缓冲（启动台只建一次屏，静态即可） */
-static uint8_t s_icon_buf[6][ICON_BUF_SZ];
+static uint8_t s_icon_buf[SDG_UI_LAUNCHER_MAX][ICON_BUF_SZ];
 
-/* app == NULL 时画一个不可点的空位按钮 */
+/* 一行 n 个按钮时，第 1 个按钮的左上角 x（整行在圆屏内水平居中）。
+   n <= 0 时返回什么都不会被用到。 */
+static lv_coord_t row_start_x(int n)
+{
+    const lv_coord_t total = n * SDG_UI_BTN_SIZE
+                           + (n - 1) * (SDG_UI_BTN_PITCH - SDG_UI_BTN_SIZE);
+    return SDG_UI_CENTER_X - total / 2;
+}
+
+/* app == NULL 时画一个不可点的空位按钮（保留此分支：新应用图标缓冲未就绪时用得上） */
 static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
                                 const sdgoods_app_t *app, uint8_t *icon_buf)
 {
@@ -199,14 +186,15 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
         return btn;
     }
 
-    const char *const *map = icon_map_for(app->label);
+    const char *label = SDG_T(app->label_zh, app->label_en);
+    const char *const *map = icon_map_for(app->icon);
     if (map) {
         draw_pixel_icon(btn, icon_buf, map);
-    } else if (app->label && app->label[0]) {
+    } else if (label && label[0]) {
         /* 兜底：没有像素图标就显示文字 —— 注意这会用到字体子集，
-           新文字必须先重跑 tools/gen_fonts.py */
+           中文文案改动后必须先重跑 tools/gen_fonts.py */
         lv_obj_t *lbl = lv_label_create(btn);
-        lv_label_set_text(lbl, app->label);
+        lv_label_set_text(lbl, label);
         lv_obj_set_style_text_font(lbl, &si_yuan_black_icon_14, 0);
         lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
         lv_obj_center(lbl);
@@ -230,6 +218,12 @@ static void close_page(void)
 
 void ui_app_page_show(void)
 {
+    /* 语言切换过 -> 旧屏文案作废，删掉重建 */
+    if (s_scr && s_lang_seq != sdg_i18n_seq()) {
+        lv_obj_del(s_scr);
+        s_scr = NULL;
+    }
+
     if (s_scr) {
         /* 屏已存在（如从子游戏退出返回）：仅切回活动屏、恢复 poll 状态，不重建。
            若不 lv_scr_load，活动屏仍是子游戏屏，随后被 close_to_app 删除，
@@ -241,6 +235,7 @@ void ui_app_page_show(void)
     }
     s_active = true;
     s_key_down = false;
+    s_lang_seq = sdg_i18n_seq();
 
     s_scr = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(s_scr, lv_color_black(), 0);
@@ -250,28 +245,37 @@ void ui_app_page_show(void)
     ui_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *title = lv_label_create(s_scr);
-    lv_label_set_text(title, "应用");
+    lv_label_set_text(title, SDG_T("应用", "Apps"));
     lv_obj_set_style_text_font(title, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, SDG_UI_TITLE_Y);
 
-    /* 6 个固定按钮位，内容来自应用清单（apps_registry.c 的 s_apps[]）：
-       清单里的顺序 = 按钮顺序；清单少于 6 个时，多出来的位置显示为不可点的空位。 */
-    static const lv_coord_t k_btn_x[6] = {
-        SDG_UI_BTN1_X, SDG_UI_BTN2_X, SDG_UI_BTN3_X,
-        SDG_UI_BTN4_X, SDG_UI_BTN5_X, SDG_UI_BTN6_X,
-    };
-    static const lv_coord_t k_btn_y[6] = {
-        SDG_UI_BTN1_Y, SDG_UI_BTN2_Y, SDG_UI_BTN3_Y,
-        SDG_UI_BTN4_Y, SDG_UI_BTN5_Y, SDG_UI_BTN6_Y,
-    };
-    for (int i = 0; i < 6; i++) {
-        const sdgoods_app_t *app = (i < g_sdgoods_app_count) ? &g_sdgoods_app[i] : NULL;
-        make_round_btn(s_scr, k_btn_x[i], k_btn_y[i], app, s_icon_buf[i]);
+    /* 按钮按应用数量自适应排布（apps_registry.c 的 s_apps[] 顺序 = 按钮顺序）：
+         1~3 个 → 单行，垂直居中（与主页按钮行同高）
+         4~6 个 → 两行，每行各自水平居中
+       位置全部由 row_start_x() + sdgoods_ui.h 的常量推导，增减应用不用手改坐标。 */
+    int shown = g_sdgoods_app_count;
+    if (shown > SDG_UI_LAUNCHER_MAX) {
+        shown = SDG_UI_LAUNCHER_MAX;   /* 放不下的应用仍会被轮询，只是没有入口 */
+    }
+    const bool two_rows = (shown > 3);
+    const int  row0_n   = two_rows ? 3 : shown;
+    const int  row1_n   = two_rows ? (shown - 3) : 0;
+
+    lv_coord_t x = row_start_x(row0_n);
+    for (int i = 0; i < row0_n; i++) {
+        make_round_btn(s_scr, x + i * SDG_UI_BTN_PITCH,
+                       two_rows ? SDG_UI_ROW1_Y : SDG_UI_ROW_MID_Y,
+                       &g_sdgoods_app[i], s_icon_buf[i]);
+    }
+    x = row_start_x(row1_n);
+    for (int i = 0; i < row1_n; i++) {
+        make_round_btn(s_scr, x + i * SDG_UI_BTN_PITCH, SDG_UI_ROW2_Y,
+                       &g_sdgoods_app[3 + i], s_icon_buf[3 + i]);
     }
 
     lv_obj_t *hint = lv_label_create(s_scr);
-    lv_label_set_text(hint, "按电源键返回");
+    lv_label_set_text(hint, SDG_T("按电源键返回", "Power key to go back"));
     lv_obj_set_style_text_font(hint, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(hint, lv_color_hex(0x808080), 0);
     lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 296);

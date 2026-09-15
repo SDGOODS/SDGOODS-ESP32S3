@@ -4,6 +4,11 @@
 > 你在为本仓库改代码前，请先读完本文件；人也可以读，但重点在"约束"。
 >
 > 目标读者是**谷仓 SDGOODS 开放平台的用户**：他们用 AI 辅助，在这块圆屏设备上做二次开发。
+>
+> **归属**：本工程是**谷仓共创计划**的基础工程，对应**谷仓 SDGOODS 开放平台**与
+> **谷仓次元屏（谷仓电子徽章）**设备；上述名称与本基础代码的著作权及相关权利，
+> 均归**深圳希德创新网络有限公司（SDGOODS）**所有。
+> 改代码时**不要删掉文件头的版权 / Required Notice 声明** —— 那是许可生效条件（见第 9 节清单）。
 
 ---
 
@@ -147,8 +152,8 @@ lv_scr_load(s_scr);                       /* bind 要在 load 之后 */
 - 内部**绝不做阻塞操作**（`vTaskDelay` / 等信号量 / 阻塞读串口）。
   需要等待的逻辑放到独立 FreeRTOS 任务里，poll 里只读标志位。
 
-参考实现：`main/apps/app_template.c`（最小完整例子，编译后就是启动台上的「示例」应用）、
-`ui_snake.c`（简单）、`ui_plane.c`（最复杂，带游戏循环和联机）。
+参考实现：`main/apps/app_template.c`（最小完整例子，无界面入口但一直参与编译，
+所以模板不会失效）、`ui_flappy.c`（简单）、`ui_plane.c`（最复杂，带游戏循环和联机）。
 
 ---
 
@@ -185,7 +190,7 @@ python3 tools/gen_fonts.py --check        # 只校验当前字体是否缺字（
 
 ```bash
 python3 tools/font_metrics.py                       # 内置的本项目关键文案表
-python3 tools/font_metrics.py --strings "俄罗斯方块,按电源键返回"
+python3 tools/font_metrics.py --strings "谷仓共创计划,按电源键返回"
 ```
 
 它从生成的字体里解析 `glyph_dsc`（前进宽度，1/16 px）与 `cmaps`，算出渲染宽度，
@@ -273,5 +278,6 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
 - [ ] 改玩法的话：联机四条铁律 + same-tick 顺序都遵守了
 - [ ] `board_pins.h`、`lvgl_port.c` 的缓冲配置没被顺手改掉
 - [ ] 新建的 `.c` / `.h` / `.py` 都带了许可头（`python3 tools/add_license_headers.py`）
+- [ ] 没有删掉已有文件头的版权 / `Required Notice` 声明（删掉即失去使用授权）
 - [ ] 没动 `main/patches/` 与 `fonts/` 的许可声明（这两处的许可由上游决定，不可更改）
 - [ ] 截屏验证过画面（UI 类改动）

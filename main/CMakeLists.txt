@@ -18,9 +18,11 @@ idf_component_register(
         "apps/ui_scan_page.c"
         "apps/ui_rec_page.c"
         "apps/ui_other_page.c"
-        "apps/ui_about.c"       # 「关于」：品牌 / 公司 / 版本 / 授权（启动台第 6 格）
+        "apps/ui_about.c"       # 「关于」：品牌 / 公司 / 版本 / 授权（入口在 DEMO 页）
 
-        # --- 应用骨架 / 示例（自己写的新应用加在这一段） ---
+        # --- 应用骨架（自己写的新应用加在这一段） ---
+        # app_template.c 本身没有界面入口，它留在构建里的意义是「模板始终能编译」，
+        # tools/new_app.py 生成新应用时就是照抄它。删掉这个文件脚手架就废了。
         "apps/app_template.c"
         # >>> new_app.py: 新应用源文件插到这里 >>>
 
@@ -28,8 +30,6 @@ idf_component_register(
         "apps/ui_flappy.c"
         "apps/ui_plane.c"
         "apps/plane_net.c"      # 飞机游戏的双人蓝牙联机
-        "apps/ui_tetris.c"
-        "apps/ui_snake.c"
 
     INCLUDE_DIRS
         "apps"                  # 让 #include "ui_home.h" 直接可用

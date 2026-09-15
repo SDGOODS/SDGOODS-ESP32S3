@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -44,32 +47,32 @@
 #include "ui_scan_page.h"
 #include "ui_rec_page.h"
 #include "ui_other_page.h"
+#include "ui_about.h"        /* 「关于」页（DEMO 页的子页，用电源键返回） */
 
 /* ---- 应用清单里用到的应用 ---- */
-#include "app_template.h"    /* 「示例」：新应用骨架，点进去可看到完整参考实现 */
 #include "ui_flappy.h"
 #include "ui_plane.h"
-#include "ui_tetris.h"
-#include "ui_snake.h"
-#include "ui_about.h"        /* 「关于」：品牌 / 公司 / 固件版本 / 授权提示 */
 /* >>> new_app.py: 新应用 include 插到这里 >>> */
 
 /* ===========================================================================
  * ★ 应用清单 ★
  *
- * 顺序 = 启动台上的按钮顺序（第 1 行 3 个，第 2 行 3 个，共 6 个位置）。
+ * 顺序 = 启动台上的按钮顺序。排布由 ui_app_page.c 按数量自适应：
+ *   1~3 个 → 单行居中；4~6 个 → 两行居中。
  * 超过 6 个的应用不会显示按钮（但 poll 仍会被调用），要更多入口请调整
- * ui_app_page.c 的栅格。
+ * ui_app_page.c 的 SDG_UI_LAUNCHER_MAX 与排布规则。
  *
- *   {  按钮文字,    进入函数,        每帧推进（可为 NULL） },
+ * 注意：「关于」不在这里 —— 它是 DEMO 页的入口（ui_demo_page.c）。
+ *
+ *   .label_zh 中文按钮文字 / .label_en 英文按钮文字（按界面语言二选一）
+ *   .icon     像素图标键（"bird" / "plane" / …，没有图标填 NULL）
+ *   .show     点按钮进入应用 / .poll 每帧推进（可为 NULL）
  * =========================================================================== */
 static const sdgoods_app_t s_apps[] = {
-    { "小鸟",       ui_flappy_start, ui_flappy_poll },
-    { "飞机",       ui_plane_start,  ui_plane_poll  },
-    { "俄罗斯方块", ui_tetris_start, ui_tetris_poll },
-    { "贪吃蛇",     ui_snake_start,  ui_snake_poll  },
-    { "示例",       ui_app_template_show, ui_app_template_poll },
-    { "关于",       ui_about_page_show, ui_about_page_poll },
+    { .label_zh = "小鸟", .label_en = "Bird",  .icon = "bird",
+      .show = ui_flappy_start, .poll = ui_flappy_poll },
+    { .label_zh = "飞机", .label_en = "Plane", .icon = "plane",
+      .show = ui_plane_start,  .poll = ui_plane_poll  },
     /* >>> new_app.py: 新应用插到这里（保持缩进即可） >>> */
 };
 
@@ -90,6 +93,7 @@ static void apps_poll(void)
     ui_scan_page_poll();
     ui_rec_page_poll();
     ui_other_page_poll();
+    ui_about_page_poll();   /* 「关于」页：电源键返回上一页（漏了这行按电源键没反应） */
     ui_demo_page_poll();
     ui_app_page_poll();
 

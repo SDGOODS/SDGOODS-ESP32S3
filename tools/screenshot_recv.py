@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-# SDGOODS 开放平台基础工程 · 开发工具
+# 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程 · 开发工具
 # https://github.com/SDGOODS/SDGOODS-ESP32S3
 #
 # Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+# 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+#   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
 # SPDX-License-Identifier: Apache-2.0
 #
 # 本工具以 Apache-2.0 发布：可自由商用。详见 LICENSING.md。
 #
-# -*- coding: utf-8 -*-
 """ESP32「一键截屏」接收端：把设备经 USB 串口发来的 base64 位图还原成 PNG。
 
 固件侧：main/screenshot.c（顶部下滑「菜单」-> 点「截屏」，或串口收到 's' 触发）。

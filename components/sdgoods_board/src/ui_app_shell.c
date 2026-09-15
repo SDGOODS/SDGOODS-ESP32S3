@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 平台层（BSP）
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 平台层（板级支持包 BSP）
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: Apache-2.0
  *
  * 本文件属于平台层，以 Apache-2.0 发布：可自由商用、可闭源分发，
@@ -15,11 +18,12 @@
 #include <string.h>
 
 #include "lvgl.h"
+#include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "st77916.h"        /* LCD_WIDTH / LCD_HEIGHT */
 #include "sdgoods_ui.h"     /* SDG_UI_BTN_SIZE 等布局常量，菜单按钮复用主页风格 */
 #include "sdgoods_hooks.h"  /* 回主页 / 回应用页：交给应用层注册的实现 */
 #include "audio_recplay.h"  /* audio_set_volume / audio_get_volume */
-#include "screenshot.h"     /* screenshot_capture_async：菜单「截屏」按钮 */
+#include "screenshot.h"     /* screenshot_init：串口 's' 触发截屏（菜单按钮已移除） */
 #include "esp_log.h"
 
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -53,7 +57,7 @@ void ui_app_volume_up(void)
     audio_set_volume(s_vol_pct);
     if (s_vol_label) {
         char b[16];
-        snprintf(b, sizeof(b), "音量: %d%%", s_vol_pct);
+        snprintf(b, sizeof(b), SDG_T("音量: %d%%", "Vol: %d%%"), s_vol_pct);
         lv_label_set_text(s_vol_label, b);
     }
 }
@@ -65,7 +69,7 @@ void ui_app_volume_down(void)
     audio_set_volume(s_vol_pct);
     if (s_vol_label) {
         char b[16];
-        snprintf(b, sizeof(b), "音量: %d%%", s_vol_pct);
+        snprintf(b, sizeof(b), SDG_T("音量: %d%%", "Vol: %d%%"), s_vol_pct);
         lv_label_set_text(s_vol_label, b);
     }
 }
@@ -79,7 +83,7 @@ void ui_app_shell_init(void)
 {
     audio_set_volume(s_vol_pct);
     ESP_LOGI("app_shell", "init: default volume=%d%%", s_vol_pct);
-    screenshot_init();   /* 截屏能力：菜单按钮 + 串口 's' 触发（须在 LVGL 线程内初始化） */
+    screenshot_init();   /* 截屏能力：串口 's' 触发（须在 LVGL 线程内初始化） */
 }
 
 bool ui_app_shell_is_app_active(void)
@@ -126,15 +130,8 @@ static void on_menu_exit(lv_event_t *e)
     ui_app_shell_leave(false);   /* 退出应用 -> 回「应用页」启动台 */
 }
 
-/* 截屏：先关掉菜单浮层（截出的画面里不要带菜单），
- * 随后 screenshot 模块会把当前屏幕渲染成位图并经 USB 串口输出，
- * 电脑端运行 screenshot_recv.py 即可自动存成 PNG。 */
-static void on_menu_shot(lv_event_t *e)
-{
-    (void)e;
-    ui_app_shell_menu_close();
-    screenshot_capture_async();
-}
+/* 截屏按钮已从菜单中移除（保留串口 's' 触发，见 screenshot.c）。
+ * 需要时在电脑端运行 tools/screenshot_recv.py -t 即可抓图。 */
 
 static void on_bot_pressed(lv_event_t *e)
 {
@@ -179,7 +176,7 @@ void ui_app_shell_menu_open(void)
     lv_obj_move_foreground(s_menu);
 
     lv_obj_t *title = lv_label_create(s_menu);
-    lv_label_set_text(title, "菜单");
+    lv_label_set_text(title, SDG_T("菜单", "Menu"));
     lv_obj_set_style_text_font(title, &cn_font_16, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 44);
@@ -187,20 +184,18 @@ void ui_app_shell_menu_open(void)
     s_vol_label = lv_label_create(s_menu);
     {
         char b[16];
-        snprintf(b, sizeof(b), "音量: %d%%", s_vol_pct);
+        snprintf(b, sizeof(b), SDG_T("音量: %d%%", "Vol: %d%%"), s_vol_pct);
         lv_label_set_text(s_vol_label, b);
     }
     lv_obj_set_style_text_font(s_vol_label, &cn_font_14, 0);
     lv_obj_set_style_text_color(s_vol_label, lv_color_white(), 0);
     lv_obj_align(s_vol_label, LV_ALIGN_TOP_MID, 0, 82);
 
-    /* 三个圆按钮，复用 home 第一行布局（y=142 居中） */
-    make_round_btn(s_menu, SDG_UI_BTN1_X, 142, "音量+", on_vol_plus);
-    make_round_btn(s_menu, SDG_UI_BTN2_X, 142, "音量-", on_vol_minus);
-    make_round_btn(s_menu, SDG_UI_BTN3_X, 142, "退出",  on_menu_exit);
-
-    /* 第二行：截屏（居中）。点它 = 把当前屏幕截图并通过 USB 串口传给电脑 */
-    make_round_btn(s_menu, (LCD_WIDTH - SDG_UI_BTN_SIZE) / 2, 224, "截屏", on_menu_shot);
+    /* 三个圆按钮，复用 home 第一行布局（y=142 居中）：
+       音量+ / 音量- / 退出。第二行留空（原来的「截屏」按钮已移除）。 */
+    make_round_btn(s_menu, SDG_UI_BTN1_X, 142, SDG_T("音量+", "Vol+"), on_vol_plus);
+    make_round_btn(s_menu, SDG_UI_BTN2_X, 142, SDG_T("音量-", "Vol-"), on_vol_minus);
+    make_round_btn(s_menu, SDG_UI_BTN3_X, 142, SDG_T("退出", "Exit"), on_menu_exit);
 
     /* 底部上滑手势捕获层（菜单内最上层） */
     lv_obj_t *bot = lv_obj_create(s_menu);

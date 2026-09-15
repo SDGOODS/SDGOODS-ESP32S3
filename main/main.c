@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -41,7 +44,8 @@ void app_main(void)
        看串口日志或 dump 固件都能看出源头与授权状态。
        文案统一从 build_version.h 取，不要在别处另写一份字面量。 */
     ESP_LOGI(TAG, "========================================================");
-    ESP_LOGI(TAG, " %s · %s", SDGOODS_BRAND, SDGOODS_PRODUCT);
+    ESP_LOGI(TAG, " %s：%s", SDGOODS_PROGRAM, SDGOODS_PLATFORM);
+    ESP_LOGI(TAG, " %s（%s）", SDGOODS_PRODUCT, SDGOODS_BRAND);
     ESP_LOGI(TAG, " %s", SDGOODS_VENDOR);
     ESP_LOGI(TAG, " 固件版本 %s", BUILD_VERSION_STR);
     ESP_LOGI(TAG, " %s", SDGOODS_LICENSE_TAG);
@@ -87,6 +91,10 @@ void app_main(void)
     ESP_ERROR_CHECK(ble_scan_init());
     ESP_ERROR_CHECK(audio_recplay_init());
     key_input_init();
+
+    /* 界面语言：出厂默认英文，用户可在 DEMO 页切换（存 NVS，重启保留）。
+       必须在任何界面创建之前调用 —— 首屏是在 ui_boot_show() 里创建的。 */
+    sdg_i18n_init();
 
     /* LVGL 移植 + 触摸 + 硬件信息 */
     lvgl_port_init();

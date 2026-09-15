@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -21,6 +24,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
+#include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "ui_home.h"
 #include "ui_swipe_back.h"
 
@@ -47,15 +51,15 @@ static void set_btn(rec_state_t st)
         return;
     }
     if (st == REC_IDLE) {
-        lv_label_set_text(s_btn_lbl, "开始录音");
+        lv_label_set_text(s_btn_lbl, SDG_T("开始录音", "Start"));
         lv_obj_set_style_text_color(s_btn_lbl, lv_color_white(), 0);
         lv_obj_add_flag(s_btn, LV_OBJ_FLAG_CLICKABLE);
     } else if (st == REC_RECORDING) {
-        lv_label_set_text(s_btn_lbl, "录音中");
+        lv_label_set_text(s_btn_lbl, SDG_T("录音中", "Recording"));
         lv_obj_set_style_text_color(s_btn_lbl, lv_color_hex(0x00E676), 0);
         lv_obj_clear_flag(s_btn, LV_OBJ_FLAG_CLICKABLE);
     } else {
-        lv_label_set_text(s_btn_lbl, "播放中");
+        lv_label_set_text(s_btn_lbl, SDG_T("播放中", "Playing"));
         lv_obj_set_style_text_color(s_btn_lbl, lv_color_hex(0x00E676), 0);
         lv_obj_clear_flag(s_btn, LV_OBJ_FLAG_CLICKABLE);
     }
@@ -123,13 +127,13 @@ void ui_rec_page_show(void)
     ui_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *title = lv_label_create(s_scr);
-    lv_label_set_text(title, "录音");
+    lv_label_set_text(title, SDG_T("录音", "Rec"));
     lv_obj_set_style_text_font(title, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 48);
 
     lv_obj_t *sub = lv_label_create(s_scr);
-    lv_label_set_text(sub, "录5s声音后自动播放");
+    lv_label_set_text(sub, SDG_T("录5s声音后自动播放", "Records 5s, then plays back"));
     lv_obj_set_style_text_font(sub, &si_yuan_black_icon_14, 0);
     lv_obj_set_style_text_color(sub, gray, 0);
     lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 88);
@@ -150,7 +154,7 @@ void ui_rec_page_show(void)
     set_btn(REC_IDLE);
 
     lv_obj_t *hint = lv_label_create(s_scr);
-    lv_label_set_text(hint, "按电源键返回");
+    lv_label_set_text(hint, SDG_T("按电源键返回", "Power key to go back"));
     lv_obj_set_style_text_font(hint, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(hint, gray, 0);
     lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 296);

@@ -19,7 +19,7 @@ SDGOODS-ESP32S3/
 │   ├── main.c                    入口，只做装配
 │   ├── apps/                     所有界面与游戏
 │   │   ├── apps_registry.c       ★ 应用注册表（唯一接线点）
-│   │   ├── app_template.c        可编译的示例应用，照着抄
+│   │   ├── app_template.c        新应用模板（无界面入口，照抄它写自己的应用）
 │   │   └── ui_*.c                主页 / 启动台 / 各游戏
 │   └── patches/                  LVGL 补丁（GIF canvas 走 PSRAM）
 └── tools/                        辅助脚本（字体生成、新建应用、联机分析）
@@ -70,12 +70,12 @@ idf.py build
 |---|---|
 | `build/bootloader/bootloader.bin` | `0x0` |
 | `build/partition_table/partition-table.bin` | `0x8000` |
-| `build/home_demo.bin` | `0x10000` |
+| `build/SDGOODS_EBADGE.bin` | `0x10000` |
 
 正常体积约 **1.72 MB**（app 分区 31 MB，用掉约 5%），编译结束应看到：
 
 ```
-home_demo.bin binary size 0x1a3c00 bytes. ... 0x1d5c400 bytes (95%) free.
+SDGOODS_EBADGE.bin binary size 0x1a3c00 bytes. ... 0x1d5c400 bytes (95%) free.
 ```
 
 > **改了 `components/` 或 `main/` 后如果行为像没生效**：确认源码确实在
@@ -111,7 +111,7 @@ python -m esptool --chip esp32s3 merge_bin \
     -o merged.bin \
     0x0    bootloader/bootloader.bin \
     0x8000 partition_table/partition-table.bin \
-    0x10000 home_demo.bin
+    0x10000 SDGOODS_EBADGE.bin
 ```
 
 对方烧录：
@@ -159,8 +159,8 @@ components/sdgoods_board/LICENSE   # 平台层 Apache-2.0 全文
 `flash.sh` / 包内 `README.md` 里也建议写一行：
 「个人免费使用；商业用途需授权，详见 LICENSING.md」。
 
-> 顺带一提：对方烧完固件后，串口开机日志会打印品牌与授权横幅，
-> 启动台第 6 格的「关于」页也能看到版本与授权状态 —— 不必额外解释。
+> 顺带一提：对方烧完固件后，串口开机日志会打印项目归属、品牌与授权横幅，
+> DEMO 页的「关于」也能看到同样的信息 —— 不必额外解释。
 
 ## 5. 字体：新增中文文案后必须重生成
 
@@ -217,7 +217,7 @@ python3 tools/gen_fonts.py --check
 
 ```bash
 python3 tools/font_metrics.py                # 用内置的本项目关键文案表
-python3 tools/font_metrics.py --strings "俄罗斯方块,按电源键返回"
+python3 tools/font_metrics.py --strings "谷仓共创计划,按电源键返回"
 ```
 
 它解析生成字体里的 `glyph_dsc`（前进宽度）与 `cmaps`，直接算出每个文案的渲染宽度，
@@ -225,7 +225,7 @@ python3 tools/font_metrics.py --strings "俄罗斯方块,按电源键返回"
 一眼看出换字体后哪些文案变宽了：
 
 ```
-启动台按钮   俄罗斯方块   14      70.0    70.0     +0.0  OK
+DEMO 按钮    关于         14      28.0    28.0     +0.0  OK
 主页页脚     谷仓SDGOODS  14      99.5    94.4     -5.1  OK
 ```
 
@@ -266,5 +266,6 @@ python3 tools/new_app.py my_app "我的应用" --dry-run
 - 生成的三处 `>>> new_app.py ... >>>` 标记**不要删** —— 脚本靠它们定位插入点。
 - 退出回调**不要叫 `on_exit`** —— libc 里有同名函数，会报 `conflicting types`。
 
-完整实现参考 `main/apps/app_template.c`：它本身就是一个可编译运行的示例应用
-（启动台上的「示例」按钮），覆盖了建屏、栅格定位、应用外壳接入、退出清理、每帧轮询。
+完整实现参考 `main/apps/app_template.c`：它本身就可以直接编译，覆盖了建屏、栅格定位、
+应用外壳接入、退出清理、每帧轮询。（它没有界面入口 —— 留在仓库里的意义是
+保证模板始终能编译。）

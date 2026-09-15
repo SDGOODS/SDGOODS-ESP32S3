@@ -99,14 +99,19 @@ sdgoods_ui_set_nav(&nav);
 
 ```c
 static const sdgoods_app_t s_apps[] = {
-    { "小鸟",       ui_flappy_start, ui_flappy_poll },   /* 按钮文字, 进入, 每帧推进 */
-    ...
+    { "小鸟", ui_flappy_start, ui_flappy_poll },   /* 按钮文字, 进入, 每帧推进 */
+    { "飞机", ui_plane_start,  ui_plane_poll  },
 };
 ```
 
 - **启动台**（`ui_app_page.c`）遍历它生成圆按钮 —— 所以 `ui_app_page.c` 不需要
   `#include` 任何具体应用，加应用也不用改它；
 - **轮询**（`apps_poll()`）遍历它调 `poll`。
+
+按钮位置也是自动算的：1~3 个走单行垂直居中，4~6 个走两行、每行各自水平居中，
+超过 `SDG_UI_LAUNCHER_MAX`（6）个不显示按钮（但 `poll` 仍会被调用）。
+坐标由 `sdgoods_ui.h` 的 `SDG_UI_BTN_PITCH / SDG_UI_ROW1_Y / SDG_UI_ROW2_Y /
+SDG_UI_ROW_MID_Y / SDG_UI_CENTER_X` 推导 —— **增减应用不必手改坐标**。
 
 `tools/new_app.py` 会自动往这张表和 `CMakeLists.txt` 插一行，插入点靠
 `# >>> new_app.py: ... >>>` 标记定位（**别删标记**）。
@@ -139,7 +144,8 @@ ui_app_shell_set_resume_cb(on_resume);
 - 界面栅格用 `sdgoods_ui.h` 的 `SDG_UI_*` 常量（3 列 × 2 行 + 标题 + 页脚，
   已避开圆边裁切）。
 
-完整可运行例子：`main/apps/app_template.c`（编译后就是启动台上的「示例」应用）。
+完整可运行例子：`main/apps/app_template.c`（可直接编译；它没有界面入口，
+留在构建里是为了保证模板始终有效）。
 
 ---
 

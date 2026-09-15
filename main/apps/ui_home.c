@@ -1,8 +1,11 @@
 /*
- * SDGOODS 开放平台基础工程 · 应用层示例
+ * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
+ * 应用层示例
  * https://github.com/SDGOODS/SDGOODS-ESP32S3
  *
  * Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
+ * 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
+ *   以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  *
  * Required Notice: Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
@@ -17,6 +20,7 @@
 
 #include "lvgl.h"
 
+#include "sdgoods_i18n.h"    /* SDG_T：中英文案；sdg_i18n_seq：语言切换后重建 */
 #include "ui_demo_page.h"
 #include "ui_app_page.h"
 #include "power_off.h"
@@ -46,7 +50,7 @@ static void power_off_screen(void)
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *t = lv_label_create(scr);
-    lv_label_set_text(t, "关机中...");
+    lv_label_set_text(t, SDG_T("关机中...", "Powering off..."));
     lv_obj_set_style_text_font(t, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(t, lv_color_white(), 0);
     lv_obj_align(t, LV_ALIGN_CENTER, 0, 0);
@@ -57,23 +61,29 @@ static void power_off_screen(void)
 }
 
 static lv_obj_t *s_home_scr;
+static uint32_t  s_lang_seq;   /* 建屏时的语言版本号；和当前不一致就重建 */
 
+/* 按钮回调：user_data 传的是**语言无关的键**（"demo" / "apps" / "power"），
+   不是按钮文字 —— 否则切到英文后按钮文字变了，strcmp 就再也对不上。
+   新增按钮请照这个规矩加键。 */
 static void on_btn(lv_event_t *e)
 {
-    const char *name = (const char *)lv_event_get_user_data(e);
-    if (!name) {
+    const char *key = (const char *)lv_event_get_user_data(e);
+    if (!key) {
         return;
     }
-    if (strcmp(name, "关机") == 0) {
+    if (strcmp(key, "power") == 0) {
         power_off_screen();
-    } else if (strcmp(name, "应用") == 0) {
+    } else if (strcmp(key, "apps") == 0) {
         ui_app_page_show();
-    } else if (strcmp(name, "DEMO") == 0) {
+    } else if (strcmp(key, "demo") == 0) {
         ui_demo_page_show();
     }
 }
 
-static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, const char *text)
+/* key == NULL 表示这颗按钮没有功能（占位用） */
+static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
+                                const char *text, const char *key)
 {
     lv_obj_t *btn = lv_btn_create(parent);
     lv_obj_set_size(btn, SDG_UI_BTN_SIZE, SDG_UI_BTN_SIZE);
@@ -84,9 +94,8 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, co
     lv_obj_set_style_border_width(btn, 0, 0);
     lv_obj_set_style_shadow_width(btn, 0, 0);
 
-    if (text && (strcmp(text, "DEMO") == 0 || strcmp(text, "应用") == 0
-                 || strcmp(text, "关机") == 0)) {
-        lv_obj_add_event_cb(btn, on_btn, LV_EVENT_CLICKED, (void *)text);
+    if (key) {
+        lv_obj_add_event_cb(btn, on_btn, LV_EVENT_CLICKED, (void *)key);
     } else {
         lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICKABLE);
     }
@@ -101,8 +110,16 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, co
     return btn;
 }
 
+/* 主页是全工程唯一常驻的屏（不会被删），所以语言切换后必须显式重建，
+   不能像别的页那样「下次 show 时自查」。 */
 void ui_home_create(void)
 {
+    if (s_home_scr) {
+        lv_obj_del(s_home_scr);
+        s_home_scr = NULL;
+    }
+    s_lang_seq = sdg_i18n_seq();
+
     s_home_scr = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(s_home_scr, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(s_home_scr, LV_OPA_COVER, 0);
@@ -110,13 +127,7 @@ void ui_home_create(void)
 
     const lv_color_t footer_gray = lv_color_hex(0x808080);
 
-    lv_obj_t *title = lv_label_create(s_home_scr);
-    lv_label_set_text(title, "谷仓电子徽章");
-    lv_obj_set_style_text_font(title, &si_yuan_black_icon_16, 0);
-    lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, SDG_UI_TITLE_Y);
-
-    /* 编译版本号 (自动生成, MMDDHHMM)，位于标题正下方，每次编译刷新 */
+    /* 顶部不放标题（原来那行「谷仓电子徽章」已按要求移除），只留版本号 */
     lv_obj_t *ver = lv_label_create(s_home_scr);
     lv_label_set_text(ver, BUILD_VERSION_STR);
     lv_obj_set_style_text_font(ver, &si_yuan_black_icon_14, 0);
@@ -124,9 +135,9 @@ void ui_home_create(void)
     lv_obj_align(ver, LV_ALIGN_TOP_MID, 0, 56);
 
     /* 主页 3 个按钮：DEMO / 应用 / 关机，单行垂直居中 */
-    make_round_btn(s_home_scr, SDG_UI_BTN1_X, 142, "DEMO");
-    make_round_btn(s_home_scr, SDG_UI_BTN2_X, 142, "应用");
-    make_round_btn(s_home_scr, SDG_UI_BTN3_X, 142, "关机");
+    make_round_btn(s_home_scr, SDG_UI_BTN1_X, 142, "DEMO",                    "demo");
+    make_round_btn(s_home_scr, SDG_UI_BTN2_X, 142, SDG_T("应用", "Apps"),     "apps");
+    make_round_btn(s_home_scr, SDG_UI_BTN3_X, 142, SDG_T("关机", "Power off"), "power");
 
     lv_obj_t *footer = lv_obj_create(s_home_scr);
     lv_obj_set_size(footer, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -155,17 +166,20 @@ void ui_home_create(void)
     lv_obj_set_style_text_color(c, footer_gray, 0);
     lv_obj_align(c, LV_ALIGN_CENTER, 0, 0);
 
+    /* 品牌名不翻译：任何语言下都显示官方中文名（与关于页、源文件头一致） */
     lv_obj_t *txt = lv_label_create(footer);
     lv_label_set_text(txt, "谷仓SDGOODS");
     lv_obj_set_style_text_font(txt, &si_yuan_black_icon_14, 0);
     lv_obj_set_style_text_color(txt, footer_gray, 0);
 
-    ui_home_show();
+    lv_scr_load(s_home_scr);
 }
 
 void ui_home_show(void)
 {
-    if (s_home_scr) {
-        lv_scr_load(s_home_scr);
+    if (!s_home_scr || s_lang_seq != sdg_i18n_seq()) {
+        ui_home_create();   /* 首次建屏 / 语言切换过 -> 建（重建），内部会加载 */
+        return;
     }
+    lv_scr_load(s_home_scr);
 }
