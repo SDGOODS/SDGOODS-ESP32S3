@@ -100,10 +100,6 @@ static float       s_last_pipe_x;
 static bool        s_key_down;
 static bool        s_paused;
 
-/* 音量按钮：点击循环切换 5 档（静音→15%→30%→50%→70%） */
-static const int s_vol_pct_tab[5] = {0, 15, 30, 50, 70};
-static int       s_vol_idx = 0;        /* 默认静音（音量档位 静音→15%→30%→50%→70%） */
-static lv_obj_t *s_vol_btn = NULL;     /* 音量按钮（像素喇叭图标容器） */
 static lv_obj_t *s_over_hint = NULL;   /* 游戏结束提示（点击重玩 / 按键返回，屏幕中间下方） */
 
 /* 根据当前关卡计算难度：关卡越高，越快、间隙越小、间距越密 */
@@ -152,8 +148,6 @@ static lv_obj_t *make_pixel_rect(lv_obj_t *parent, lv_coord_t w, lv_coord_t h,
 }
 
 /* 天上的白云装饰已按需求删除 */
-
-
 
 /* 像素小鸟：用方块拼出 8-bit 造型（黑描边 + 黄身 + 白肚 + 橙喙 + 眼睛），整体放大 */
 static lv_obj_t *make_bird(lv_obj_t *parent)
@@ -396,9 +390,6 @@ static void reset_game(void)
     if (s_toast) {
         lv_obj_add_flag(s_toast, LV_OBJ_FLAG_HIDDEN);
     }
-    if (s_vol_btn) {
-        lv_obj_add_flag(s_vol_btn, LV_OBJ_FLAG_HIDDEN);   /* 开始游戏后隐藏音量按钮 */
-    }
     if (s_over_hint) {
         lv_obj_add_flag(s_over_hint, LV_OBJ_FLAG_HIDDEN);  /* 开始游戏后隐藏结束提示 */
     }
@@ -592,47 +583,6 @@ static void on_tap(lv_event_t *e)
     }
 }
 
-/* 绘制音量按钮图标：喇叭 + 4 段音量条（亮=黄、未亮=灰），静音档画红叉 */
-static void draw_volume_icon(void)
-{
-    if (!s_vol_btn) {
-        return;
-    }
-    lv_obj_clean(s_vol_btn);
-    lv_obj_t *o;
-    /* 喇叭主体 + 锥（黑方块表示） */
-    o = make_pixel_rect(s_vol_btn, 14, 14, PIX_BLACK, PIX_BLACK, 0); lv_obj_set_pos(o, 5, 15);
-    o = make_pixel_rect(s_vol_btn, 6,  6,  PIX_BLACK, PIX_BLACK, 0); lv_obj_set_pos(o, 18, 18);
-    o = make_pixel_rect(s_vol_btn, 6,  12, PIX_BLACK, PIX_BLACK, 0); lv_obj_set_pos(o, 23, 15);
-    /* 4 段音量条：已点亮档位用黄色，未点亮用灰色，一眼区分 5 档 */
-    static const int seg_x[4] = {33, 43, 53, 63};
-    lv_color_t lit = lv_color_hex(0xFFEC27);
-    lv_color_t dim = lv_color_hex(0x555555);
-    for (int i = 0; i < 4; i++) {
-        lv_color_t c = (i < s_vol_idx) ? lit : dim;
-        o = make_pixel_rect(s_vol_btn, 7, 22, c, c, 0);
-        lv_obj_set_pos(o, seg_x[i], 11);
-    }
-    /* 静音：喇叭上画红色 X */
-    if (s_vol_idx == 0) {
-        o = make_pixel_rect(s_vol_btn, 20, 3, PIX_RED, PIX_RED, 0); lv_obj_set_pos(o, 3, 14);
-        o = make_pixel_rect(s_vol_btn, 20, 3, PIX_RED, PIX_RED, 0); lv_obj_set_pos(o, 3, 27);
-    }
-}
-
-/* 点击音量按钮：循环切换档位并实时调整音频音量 */
-static void on_vol(lv_event_t *e)
-{
-    (void)e;
-    if (!s_scr) {
-        return;
-    }
-    s_vol_idx = (s_vol_idx + 1) % 5;
-    audio_set_volume(s_vol_pct_tab[s_vol_idx]);
-    draw_volume_icon();
-    audio_sfx_flap();   /* 切换时给一声“啾”作为反馈（仅在 BGM 运行时） */
-}
-
 static void close_to_app(void)
 {
     if (!s_scr) {
@@ -650,7 +600,6 @@ static void close_to_app(void)
     s_level_lbl = NULL;
     s_toast = NULL;
     s_msg = NULL;
-    s_vol_btn = NULL;
     s_over_hint = NULL;
     for (int i = 0; i < MAX_PIPES; i++) {
         s_pipes[i].active = false;
@@ -769,7 +718,6 @@ void ui_flappy_start(void)
         lv_label_set_text(s_msg, "点击屏幕开始");
         lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
     }
-    if (s_vol_btn) lv_obj_clear_flag(s_vol_btn, LV_OBJ_FLAG_HIDDEN);   /* 准备阶段显示音量按钮 */
 
     s_timer = lv_timer_create(flappy_tick, 16, NULL);
     lv_scr_load(s_scr);

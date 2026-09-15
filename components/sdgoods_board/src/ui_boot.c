@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "extra/libs/gif/lv_gif.h"
 #include "st77916.h"
-#include "ui_home.h"
+#include "sdgoods_hooks.h"   /* sdgoods_ui_home_create_show：首屏由应用层提供 */
 #include "boot_anim_gif.h"
 
 #include "freertos/FreeRTOS.h"
@@ -19,8 +19,9 @@ static void finish_boot(void)
     if (s_done) {
         return;
     }
-    ui_home_create();
-    ui_home_show();
+    /* 首屏由应用层提供（main/apps/apps_registry.c 注册的 home_create_show），
+       平台层不关心首屏是什么 —— 换一套 UI 也不用改这里。 */
+    sdgoods_ui_home_create_show();
     if (s_boot_scr) {
         lv_obj_del(s_boot_scr);
         s_boot_scr = NULL;

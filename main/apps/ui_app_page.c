@@ -5,10 +5,7 @@
 #include "board_pins.h"
 #include "driver/gpio.h"
 #include "lvgl.h"
-#include "ui_flappy.h"
-#include "ui_plane.h"
-#include "ui_tetris.h"
-#include "ui_snake.h"
+#include "apps_registry.h"   /* g_sdgoods_app：应用清单（增删应用改那里，不用动本文件） */
 #include "ui_home.h"
 #include "ui_swipe_back.h"
 
@@ -19,28 +16,26 @@ static lv_obj_t *s_scr;
 static bool s_active;   /* 当前是否为活动页（进入子页时置 false，避免 poll 误触发返回） */
 static bool s_key_down;
 
+/* 点按钮 → 进入应用。
+ * 应用是谁、怎么进入，全部来自 apps_registry.c 的清单，本文件不需要知道任何应用。 */
 static void on_app_btn(lv_event_t *e)
 {
-    const char *name = (const char *)lv_event_get_user_data(e);
-    if (name && strcmp(name, "小鸟") == 0) {
-        s_active = false;   /* 进入子游戏：暂停本页 poll，避免按键冲突 */
-        ui_flappy_start();
-    } else if (name && strcmp(name, "飞机") == 0) {
-        s_active = false;
-        ui_plane_start();
-    } else if (name && strcmp(name, "俄罗斯方块") == 0) {
-        s_active = false;
-        ui_tetris_start();
-    } else if (name && strcmp(name, "贪吃蛇") == 0) {
-        s_active = false;
-        ui_snake_start();
+    const sdgoods_app_t *app = (const sdgoods_app_t *)lv_event_get_user_data(e);
+    if (!app || !app->show) {
+        return;
     }
+    s_active = false;   /* 进入子应用：暂停本页 poll，避免按键冲突 */
+    app->show();
 }
 
-/* ==================== 像素风图标按钮 ====================
+/* ==================== 像素风图标 ====================
  * 12x12 像素图 × ICON_SCALE = 48px 图标，用 canvas 逐像素绘制（真像素风，非色块）。
  * 调色板：'.'=透明 'K'=描边黑 'Y'=小鸟黄 'O'=喙橙 'W'=白/机身银白
- *         'B'=座舱蓝 'R'=红 'D'=小鸟翼尾(深黄)
+ *         'B'=座舱蓝 'R'=红 'D'=小鸟翼尾(深黄) 'C'=青 'P'=紫 'G'=蛇身绿
+ *
+ * 想给自己的应用加图标：在下面加一个 12 行 x 12 列的字符数组，
+ * 再在 icon_map_for() 里按按钮文字（label）返回它即可。
+ * 不加图标也没关系 —— 会退化成显示文字标签。
  * ======================================================== */
 #define ICON_MAP_W  12
 #define ICON_SCALE  4
@@ -128,12 +123,25 @@ static lv_color_t icon_color(char c)
     }
 }
 
-/* 把像素图渲染成 canvas（带 alpha），返回图标对象 */
-static lv_obj_t *make_pixel_icon(lv_obj_t *parent, uint8_t *buf, const char *const *map)
+/* 按按钮文字查像素图。没有对应图标的返回 NULL（调用方会退化成文字标签）。 */
+static const char *const *icon_map_for(const char *label)
+{
+    if (!label) {
+        return NULL;
+    }
+    if (strcmp(label, "小鸟") == 0)       return ICON_BIRD_MAP;
+    if (strcmp(label, "飞机") == 0)       return ICON_PLANE_MAP;
+    if (strcmp(label, "俄罗斯方块") == 0) return ICON_TETRIS_MAP;
+    if (strcmp(label, "贪吃蛇") == 0)     return ICON_SNAKE_MAP;
+    return NULL;
+}
+
+/* 把像素图渲染成 canvas（带 alpha），加到按钮上 */
+static void draw_pixel_icon(lv_obj_t *btn, uint8_t *buf, const char *const *map)
 {
     memset(buf, 0, ICON_BUF_SZ);   /* 先全透明 */
 
-    lv_obj_t *cv = lv_canvas_create(parent);
+    lv_obj_t *cv = lv_canvas_create(btn);
     lv_obj_remove_style_all(cv);
     lv_canvas_set_buffer(cv, buf, ICON_PX, ICON_PX, LV_IMG_CF_TRUE_COLOR_ALPHA);
     lv_obj_clear_flag(cv, LV_OBJ_FLAG_CLICKABLE);   /* 点击透传给按钮 */
@@ -155,57 +163,43 @@ static lv_obj_t *make_pixel_icon(lv_obj_t *parent, uint8_t *buf, const char *con
         }
     }
     lv_obj_center(cv);
-    return cv;
 }
 
-static uint8_t s_icon_bird_buf[ICON_BUF_SZ];
-static uint8_t s_icon_plane_buf[ICON_BUF_SZ];
-static uint8_t s_icon_tetris_buf[ICON_BUF_SZ];
-static uint8_t s_icon_snake_buf[ICON_BUF_SZ];
+/* 每个图标一份常驻缓冲（启动台只建一次屏，静态即可） */
+static uint8_t s_icon_buf[6][ICON_BUF_SZ];
 
-static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, const char *text)
+/* app == NULL 时画一个不可点的空位按钮 */
+static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
+                                const sdgoods_app_t *app, uint8_t *icon_buf)
 {
     lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_set_size(btn, UI_HOME_BTN_SIZE, UI_HOME_BTN_SIZE);
+    lv_obj_set_size(btn, SDG_UI_BTN_SIZE, SDG_UI_BTN_SIZE);
     lv_obj_set_pos(btn, x, y);
-    lv_obj_set_style_radius(btn, UI_HOME_BTN_SIZE / 2, 0);
+    lv_obj_set_style_radius(btn, SDG_UI_BTN_SIZE / 2, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x333333), 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(btn, 0, 0);
     lv_obj_set_style_shadow_width(btn, 0, 0);
 
-    if (text && text[0]) {
-        /* 像素风图标：按钮内居中显示像素精灵，取代文字标签 */
-        uint8_t *buf = NULL;
-        const char *const *map = NULL;
-        if (strcmp(text, "小鸟") == 0) {
-            buf = s_icon_bird_buf;
-            map = ICON_BIRD_MAP;
-        } else if (strcmp(text, "飞机") == 0) {
-            buf = s_icon_plane_buf;
-            map = ICON_PLANE_MAP;
-        } else if (strcmp(text, "俄罗斯方块") == 0) {
-            buf = s_icon_tetris_buf;
-            map = ICON_TETRIS_MAP;
-        } else if (strcmp(text, "贪吃蛇") == 0) {
-            buf = s_icon_snake_buf;
-            map = ICON_SNAKE_MAP;
-        }
-        if (buf && map) {
-            make_pixel_icon(btn, buf, map);
-        } else {
-            /* 兜底：未定义图标的入口仍显示文字 */
-            lv_obj_t *lbl = lv_label_create(btn);
-            lv_label_set_text(lbl, text);
-            lv_obj_set_style_text_font(lbl, &si_yuan_black_icon_16, 0);
-            lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
-            lv_obj_center(lbl);
-        }
-
-        /* 带文字的按钮 = 游戏入口，统一绑定回调（空按钮无回调）；
-           on_app_btn 内部按 name 分派，未知 name 不做任何事，后续加新游戏只需改 text + 分支 */
-        lv_obj_add_event_cb(btn, on_app_btn, LV_EVENT_CLICKED, (void *)text);
+    if (!app || !app->show) {
+        lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICKABLE);   /* 空位：不响应点击 */
+        return btn;
     }
+
+    const char *const *map = icon_map_for(app->label);
+    if (map) {
+        draw_pixel_icon(btn, icon_buf, map);
+    } else if (app->label && app->label[0]) {
+        /* 兜底：没有像素图标就显示文字 —— 注意这会用到字体子集，
+           新文字必须先重跑 tools/gen_fonts.py */
+        lv_obj_t *lbl = lv_label_create(btn);
+        lv_label_set_text(lbl, app->label);
+        lv_obj_set_style_text_font(lbl, &si_yuan_black_icon_14, 0);
+        lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
+        lv_obj_center(lbl);
+    }
+
+    lv_obj_add_event_cb(btn, on_app_btn, LV_EVENT_CLICKED, (void *)app);
     return btn;
 }
 
@@ -246,15 +240,22 @@ void ui_app_page_show(void)
     lv_label_set_text(title, "应用");
     lv_obj_set_style_text_font(title, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, UI_HOME_TITLE_Y);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, SDG_UI_TITLE_Y);
 
-    /* 6 个圆形按钮，沿用首页布局；第一个为「小鸟」，第二个「飞机」，第三个「俄罗斯方块」 */
-    make_round_btn(s_scr, UI_HOME_BTN1_X, UI_HOME_BTN1_Y, "小鸟");
-    make_round_btn(s_scr, UI_HOME_BTN2_X, UI_HOME_BTN2_Y, "飞机");
-    make_round_btn(s_scr, UI_HOME_BTN3_X, UI_HOME_BTN3_Y, "俄罗斯方块");
-    make_round_btn(s_scr, UI_HOME_BTN4_X, UI_HOME_BTN4_Y, "贪吃蛇");
-    make_round_btn(s_scr, UI_HOME_BTN5_X, UI_HOME_BTN5_Y, "");
-    make_round_btn(s_scr, UI_HOME_BTN6_X, UI_HOME_BTN6_Y, "");
+    /* 6 个固定按钮位，内容来自应用清单（apps_registry.c 的 s_apps[]）：
+       清单里的顺序 = 按钮顺序；清单少于 6 个时，多出来的位置显示为不可点的空位。 */
+    static const lv_coord_t k_btn_x[6] = {
+        SDG_UI_BTN1_X, SDG_UI_BTN2_X, SDG_UI_BTN3_X,
+        SDG_UI_BTN4_X, SDG_UI_BTN5_X, SDG_UI_BTN6_X,
+    };
+    static const lv_coord_t k_btn_y[6] = {
+        SDG_UI_BTN1_Y, SDG_UI_BTN2_Y, SDG_UI_BTN3_Y,
+        SDG_UI_BTN4_Y, SDG_UI_BTN5_Y, SDG_UI_BTN6_Y,
+    };
+    for (int i = 0; i < 6; i++) {
+        const sdgoods_app_t *app = (i < g_sdgoods_app_count) ? &g_sdgoods_app[i] : NULL;
+        make_round_btn(s_scr, k_btn_x[i], k_btn_y[i], app, s_icon_buf[i]);
+    }
 
     lv_obj_t *hint = lv_label_create(s_scr);
     lv_label_set_text(hint, "按电源键返回");

@@ -46,9 +46,9 @@ static void on_demo_btn(lv_event_t *e)
 static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, const char *text)
 {
     lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_set_size(btn, UI_HOME_BTN_SIZE, UI_HOME_BTN_SIZE);
+    lv_obj_set_size(btn, SDG_UI_BTN_SIZE, SDG_UI_BTN_SIZE);
     lv_obj_set_pos(btn, x, y);
-    lv_obj_set_style_radius(btn, UI_HOME_BTN_SIZE / 2, 0);
+    lv_obj_set_style_radius(btn, SDG_UI_BTN_SIZE / 2, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x333333), 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(btn, 0, 0);
@@ -103,15 +103,15 @@ void ui_demo_page_show(void)
     lv_label_set_text(title, "DEMO");
     lv_obj_set_style_text_font(title, &cn_font_16, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, UI_HOME_TITLE_Y);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, SDG_UI_TITLE_Y);
 
     /* 4 个圆形按钮：录音 / WIFI / 蓝牙 / 其他（沿用首页原有布局） */
-    make_round_btn(s_scr, UI_HOME_BTN1_X, UI_HOME_BTN1_Y, "录音");
-    make_round_btn(s_scr, UI_HOME_BTN2_X, UI_HOME_BTN2_Y, "WIFI");
-    make_round_btn(s_scr, UI_HOME_BTN3_X, UI_HOME_BTN3_Y, "蓝牙");
-    make_round_btn(s_scr, UI_HOME_BTN4_X, UI_HOME_BTN4_Y, "其他");
-    make_round_btn(s_scr, UI_HOME_BTN5_X, UI_HOME_BTN5_Y, "");
-    make_round_btn(s_scr, UI_HOME_BTN6_X, UI_HOME_BTN6_Y, "");
+    make_round_btn(s_scr, SDG_UI_BTN1_X, SDG_UI_BTN1_Y, "录音");
+    make_round_btn(s_scr, SDG_UI_BTN2_X, SDG_UI_BTN2_Y, "WIFI");
+    make_round_btn(s_scr, SDG_UI_BTN3_X, SDG_UI_BTN3_Y, "蓝牙");
+    make_round_btn(s_scr, SDG_UI_BTN4_X, SDG_UI_BTN4_Y, "其他");
+    make_round_btn(s_scr, SDG_UI_BTN5_X, SDG_UI_BTN5_Y, "");
+    make_round_btn(s_scr, SDG_UI_BTN6_X, SDG_UI_BTN6_Y, "");
 
     lv_obj_t *hint = lv_label_create(s_scr);
     lv_label_set_text(hint, "按电源键返回");

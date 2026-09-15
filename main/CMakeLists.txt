@@ -1,65 +1,57 @@
+# main/ —— 应用层（二次开发主要在这里）
+#
+# 平台层（屏 / 触摸 / 音频 / LVGL 移植 / 应用框架 / 字体）是独立组件：
+#   components/sdgoods_board/
+# 应用层通过 REQUIRES sdgoods_board 使用它，一行 #include "sdgoods_board.h" 即可。
+
 idf_component_register(
     SRCS
         "main.c"
-        "ui_boot.c"
-        "ui_home.c"
-        "boot_anim_gif.c"
-        "ui_scan_page.c"
-        "ui_rec_page.c"
-        "ui_other_page.c"
-        "ui_app_page.c"
-        "ui_demo_page.c"
-        "ui_app_shell.c"
-        "screenshot.c"
-        "ui_flappy.c"
-        "ui_plane.c"
-        "plane_net.c"
-        "ui_tetris.c"
-        "ui_snake.c"
-        "ui_swipe_back.c"
-        "hw_info.c"
-        "wifi_scan.c"
-        "ble_scan.c"
-        "audio_recplay.c"
-        "power_off.c"
-        "touch_input.c"
-        "lvgl_port.c"
-        "si_yuan_black_icon_14.c"
-        "si_yuan_black_icon_16.c"
-        "cn_font_14.c"
-        "cn_font_16.c"
-        "lcd_driver/st77916.c"
-        "lcd_driver/esp_lcd_st77916/esp_lcd_st77916.c"
+
+        # --- 应用注册表（新增应用要在这里接线） ---
+        "apps/apps_registry.c"
+
+        # --- 导航页 / 工具页 ---
+        "apps/ui_home.c"
+        "apps/ui_app_page.c"
+        "apps/ui_demo_page.c"
+        "apps/ui_scan_page.c"
+        "apps/ui_rec_page.c"
+        "apps/ui_other_page.c"
+
+        # --- 应用骨架 / 示例（自己写的新应用加在这一段） ---
+        "apps/app_template.c"
+        # >>> new_app.py: 新应用源文件插到这里 >>>
+
+        # --- 游戏 ---
+        "apps/ui_flappy.c"
+        "apps/ui_plane.c"
+        "apps/plane_net.c"      # 飞机游戏的双人蓝牙联机
+        "apps/ui_tetris.c"
+        "apps/ui_snake.c"
+
     INCLUDE_DIRS
-        "."
-        "board"
-        "lcd_driver"
-        "lcd_driver/esp_lcd_st77916"
+        "apps"                  # 让 #include "ui_home.h" 直接可用
+
     REQUIRES
+        sdgoods_board
         bt
         driver
-        esp_adc
         esp_event
-        esp_hw_support
-        esp_lcd
-        esp_mm
         esp_netif
-        esp_partition
-        esp_psram
-        bootloader_support
         esp_timer
         esp_wifi
         freertos
         hal
         heap
         log
+        lvgl
         nvs_flash
-        spi_flash
 )
 
 # ---- 自动编译版本号 (MMDDHHMM)，每次编译刷新 ----
 # 生成 build_version.h 到组件构建目录，并让组件库在编译前依赖它，
-# 同时把构建目录加入头文件搜索路径，使 ui_home.c 能 #include "build_version.h"。
+# 同时把构建目录加入头文件搜索路径，使 apps/ui_home.c 能 #include "build_version.h"。
 set(_bv_dir ${CMAKE_CURRENT_BINARY_DIR})
 add_custom_target(gen_build_version ALL
     COMMAND ${CMAKE_COMMAND}

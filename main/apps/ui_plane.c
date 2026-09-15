@@ -193,12 +193,6 @@ static bul_t       s_ebul[MAX_EBUL];
 static int         s_fire_cd;
 static int         s_spawn_cd;
 
-/* 音量按钮：点击循环切换 5 档（静音→15%→30%→50%→70%） */
-static const int s_vol_pct_tab[5] = {0, 15, 30, 50, 70};
-static int       s_vol_idx = 0;        /* 默认静音 */
-static lv_obj_t *s_vol_btn = NULL;
-static lv_obj_t *s_exit_btn = NULL;
-
 static void reset_game(void);
 static void request_restart(void);  /* 死亡方点击重玩：本机重开并广播，对端同步重开 */
 static void spawn_enemy(void);
@@ -208,7 +202,6 @@ static void on_net_conn(bool connected);          /* 蓝牙连接状态回调（
 static void on_net_recv(const plane_peer_state_t *peer);  /* 蓝牙数据回调（前向声明） */
 static void on_tap(lv_event_t *e);
 static void close_to_app(void);
-static void close_to_app_async(void *p);
 
 /* 像素风方块：方角、可选深色描边、不可点击 */
 static lv_obj_t *make_pixel_rect(lv_obj_t *parent, lv_coord_t w, lv_coord_t h,
@@ -789,8 +782,6 @@ static void reset_game(void)
         lv_obj_add_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_style_text_color(s_msg, lv_color_white(), 0);   /* 复位提示颜色（结束界面为红色，重开后恢复白色） */
     }
-    if (s_vol_btn) lv_obj_add_flag(s_vol_btn, LV_OBJ_FLAG_HIDDEN);   /* 开始游戏后隐藏音量 */
-    if (s_exit_btn) lv_obj_add_flag(s_exit_btn, LV_OBJ_FLAG_HIDDEN); /* 开始游戏后隐藏退出 */
     if (s_btn_single) lv_obj_add_flag(s_btn_single, LV_OBJ_FLAG_HIDDEN);
     if (s_btn_multi)  lv_obj_add_flag(s_btn_multi,  LV_OBJ_FLAG_HIDDEN);
 }
@@ -1146,8 +1137,6 @@ over:
     lv_obj_set_style_text_color(s_msg, lv_color_white(), 0);   /* 正文白色，仅标题内联标红 */
     lv_obj_align(s_msg, LV_ALIGN_CENTER, 0, 0);   /* 结束信息整块居中显示 */
     lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
-    if (s_vol_btn) lv_obj_clear_flag(s_vol_btn, LV_OBJ_FLAG_HIDDEN);
-    if (s_exit_btn) lv_obj_clear_flag(s_exit_btn, LV_OBJ_FLAG_HIDDEN);
     audio_sfx_flap();
 }
 
@@ -1263,52 +1252,6 @@ static void over_tap_poll(void)
     ESP_LOGI("plane", "over press -> request_restart (state=%d mode=%d conn=%d valid=%d peer_alive=%d)",
              s_state, s_mode, plane_net_connected(), s_peer_state_valid, s_peer_state.alive);
     request_restart();
-}
-
-/* 绘制音量按钮图标（与 Flappy 一致） */
-static void draw_volume_icon(void)
-{
-    if (!s_vol_btn) return;
-    lv_obj_clean(s_vol_btn);
-    lv_obj_t *o;
-    o = make_pixel_rect(s_vol_btn, 14, 14, PIX_BLACK, PIX_BLACK, 0); lv_obj_set_pos(o, 5, 15);
-    o = make_pixel_rect(s_vol_btn, 6,  6,  PIX_BLACK, PIX_BLACK, 0); lv_obj_set_pos(o, 18, 18);
-    o = make_pixel_rect(s_vol_btn, 6,  12, PIX_BLACK, PIX_BLACK, 0); lv_obj_set_pos(o, 23, 15);
-    static const int seg_x[4] = {33, 43, 53, 63};
-    lv_color_t lit = lv_color_hex(0xFFEC27);
-    lv_color_t dim = lv_color_hex(0x555555);
-    for (int i = 0; i < 4; i++) {
-        lv_color_t c = (i < s_vol_idx) ? lit : dim;
-        o = make_pixel_rect(s_vol_btn, 7, 22, c, c, 0);
-        lv_obj_set_pos(o, seg_x[i], 11);
-    }
-    if (s_vol_idx == 0) {
-        o = make_pixel_rect(s_vol_btn, 20, 3, PIX_RED, PIX_RED, 0); lv_obj_set_pos(o, 3, 14);
-        o = make_pixel_rect(s_vol_btn, 20, 3, PIX_RED, PIX_RED, 0); lv_obj_set_pos(o, 3, 27);
-    }
-}
-
-static void on_vol(lv_event_t *e)
-{
-    (void)e;
-    if (!s_scr) return;
-    s_vol_idx = (s_vol_idx + 1) % 5;
-    audio_set_volume(s_vol_pct_tab[s_vol_idx]);
-    draw_volume_icon();
-    audio_sfx_flap();
-}
-
-static void on_exit_game(lv_event_t *e)
-{
-    (void)e;
-    if (!s_scr) return;
-    lv_async_call(close_to_app_async, NULL);
-}
-
-static void close_to_app_async(void *p)
-{
-    (void)p;
-    close_to_app();
 }
 
 static void on_pause(void) { s_paused = true; }
@@ -1478,8 +1421,6 @@ static void close_to_app(void)
     s_lives = 1;
     s_inv_ticks = 0;
     s_msg = NULL;
-    s_vol_btn = NULL;
-    s_exit_btn = NULL;
     s_peer_plane = NULL;
     s_peer_lbl = NULL;
     s_btn_single = NULL;

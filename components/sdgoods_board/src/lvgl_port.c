@@ -3,15 +3,7 @@
 #include "st77916.h"
 #include "touch_input.h"
 #include "lvgl.h"
-#include "ui_scan_page.h"
-#include "ui_rec_page.h"
-#include "ui_other_page.h"
-#include "ui_app_page.h"
-#include "ui_demo_page.h"
-#include "ui_flappy.h"
-#include "ui_plane.h"
-#include "ui_tetris.h"
-#include "ui_snake.h"
+#include "sdgoods_hooks.h"   /* sdgoods_apps_poll：应用层注册过来的轮询汇总 */
 
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -136,15 +128,10 @@ void lvgl_port_loop(void)
     while (1) {
         power_key_poll();
         lv_timer_handler();
-        ui_scan_page_poll();
-        ui_rec_page_poll();
-        ui_other_page_poll();
-        ui_demo_page_poll();
-        ui_app_page_poll();
-        ui_flappy_poll();
-        ui_plane_poll();
-        ui_tetris_poll();
-        ui_snake_poll();
+        /* 各应用的定时器推进（主页刷新 / 游戏物理 / 蓝牙收包 / 扫描结果…）
+           由应用层汇总成一个函数注册进来，新增应用只需改 apps_registry.c，
+           这个平台主循环永远不用动。 */
+        sdgoods_apps_poll();
         vTaskDelay(pdMS_TO_TICKS(2));
     }
 }

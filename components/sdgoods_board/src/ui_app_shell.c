@@ -5,9 +5,8 @@
 
 #include "lvgl.h"
 #include "st77916.h"        /* LCD_WIDTH / LCD_HEIGHT */
-#include "ui_home.h"        /* UI_HOME_BTN_SIZE 等布局常量，菜单按钮复用 home 风格 */
-#include "ui_app_page.h"    /* ui_app_page_show */
-#include "ui_home.h"        /* ui_home_show */
+#include "sdgoods_ui.h"     /* SDG_UI_BTN_SIZE 等布局常量，菜单按钮复用主页风格 */
+#include "sdgoods_hooks.h"  /* 回主页 / 回应用页：交给应用层注册的实现 */
 #include "audio_recplay.h"  /* audio_set_volume / audio_get_volume */
 #include "screenshot.h"     /* screenshot_capture_async：菜单「截屏」按钮 */
 #include "esp_log.h"
@@ -84,9 +83,9 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
                                 const char *text, lv_event_cb_t cb)
 {
     lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_set_size(btn, UI_HOME_BTN_SIZE, UI_HOME_BTN_SIZE);
+    lv_obj_set_size(btn, SDG_UI_BTN_SIZE, SDG_UI_BTN_SIZE);
     lv_obj_set_pos(btn, x, y);
-    lv_obj_set_style_radius(btn, UI_HOME_BTN_SIZE / 2, 0);
+    lv_obj_set_style_radius(btn, SDG_UI_BTN_SIZE / 2, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x333333), 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(btn, 0, 0);
@@ -185,12 +184,12 @@ void ui_app_shell_menu_open(void)
     lv_obj_align(s_vol_label, LV_ALIGN_TOP_MID, 0, 82);
 
     /* 三个圆按钮，复用 home 第一行布局（y=142 居中） */
-    make_round_btn(s_menu, UI_HOME_BTN1_X, 142, "音量+", on_vol_plus);
-    make_round_btn(s_menu, UI_HOME_BTN2_X, 142, "音量-", on_vol_minus);
-    make_round_btn(s_menu, UI_HOME_BTN3_X, 142, "退出",  on_menu_exit);
+    make_round_btn(s_menu, SDG_UI_BTN1_X, 142, "音量+", on_vol_plus);
+    make_round_btn(s_menu, SDG_UI_BTN2_X, 142, "音量-", on_vol_minus);
+    make_round_btn(s_menu, SDG_UI_BTN3_X, 142, "退出",  on_menu_exit);
 
     /* 第二行：截屏（居中）。点它 = 把当前屏幕截图并通过 USB 串口传给电脑 */
-    make_round_btn(s_menu, (LCD_WIDTH - UI_HOME_BTN_SIZE) / 2, 224, "截屏", on_menu_shot);
+    make_round_btn(s_menu, (LCD_WIDTH - SDG_UI_BTN_SIZE) / 2, 224, "截屏", on_menu_shot);
 
     /* 底部上滑手势捕获层（菜单内最上层） */
     lv_obj_t *bot = lv_obj_create(s_menu);
@@ -252,12 +251,13 @@ void ui_app_shell_leave(bool to_home)
     /* 1) 先让 BGM 渐出停止（约 64ms），此时游戏画面仍在屏上，听不到关功放的“啪”声 */
     audio_bgm_stop();
 
-    /* 2) 先加载目标屏，避免「删除当前活动屏」的瞬间没有活动屏导致闪黑/闪白 */
+    /* 2) 先加载目标屏，避免「删除当前活动屏」的瞬间没有活动屏导致闪黑/闪白。
+          目标屏由应用层注册（sdgoods_hooks），平台层不需要知道主页/应用页的存在。 */
     s_app_scr = NULL;
     if (to_home) {
-        ui_home_show();
+        sdgoods_ui_home_show();
     } else {
-        ui_app_page_show();
+        sdgoods_ui_apps_show();
     }
 
     /* 3) 最后再让应用释放资源（停定时器/删旧屏/释放缓冲） */

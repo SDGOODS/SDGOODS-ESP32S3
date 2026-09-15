@@ -63,9 +63,9 @@ static void on_btn(lv_event_t *e)
 static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, const char *text)
 {
     lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_set_size(btn, UI_HOME_BTN_SIZE, UI_HOME_BTN_SIZE);
+    lv_obj_set_size(btn, SDG_UI_BTN_SIZE, SDG_UI_BTN_SIZE);
     lv_obj_set_pos(btn, x, y);
-    lv_obj_set_style_radius(btn, UI_HOME_BTN_SIZE / 2, 0);
+    lv_obj_set_style_radius(btn, SDG_UI_BTN_SIZE / 2, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x333333), 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(btn, 0, 0);
@@ -101,7 +101,7 @@ void ui_home_create(void)
     lv_label_set_text(title, "谷仓电子徽章");
     lv_obj_set_style_text_font(title, &si_yuan_black_icon_16, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, UI_HOME_TITLE_Y);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, SDG_UI_TITLE_Y);
 
     /* 编译版本号 (自动生成, MMDDHHMM)，位于标题正下方，每次编译刷新 */
     lv_obj_t *ver = lv_label_create(s_home_scr);
@@ -111,9 +111,9 @@ void ui_home_create(void)
     lv_obj_align(ver, LV_ALIGN_TOP_MID, 0, 56);
 
     /* 主页 3 个按钮：DEMO / 应用 / 关机，单行垂直居中 */
-    make_round_btn(s_home_scr, UI_HOME_BTN1_X, 142, "DEMO");
-    make_round_btn(s_home_scr, UI_HOME_BTN2_X, 142, "应用");
-    make_round_btn(s_home_scr, UI_HOME_BTN3_X, 142, "关机");
+    make_round_btn(s_home_scr, SDG_UI_BTN1_X, 142, "DEMO");
+    make_round_btn(s_home_scr, SDG_UI_BTN2_X, 142, "应用");
+    make_round_btn(s_home_scr, SDG_UI_BTN3_X, 142, "关机");
 
     lv_obj_t *footer = lv_obj_create(s_home_scr);
     lv_obj_set_size(footer, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -124,7 +124,7 @@ void ui_home_create(void)
     lv_obj_set_flex_flow(footer, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(footer, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_clear_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(footer, LV_ALIGN_TOP_MID, 0, UI_HOME_FOOTER_Y);
+    lv_obj_align(footer, LV_ALIGN_TOP_MID, 0, SDG_UI_FOOTER_Y);
 
     lv_obj_t *mark = lv_obj_create(footer);
     lv_obj_remove_style_all(mark);

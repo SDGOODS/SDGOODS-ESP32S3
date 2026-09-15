@@ -1,23 +1,27 @@
 # 代码结构与设计要点
 
-写给要改这份代码的人。重点在**为什么这么写**——尤其是联机同步那部分，
-不知道规则就直接改玩法，很容易做出「两边敌机不一样」的 bug。
+写给要改这份代码的人。重点在**为什么这么写** —— 尤其是分层约定与联机同步那部分，
+不知道规则就直接改，很容易做出「平台代码被应用污染」或「两边敌机不一样」的 bug。
 
 ---
 
 ## 1. 运行时总览
 
 ```
-app_main()                                   main/main.c
- ├─ nvs_flash / hw_info / touch / audio 初始化（日志静音）
- ├─ lcd_init()  +  lvgl_port_init()          显示链路
- ├─ ui_boot_start()                          开机动画（GIF，PSRAM canvas）
- ├─ wifi_scan / ble_scan / screenshot 等任务
- └─ lvgl_port_loop()                         ★ 永不返回：LVGL 唯一心跳
+app_main()                                     main/main.c
+ ├─ 日志静音（wifi/bt/phy 等噪音子系统）
+ ├─ 电池自锁拉高、LCD_Init_Panel()             components/sdgoods_board/lcd/
+ ├─ wifi_scan / ble_scan / audio_recplay / key_input 初始化
+ ├─ lvgl_port_init()  +  touch_input_init()  +  hw_info_init()
+ ├─ apps_register()                            ★ 应用层接线（见 §2）
+ ├─ ui_boot_show()                             开机动画（GIF，PSRAM canvas）
+ │     └─ 动画结束 → sdgoods_ui_home_create_show() → 应用层建首屏（主页）
+ ├─ ui_app_shell_init()                        应用外壳（共享音量、截屏）
+ └─ lvgl_port_loop()                           ★ 永不返回：LVGL 唯一心跳
        while (1) {
-           power_key_poll();                  电源键
-           lv_timer_handler();                LVGL 计时器 / 重绘
-           ui_*_poll();                       各页面的轮询钩子
+           power_key_poll();                    电源键（短按返回 / 长按关机）
+           lv_timer_handler();                  LVGL 计时器 / 重绘
+           sdgoods_apps_poll();                 → 应用层汇总的各应用 *_poll()
            vTaskDelay(2ms);
        }
 ```
@@ -26,43 +30,109 @@ app_main()                                   main/main.c
 其它任务（BLE 回调、音频、串口）只能改标志位，由 `lv_timer` 或页面 `*_poll()` 消费。
 `ui_plane.c` 里的 `plane_tick` 就是挂在 `lv_timer` 上的游戏主循环。
 
-## 2. 显示链路
+---
 
-- **面板**：`main/lcd_driver/` —— ST77916，QSPI，360×360。
-  引脚集中在 `main/board/board_pins.h`，换板子只改这一个文件。
-- **LVGL 移植层**：`main/lvgl_port.c`
-  - 绘制缓冲：**内部 SRAM**，双缓冲 8 行/块，异步 flush。
-    ⚠️ 缓冲**不要**回退到 PSRAM：QSPI DMA 的弹跳缓冲预算极小，会出现黑条 / 红线。
-  - `LV_COLOR_16_SWAP=y`，16bpp RGB565。
-- **LVGL 组件**：`managed_components/lvgl__lvgl`（8.3.11，组件管理器下载，不入库），
-  其中 GIF 解码器被本项目打了补丁 —— 见 [`../main/patches/README.md`](../main/patches/README.md)。
+## 2. 分层：平台层 ⇄ 应用层（本工程的核心结构）
+
+```
+components/sdgoods_board/          平台层（板级支持包，BSP）
+    include/   对外接口 —— 应用层只需要 #include "sdgoods_board.h"
+    src/       实现：LVGL 移植 / 触摸 / 电源键 / 音频 / 扫描 / 截屏
+               + 应用框架 ui_app_shell / 手势返回 / 开机流程 / 钩子注册表
+    lcd/       ST77916 QSPI 面板驱动 + 厂商初始化序列
+    fonts/     中文子集字体（由 tools/gen_fonts.py 生成）
+
+main/                              应用层
+    main.c          装配点
+    apps/           应用（用户的代码写这里）
+    patches/        对 LVGL 组件的补丁
+```
+
+### 为什么要有这层划分
+
+平台代码（屏驱动、LVGL 移植、I2S 时序、PSRAM 弹跳预算这些）参数都是**实测调出来的**，
+很容易被顺手改坏。把它放进独立组件后，"哪些是底板、哪些是上层"从目录结构上就一目了然，
+应用层误碰平台内部实现的机会大幅减少。
+
+### 平台层怎么回调应用层：注册制（`sdgoods_hooks.h`）
+
+平台层**不知道主页长什么样、有哪些应用**。它只认三个回调，由应用层填：
+
+```c
+/* main/apps/apps_registry.c */
+sdgoods_apps_set_poll(apps_poll);      /* 主循环每轮调用 → 汇总各应用 poll */
+
+static const sdgoods_nav_t nav = {
+    .home_create_show = home_create_show,   /* 开机动画结束：建首屏 */
+    .home_show        = home_show,          /* 仅切回主页（菜单退出 / 游戏中电源键短按） */
+    .apps_show        = apps_show,          /* 切回「应用」启动台 */
+};
+sdgoods_ui_set_nav(&nav);
+```
+
+实现上是一张函数指针表（`src/sdgoods_hooks.c`），**未注册即空操作**，
+所以平台层可以独立跑起来（比如只做屏点亮测试）而不会空指针崩溃。
+
+> ⚠️ 硬约束：**平台层不得 `#include` 应用层的头文件**。
+> 之前 `lvgl_port.c` 里塞了 9 个 `ui_*_poll()`、`ui_app_shell.c` 直接调
+> `ui_home_show()` —— 那就是"底板反向依赖上层"，任何人换一套 UI 都得改平台代码。
+> 现在这条依赖被 `sdgoods_hooks` 反转了。
+
+### 应用清单是一个表
+
+`main/apps/apps_registry.c` 里的 `s_apps[]` 同时驱动两件事：
+
+```c
+static const sdgoods_app_t s_apps[] = {
+    { "小鸟",       ui_flappy_start, ui_flappy_poll },   /* 按钮文字, 进入, 每帧推进 */
+    ...
+};
+```
+
+- **启动台**（`ui_app_page.c`）遍历它生成圆按钮 —— 所以 `ui_app_page.c` 不需要
+  `#include` 任何具体应用，加应用也不用改它；
+- **轮询**（`apps_poll()`）遍历它调 `poll`。
+
+`tools/new_app.py` 会自动往这张表和 `CMakeLists.txt` 插一行，插入点靠
+`# >>> new_app.py: ... >>>` 标记定位（**别删标记**）。
+
+---
 
 ## 3. 应用框架 `ui_app_shell.c`
 
 新写一个应用页面时，只需要四步：
 
 ```c
-#include "ui_app_shell.h"
+#include "sdgoods_board.h"                 /* 平台层总入口（含 ui_app_shell） */
 
 lv_obj_t *scr = lv_obj_create(NULL);
 /* ...自己画界面... */
-ui_app_shell_bind(scr);                          /* 接管手势：下滑出菜单、上滑收起 */
-ui_app_shell_set_exit_cb(on_menu_exit);          /* 菜单「退出」→ 回调里清理自己 */
-ui_app_shell_set_pause_cb(on_pause);             /* 进菜单时暂停游戏 */
-ui_app_shell_set_resume_cb(on_resume);
 lv_scr_load(scr);
+ui_app_shell_bind(scr);                        /* 接管手势：下滑出菜单、上滑收起 */
+ui_app_shell_set_exit_cb(on_menu_exit);        /* 菜单「退出」→ 回调里清理自己 */
+ui_app_shell_set_pause_cb(on_pause);           /* 进菜单时暂停游戏 */
+ui_app_shell_set_resume_cb(on_resume);
 ```
 
 约定：
-- 回调名**不要**叫 `on_exit`（与 libc 冲突），本项目用 `on_menu_exit`。
+
+- 回调名**不要**叫 `on_exit`（与 libc 冲突 → `conflicting types` 编译失败），
+  本项目统一用 `on_menu_exit`。
+- `bind()` 要在 `lv_scr_load()` **之后**调（它往当前屏挂手势捕获层）。
 - 查询菜单是否打开用 `ui_app_shell_menu_is_open()`。
 - 退出时先加载目标屏、再释放旧屏资源（`ui_app_shell_leave()`），避免闪屏。
+- 界面栅格用 `sdgoods_ui.h` 的 `SDG_UI_*` 常量（3 列 × 2 行 + 标题 + 页脚，
+  已避开圆边裁切）。
+
+完整可运行例子：`main/apps/app_template.c`（编译后就是启动台上的「示例」应用）。
+
+---
 
 ## 4. 飞机游戏 `ui_plane.c`
 
 状态机：`ST_READY → ST_PLAY → ST_OVER`（联机时先死的一方进入观战）。
 
-**道具**（掉落由共享 PRNG 决定，见下）：
+**道具**（掉落由共享 PRNG 决定，见 §6）：
 
 | 道具 | 效果 |
 |---|---|
@@ -73,7 +143,7 @@ lv_scr_load(scr);
 - **档位只增不减**：吃一个「火」等级 +1，持续时长 `POWER_TICKS`（约 6s）到点后
   「暂停生效」但**不清零**，下次再吃到只刷新时长。否则按掉落节奏玩家永远叠不到 4 列。
 - HUD 两态：生效中＝琥珀 + 秒数倒计时；已攒下未生效＝暗色、无秒数。
-- **受击**：扣一条命 + `INV_TICKS` 无敌闪烁，**不销毁撞到的敌机**（原因见下）。
+- **受击**：扣一条命 + `INV_TICKS` 无敌闪烁，**不销毁撞到的敌机**（原因见 §6 ④）。
 
 ## 5. 双人蓝牙联机 `plane_net.c`
 
@@ -143,22 +213,39 @@ Server 侧不再触发 `GATTS_CONNECT_EVT`、Client 侧 `esp_ble_gattc_open()` �
 
 ---
 
-## 7. 字体与资源
+## 7. 显示链路
 
-- 中文用**子集字体**：`cn_font_14/16.c` 只含源码里出现的字符（约 900 字），
-  `si_yuan_black_icon_14/16.c` 是更小的精选子集，缺失字由 `.fallback` 落到 `cn_font`。
-- 新增文案 → 必须重跑 `tools/gen_fonts.py`，否则出方框。
-- 开机动画：`boot_anim_gif.c` 是一段 GIF 的字节数组（不是解码器），
+- **面板**：`components/sdgoods_board/lcd/` —— ST77916，QSPI，360×360。
+  引脚集中在 `include/board_pins.h`，换板子只改这一个文件。
+- **LVGL 移植层**：`components/sdgoods_board/src/lvgl_port.c`
+  - 绘制缓冲：**内部 SRAM**，双缓冲 8 行/块，异步 flush。
+    ⚠️ 缓冲**不要**回退到 PSRAM：QSPI DMA 的弹跳缓冲预算极小，会出现黑条 / 红线。
+  - `LV_COLOR_16_SWAP=y`，16bpp RGB565。
+- **LVGL 组件**：`managed_components/lvgl__lvgl`（8.3.11，组件管理器下载，不入库），
+  其中 GIF 解码器被本项目打了补丁 —— 见 [`../main/patches/README.md`](../main/patches/README.md)。
+
+## 8. 字体与资源
+
+- 中文用**子集字体**（只含源码里扫到的字符）：
+  - `cn_font_14/16.c` —— 全量集（约 970 字），职责是兜底；
+  - `si_yuan_black_icon_14/16.c` —— 更小的 UI 精选子集（91 字），
+    缺失字由 `.fallback` 编译期落到 `cn_font_*`。
+- 字形来源是 **Noto Sans SC**（SIL OFL 1.1），生成文件头部带版权声明（OFL 要求，勿删）。
+- 新增文案 → 必须重跑 `tools/gen_fonts.py`，否则出方框；
+  用 `tools/gen_fonts.py --check` 可快速校验当前字体是否缺字。
+- 开机动画：`src/boot_anim_gif.c` 是一段 GIF 的字节数组（不是解码器），
   由 LVGL 内置 GIF 解码器播放，canvas 在 PSRAM。
 
-## 8. 串口截屏
+## 9. 串口截屏
 
-`main/screenshot.c` 用 LVGL 的 `lv_snapshot` 抓当前屏幕 → base64 分块从串口发出；
-电脑端 `tools/screenshot_recv.py` 接收并还原 PNG。
+`components/sdgoods_board/src/screenshot.c` 用 LVGL 的 `lv_snapshot` 抓当前屏幕 →
+base64 分块从串口发出；电脑端 `tools/screenshot_recv.py` 接收并还原 PNG。
 
 ```bash
 python3 tools/screenshot_recv.py -p /dev/cu.usbmodemXXXX -o shot.png -n 1 -t
 ```
+
+设备侧触发：应用内**顶部下滑 → 点「截屏」**，或串口直接发 `s`。
 
 实现上有两个坑值得知道：
 

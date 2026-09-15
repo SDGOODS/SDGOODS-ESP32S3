@@ -26,3 +26,11 @@ __pycache__/
 # ---- 临时日志 / 抓包产物 ----
 *.log
 *.tmp
+
+# ---- 字体工具 ----
+# lv_font_conv（node_modules）与本地产物
+node_modules/
+# 字体源文件（约 10.5MB，用 tools/fetch_fonts.py 按需下载）
+tools/fonts/*.ttf
+tools/fonts/*.otf
+tools/fonts/*.part
