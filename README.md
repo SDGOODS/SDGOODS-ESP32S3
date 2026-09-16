@@ -10,7 +10,7 @@
 > 本工程是谷仓次元屏（谷仓电子徽章）设备的二次开发基础工程，
 > 著作权及相关权利归 **深圳希德创新网络有限公司（SDGOODS）** 所有。
 > 代码按本仓库许可自由使用，但 **项目名、产品名与 SDGOODS 标识不在代码许可授权范围内**（见 [TRADEMARK.md](TRADEMARK.md)）。
-> 官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `zhangzuoliang321@126.com`
+> 官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `zhangzuoliang321@126.com`。
 
 这是一块 **ESP32-S3 + 360×360 圆形触摸屏** 设备的完整固件示例工程：开机动画 → 主页 → DEMO和示例。
 还包含从零手写的 UI 框架与游戏逻辑，以及一套串口一键截屏调试链路等。
