@@ -9,7 +9,7 @@
 > [!IMPORTANT]
 > **What this is, and who owns it**
 > This repo is the base firmware/SDK for the SDGOODS Electric Badge (谷仓电子徽章) device.
-> Copyright and related rights belong to **Shenzhen SDGOODS Innovation Network Co., Ltd. (SDGOODS)**.
+> Copyright and related rights belong to **Shenzhen Seed Innovation Network Co., Ltd. (SDGOODS)**.
 > The code is free to use under this repo's license, but the project name, product name and SDGOODS marks are NOT covered by the code license (see [TRADEMARK.md](TRADEMARK.md)).
 > Site [https://sdgoods.ai](https://sdgoods.ai) · Email `zhangzuoliang321@126.com`
 
