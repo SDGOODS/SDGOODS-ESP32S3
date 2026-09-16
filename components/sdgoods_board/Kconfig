@@ -1,0 +1,13 @@
+menu "SDGOODS Board (BSP)"
+
+    config SDGOODS_SCREENSHOT
+        bool "Enable screenshot capability (serial 's')"
+        default y
+        help
+          Capture the screen over USB-Serial-JTAG and stream it to a PC
+          (JPEG, decoded on the device). Exposes the SDGOODS_CAP_SCREENSHOT
+          capability, which the web upload page queries (serial '?') before
+          capturing. Disable to shrink the firmware if screenshot is not needed;
+          the web page will then prompt the developer to re-enable it.
+
+endmenu

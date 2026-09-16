@@ -9,9 +9,22 @@
 #
 # 本工具以 Apache-2.0 发布：可自由商用。详见 LICENSING.md。
 #
-"""ESP32「一键截屏」接收端：把设备经 USB 串口发来的 base64 位图还原成 PNG。
+"""ESP32「一键截屏」接收端：把设备经 USB 串口发来的原始 RGB565 位图还原成 PNG。
 
-固件侧：main/screenshot.c（顶部下滑「菜单」-> 点「截屏」，或串口收到 's' 触发）。
+固件侧：components/sdgoods_board/src/sdgoods_screenshot.c（串口收到 's' 即触发；
+应用外壳菜单里的「截屏」按钮已移除，所以串口是设备端唯一的触发入口）。
+
+传输协议（BEGIN/END 是文本行，中间的像素是**原始二进制**，不做任何编码）：
+    ===SHOT-BEGIN w=360 h=360 bpp=16 fmt=1 swap=0 bytes=24567===
+    <bytes 个 JPEG 字节（fmt=1）或原始 RGB565 字节（fmt=0），不靠换行分帧>
+    ===SHOT-END===
+    fmt=1：PC 端直接把字节落盘为 .jpg；fmt=0：PC 端转 PNG（旧固件无 fmt 字段，按 0 处理）。
+
+为什么不用 base64：base64 让数据膨胀 33% 且每字节都要编解码，是过去 33 秒耗时
+（约 10.5 KB/s）的主因。改成「文本头 + 定长原始二进制 + 文本尾」后，体积直接回到
+259200 字节，设备端也省掉编码 CPU。二进制里可能含 0x0A/0x0D，所以像素部分**不靠
+换行分帧**，而是靠 BEGIN 头里声明的 bytes 字段「精确读取那么多字节」，END 标记只
+用于收尾校验——彻底避免了半行被当成整行、base64 被静默截短的老问题。
 
 用法
 ----
@@ -28,13 +41,16 @@
     # 指定输出文件名 / 目录
     python3 screenshot_recv.py -o my_shot.png
 
-    # 2) 设备端：顶部下滑打开「菜单」-> 点「截屏」
+    # 2) 设备端：无需操作 —— 上面 -t 已自动向串口发触发字符 's'
     #    PNG 默认存到当前目录：shot_YYYYmmdd_HHMMSS.png
 
 自检（不需要设备，只验证解析 + RGB565 转换 + PNG 写出）
     python3 screenshot_recv.py --selftest
 
 说明：脚本会保持 DTR/RTS 为高电平，避免打开串口时把设备复位（与工程里既有脚本一致）。
+
+耗时：设备端先把 360×360 截屏用 JPEG 编码（典型 20~50KB），走 USB-Serial-JTAG（约
+10.5 KB/s）实测约 **2~5 秒**；编码失败时退回原始 RGB565（259KB，约 25 秒）。别设太短的 --timeout。
 """
 
 import argparse
@@ -48,19 +64,16 @@ import zlib
 from datetime import datetime
 
 BEGIN_RE = re.compile(
-    r'===SHOT-BEGIN\s+w=(\d+)\s+h=(\d+)\s+bpp=(\d+)\s+swap=(\d+)\s+bytes=(\d+)\s+lines=(\d+)==='
+    r'===SHOT-BEGIN\s+w=(\d+)\s+h=(\d+)\s+bpp=(\d+)\s+(?:fmt=(\d+)\s+)?swap=(\d+)\s+bytes=(\d+)==='
 )
-END_MARK = '===SHOT-END==='
-DATA_RE = re.compile(r'^([0-9A-Fa-f]{4}):([A-Za-z0-9+/=]+)$')
-
+END_MARK = b'===SHOT-END==='
 DEFAULT_PORT = '/dev/cu.usbmodem21201'
 DEFAULT_BAUD = 115200
 
 
 # --------------------------------------------------------------------------- 位图转换
-def b64_to_rgb888(b64_text, w, h, swap):
-    """base64(RGB565) -> RGB888 字节串。swap=1 表示内存里高字节在前（LV_COLOR_16_SWAP=1）。"""
-    raw = base64.b64decode(b64_text)
+def raw_to_rgb888(raw, w, h, swap):
+    """原始 RGB565 字节串 -> RGB888 字节串。swap=1 表示内存里高字节在前（LV_COLOR_16_SWAP=1）。"""
     need = w * h * 2
     if len(raw) != need:
         raise ValueError('位图字节数不符：收到 %d，期望 %d' % (len(raw), need))
@@ -101,50 +114,81 @@ def write_png(path, w, h, rgb):
 
 # --------------------------------------------------------------------------- 协议解析
 class ShotAssembler:
-    """按行解析一次截屏传输；非协议行（ESP_LOG 日志）自动忽略。"""
+    """按字节流解析一次截屏传输（文本头 + 定长原始二进制 + 文本尾）。
+
+    非协议文本（ESP_LOG 启动日志、触发日志）在 BEGIN 出现前会被自动忽略；
+    BEGIN 与 END 之间的像素是原始二进制，靠 bytes 字段精确截取，不依赖换行。
+    """
 
     def __init__(self):
         self.reset()
 
     def reset(self):
-        self.active = False
-        self.w = self.h = self.swap = self.bytes_total = self.lines_total = 0
-        self.lines = {}
+        self.active = False        # 是否已看到 BEGIN
+        self.w = self.h = self.swap = self.bytes_total = 0
+        self.fmt = 0               # 0=原始 RGB565（PC 转 PNG）；1=JPEG（PC 直接落 .jpg）
+        self.head = b''            # BEGIN 出现前的文本缓冲
+        self.img = b''             # 已收集的原始图像字节
+        self.tail = b''            # 图像之后、END 之前的尾随字节
+        self.got_img = False
 
-    def feed(self, line):
-        """喂入一行，返回 None 或 (state, info)。
-        state: 'begin' | 'complete' | 'error'"""
-        line = line.strip('\r\n')
-        if not line:
-            return None
+    def feed(self, chunk):
+        """喂入一块字节，返回 None 或 ('complete', info)。
 
-        m = BEGIN_RE.match(line)
-        if m:
-            self.active = True
-            (self.w, self.h, _bpp, self.swap,
-             self.bytes_total, self.lines_total) = (int(g) for g in m.groups())
-            self.lines = {}
-            return ('begin', None)
-
+        info = dict(w, h, swap, raw, nbytes)
+        """
         if not self.active:
+            self.head += chunk
+            idx = self.head.find(b'===SHOT-BEGIN')
+            if idx < 0:
+                if len(self.head) > 256:
+                    self.head = self.head[-256:]
+                return None
+            nl = self.head.find(b'\n', idx)
+            if nl < 0:                       # BEGIN 头行还没收全
+                if len(self.head) > 512:
+                    self.head = self.head[-512:]
+                return None
+            line = self.head[idx:nl].decode('ascii', 'replace')
+            m = BEGIN_RE.match(line)
+            if not m:
+                self.head = self.head[nl + 1:]   # 畸形头，跳过继续找
+                return None
+            g = m.groups()
+            self.w = int(g[0]); self.h = int(g[1]); _bpp = int(g[2])
+            self.fmt = int(g[3]) if g[3] is not None else 0   # 旧固件无 fmt 字段，按 0 处理
+            self.swap = int(g[4]); self.bytes_total = int(g[5])
+            self.active = True
+            self.img = b''
+            self.tail = b''
+            rest = self.head[nl + 1:]        # BEGIN 行之后的字节属于图像
+            self.head = b''
+            return self._feed_img(rest)
+        return self._feed_img(chunk)
+
+    def _feed_img(self, chunk):
+        if not self.got_img:
+            self.img += chunk
+            if len(self.img) >= self.bytes_total:
+                extra = self.img[self.bytes_total:]
+                self.img = self.img[:self.bytes_total]
+                self.got_img = True
+                return self._feed_tail(extra)
             return None
+        return self._feed_tail(chunk)
 
-        if line == END_MARK:
-            self.active = False
-            missing = [i for i in range(self.lines_total) if i not in self.lines]
-            if missing:
-                return ('error', '缺 %d/%d 行（有日志行混入或串口丢数据，请重试）'
-                        % (len(missing), self.lines_total))
-            seq = ''.join(self.lines[i] for i in range(self.lines_total))
-            return ('complete', dict(w=self.w, h=self.h, swap=self.swap,
-                                     b64=seq, nbytes=self.bytes_total))
-
-        m = DATA_RE.match(line)
-        if m:
-            idx = int(m.group(1), 16)
-            if idx < self.lines_total:
-                self.lines[idx] = m.group(2)
-        # 其它行（日志）忽略
+    def _feed_tail(self, chunk):
+        self.tail += chunk
+        if END_MARK in self.tail:
+            if len(self.img) != self.bytes_total:
+                return ('error', '图像字节数不符：收到 %d，期望 %d'
+                        % (len(self.img), self.bytes_total))
+            info = dict(w=self.w, h=self.h, swap=self.swap, fmt=self.fmt,
+                        raw=bytes(self.img), nbytes=self.bytes_total)
+            self.reset()
+            return ('complete', info)
+        if len(self.tail) > 256:             # END 还没来，别无限涨内存
+            self.tail = self.tail[-256:]
         return None
 
 
@@ -174,24 +218,28 @@ def open_port(port, baud):
     return ser
 
 
-def out_path_for(base, index, count):
+def out_path_for(base, index, count, ext):
     if not base:
-        return 'shot_%s.png' % datetime.now().strftime('%Y%m%d_%H%M%S')
+        return 'shot_%s%s' % (datetime.now().strftime('%Y%m%d_%H%M%S'), ext)
     if count <= 1:
         return base
-    root, ext = os.path.splitext(base)
-    return '%s_%d%s' % (root, index, ext or '.png')
+    root, old = os.path.splitext(base)
+    return '%s_%d%s' % (root, index, old or ext)
 
 
 def run(port, baud, count, out, timeout_sec, trigger):
     ser = open_port(port, baud)
     if ser is None:
         return 2
+    try:
+        ser.timeout = 0.2      # 按块读，超时设小一点好及时检查总超时
+    except Exception:
+        pass
 
     asm = ShotAssembler()
     shots = 0
     print('监听 %s（%d baud）' % (port, baud))
-    print('请按设备「菜单」->「截屏」，或用 -t 让脚本自动触发')
+    print("等串口触发；用 -t 可让脚本自动向串口发 's'")
 
     t0 = time.time()
     last_trig = 0.0
@@ -211,34 +259,43 @@ def run(port, baud, count, out, timeout_sec, trigger):
                 print('等待超时：%d 秒内没有收到完整截屏' % timeout_sec)
                 return 3
             try:
-                line = ser.readline()
+                chunk = ser.read(8192)
             except Exception as e:
                 print('读取串口出错：%s' % e)
                 return 4
-            if not line:
+            if not chunk:
                 continue
-            result = asm.feed(line.decode('utf-8', 'replace'))
+            result = asm.feed(chunk)
             if result is None:
                 continue
             state, info = result
             if state == 'begin':
-                print('开始接收：%dx%d swap=%d，%d 字节 / %d 行'
-                      % (asm.w, asm.h, asm.swap, asm.bytes_total, asm.lines_total))
+                pass    # 本协议里 begin 信息已在 feed 内部消费，不单独回传
             elif state == 'error':
                 print('接收失败：%s' % info)
             elif state == 'complete':
                 shots += 1
-                try:
-                    rgb = b64_to_rgb888(info['b64'], info['w'], info['h'], info['swap'])
-                except Exception as e:
-                    print('解码失败：%s' % e)
-                    shots -= 1
-                    continue
-                path = out_path_for(out, shots, count)
-                write_png(path, info['w'], info['h'], rgb)
-                print('已保存 #%d：%s （%dx%d，%.1f KB）'
+                if info['fmt'] == 1:
+                    # JPEG：设备端已编码好，PC 端直接落盘，无需解码
+                    jout = out
+                    if jout and jout.lower().endswith('.png'):
+                        jout = jout[:-4] + '.jpg'
+                    path = out_path_for(jout, shots, count, '.jpg')
+                    with open(path, 'wb') as f:
+                        f.write(info['raw'])
+                else:
+                    try:
+                        rgb = raw_to_rgb888(info['raw'], info['w'], info['h'], info['swap'])
+                    except Exception as e:
+                        print('解码失败：%s' % e)
+                        shots -= 1
+                        continue
+                    path = out_path_for(out, shots, count, '.png')
+                    write_png(path, info['w'], info['h'], rgb)
+                print('已保存 #%d：%s （%dx%d，%.1f KB，%s）'
                       % (shots, os.path.abspath(path), info['w'], info['h'],
-                         os.path.getsize(path) / 1024.0))
+                         os.path.getsize(path) / 1024.0,
+                         'JPEG' if info['fmt'] == 1 else 'PNG'))
                 t0 = time.time()
                 if trigger and shots < count:
                     time.sleep(0.3)
@@ -254,7 +311,7 @@ def run(port, baud, count, out, timeout_sec, trigger):
 
 # --------------------------------------------------------------------------- 自检
 def selftest(out):
-    """不需要设备：造一张 360x360 测试图，走与设备完全相同的协议与解码路径。"""
+    """不需要设备：造一张 360x360 测试图，走与设备完全相同的二进制协议与解码路径。"""
     w = h = 360
     swap = 1                      # 设备 LV_COLOR_16_SWAP=1，高字节在前
     raw = bytearray()
@@ -272,23 +329,22 @@ def selftest(out):
                 v = ((x * 31 // (w - 1)) << 11) | (((y * 63 // (h - 1)) & 0x3F) << 5) | 0x8
             raw += bytes([(v >> 8) & 0xFF, v & 0xFF]) if swap else bytes([v & 0xFF, (v >> 8) & 0xFF])
 
-    per = 57
-    lines = [bytes(raw[o:o + per]) for o in range(0, len(raw), per)]
-    stream = ['===SHOT-BEGIN w=%d h=%d bpp=16 swap=%d bytes=%d lines=%d===\n'
-              % (w, h, swap, len(raw), len(lines))]
-    stream += ['%04X:%s\n' % (i, base64.b64encode(b).decode()) for i, b in enumerate(lines)]
-    stream.append('===SHOT-END===\n')
+    stream = (b'===SHOT-BEGIN w=%d h=%d bpp=16 swap=%d bytes=%d===\n'
+              % (w, h, swap, len(raw)))
+    stream += bytes(raw)
+    stream += b'===SHOT-END===\n'
 
+    # 切成 1000 字节的小块喂进去，模拟真实串口分块到达（含跨 BEGIN/跨图像边界）
     asm = ShotAssembler()
     info = None
-    for line in stream:
-        r = asm.feed(line)
+    for i in range(0, len(stream), 1000):
+        r = asm.feed(stream[i:i + 1000])
         if r and r[0] == 'complete':
             info = r[1]
     if not info:
         print('自检失败：解析未完成')
         return 1
-    rgb = b64_to_rgb888(info['b64'], info['w'], info['h'], info['swap'])
+    rgb = raw_to_rgb888(info['raw'], info['w'], info['h'], info['swap'])
     path = out or 'shot_selftest.png'
     write_png(path, info['w'], info['h'], rgb)
     # 校验几个采样点的颜色是否符合预期（红/绿/蓝/黄）
@@ -303,7 +359,94 @@ def selftest(out):
     if bad:
         print('自检失败，采样点颜色不符：%s' % bad)
         return 1
-    print('自检通过：解析 / base64 / RGB565->RGB888 / PNG 写出 全部正常')
+
+    # JPEG 分支：构造 fmt=1 的传输（负载用任意字节模拟 JPEG），验证接收端能按
+    # fmt=1 正确收齐字节并落 .jpg（设备端真实 JPEG 的合法性由编码器保证，此处只验管线）。
+    jraw = bytes((i * 7) & 0xFF for i in range(300))
+    jstream = (b'===SHOT-BEGIN w=8 h=8 bpp=16 fmt=1 swap=0 bytes=%d===\n'
+               % len(jraw))
+    jstream += jraw + b'===SHOT-END===\n'
+    asm2 = ShotAssembler()
+    jinfo = None
+    for i in range(0, len(jstream), 37):
+        r = asm2.feed(jstream[i:i + 37])
+        if r and r[0] == 'complete':
+            jinfo = r[1]
+    if not jinfo or jinfo['fmt'] != 1 or len(jinfo['raw']) != len(jraw):
+        print('自检失败：JPEG 分支 fmt/字节数不符', jinfo)
+        return 1
+    jpath = out or 'shot_selftest.jpg'
+    if os.path.abspath(jpath) == os.path.abspath(
+            (out or 'shot_selftest.png')):
+        jpath = 'shot_selftest_jpeg.jpg'
+    with open(jpath, 'wb') as f:
+        f.write(jinfo['raw'])
+    print('自检（JPEG 分支）：%s 写入 %d 字节' % (os.path.abspath(jpath), len(jraw)))
+
+    print('自检通过：RGB565 分支 + JPEG 分支 解析 / 落盘 全部正常')
+    return 0
+
+
+# --------------------------------------------------------------------------- 固件能力查询
+def query_caps(port, baud, timeout_sec):
+    """向串口发 '?'，解析固件回传的 'SDGOODS-CAPS:SHOT,...' 一行。
+
+    成功则返回 0 并打印能力列表；超时/无响应也返回 0（此时提示旧固件可能不支持，
+    可改用 -t 直接触发截图兜底）。与网页端 upload-firmware.html 的 queryCaps() 解析约定一致。
+    """
+    ser = open_port(port, baud)
+    if ser is None:
+        return 2
+    try:
+        ser.timeout = 0.5
+    except Exception:
+        pass
+    print('查询固件能力：%s（%d baud）' % (port, baud))
+    print("向串口发送 '?' ...")
+    try:
+        ser.write(b'?')
+        ser.flush()
+    except Exception as e:
+        print('发送失败：%s' % e)
+        return 4
+    MARK = b'SDGOODS-CAPS:'
+    buf = b''
+    t0 = time.time()
+    caps = None
+    try:
+        while True:
+            if timeout_sec and (time.time() - t0) > timeout_sec:
+                print('等待超时：%d 秒内未收到能力响应' % timeout_sec)
+                break
+            try:
+                chunk = ser.read(256)
+            except Exception as e:
+                print('读取出错：%s' % e)
+                return 4
+            if not chunk:
+                continue
+            buf += chunk
+            idx = buf.find(MARK)
+            if idx >= 0:
+                nl = buf.find(b'\n', idx)
+                line = buf[idx:(nl if nl >= 0 else len(buf))].decode('ascii', 'replace')
+                field = line[len(MARK):].strip()
+                caps = [c for c in field.split(',') if c]
+                break
+            if len(buf) > 4000:      # 丢弃陈旧启动日志
+                buf = buf[-1000:]
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
+    if caps is None:
+        print('未收到能力响应（旧固件可能不支持查询；请直接用 -t 触发截图）')
+        return 0
+    if caps:
+        print('固件能力：%s' % ', '.join(caps))
+    else:
+        print('固件能力：（空，未启用任何可选基础能力）')
     return 0
 
 
@@ -314,12 +457,15 @@ def main():
     ap.add_argument('-o', '--out', default=None, help='输出 PNG 路径（默认 shot_时间戳.png）')
     ap.add_argument('-n', '--count', type=int, default=1, help='接收多少张后退出（默认 1）')
     ap.add_argument('-t', '--trigger', action='store_true', help="自动向串口发送 's' 触发截屏")
+    ap.add_argument('--caps', action='store_true', help="查询固件支持的基础能力（串口发 '?'）")
     ap.add_argument('--timeout', type=float, default=120.0, help='等待超时秒数（默认 120）')
     ap.add_argument('--selftest', action='store_true', help='不需要设备，自检解析与 PNG 写出')
     args = ap.parse_args()
 
     if args.selftest:
         return selftest(args.out)
+    if args.caps:
+        return query_caps(args.port, args.baud, args.timeout)
     return run(args.port, args.baud, args.count, args.out, args.timeout, args.trigger)
 
 

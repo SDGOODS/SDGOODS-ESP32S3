@@ -18,7 +18,7 @@
 /*******************************************************************************
  * Size: 16 px
  * Bpp: 4
- * Opts: --font /Users/zhangzuoliang/WorkBuddy/2026-09-11-16-40-47/SDGOODS_DEMO/tools/fonts/NotoSansSC-Regular.ttf --size 16 --bpp 4 --format lvgl --no-compress --no-prefilter --symbols 个中亮仓他仪件信关其击分动压取可后回声备始子小屏幕应度开录徽息戏扫按描播放数机束池游点牙玩用电硬空章结自蓝螺设读谷近返重键间陀附音鸟，：！？、（）—…·“”‘’。《》【】；第过升级最 --range 0x20-0x7E --lv-font-name si_yuan_black_icon_16 --lv-include lvgl.h -o /Users/zhangzuoliang/WorkBuddy/2026-09-11-16-40-47/SDGOODS-ESP32S3/components/sdgoods_board/fonts/si_yuan_black_icon_16.c
+ * Opts: --font /Users/zhangzuoliang/WorkBuddy/2026-09-11-16-40-47/SDGOODS-ESP32S3/tools/fonts/NotoSansSC-Regular.ttf --size 16 --bpp 4 --format lvgl --no-compress --no-prefilter --symbols 个中亮仓他仪件信关其击分动压取可后回声备始子小屏幕应度开录徽息戏扫按描播放数机束池游点牙玩用电硬空章结自蓝螺设读谷近返重键间陀附音鸟，：！？、（）—…·“”‘’。《》【】；第过升级最 --range 0x20-0x7E --lv-font-name si_yuan_black_icon_16 --lv-include lvgl.h -o /Users/zhangzuoliang/WorkBuddy/2026-09-11-16-40-47/SDGOODS-ESP32S3/components/sdgoods_board/fonts/si_yuan_black_icon_16.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE

@@ -63,5 +63,5 @@ const char *sdg_i18n_pick(const char *zh, const char *en);
 /* 取词宏：SDG_T("中文", "English")。返回值生命周期同字符串字面量。 */
 #define SDG_T(zh, en) sdg_i18n_pick((zh), (en))
 
-/* 语言代码（"en" / "zh"），给日志和 hw_info 类用途 */
+/* 语言代码（"en" / "zh"），给日志和 sdgoods_hw_info 类用途 */
 const char *sdg_i18n_code(void);

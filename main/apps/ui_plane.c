@@ -23,12 +23,12 @@
 #include "driver/gpio.h"
 #include "lvgl.h"
 #include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
-#include "st77916.h"
+#include "sdgoods_lcd.h"
 #include "ui_app_page.h"
-#include "audio_recplay.h"
-#include "ui_app_shell.h"
+#include "sdgoods_audio.h"
+#include "sdgoods_app_shell.h"
 #include "plane_net.h"
-#include "touch_input.h"   /* touch_input_get_state / get_point：直接轮询触摸，绕开按钮事件不可靠问题 */
+#include "sdgoods_input.h"   /* sdgoods_touch_get_state / get_point：直接轮询触摸，绕开按钮事件不可靠问题 */
 #include "esp_log.h"
 
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -694,7 +694,7 @@ static void apply_item(int kind)
         show_toast(SDG_T("清屏!", "Clear!"));
         ESP_LOGI("plane", "item: BOMB seq=%d", s_bomb_seq);
     }
-    audio_sfx_flap();
+    sdgoods_audio_sfx_flap();
     refresh_score_label();
 }
 
@@ -1053,7 +1053,7 @@ static void plane_tick(lv_timer_t *t)
                         lv_label_set_text(s_score_lbl, buf);
                     }
                     apply_difficulty();
-                    audio_sfx_flap();   /* 击落音效 */
+                    sdgoods_audio_sfx_flap();   /* 击落音效 */
                 }
                 break;
             }
@@ -1102,7 +1102,7 @@ static void plane_tick(lv_timer_t *t)
                     s_lives--;
                     s_inv_ticks = INV_TICKS;
                     refresh_hearts();
-                    audio_sfx_flap();
+                    sdgoods_audio_sfx_flap();
                     ESP_LOGI("plane", "player hit -> life lost (lives=%d, inv=%d ticks)", s_lives, INV_TICKS);
                 } else {
                     goto over;
@@ -1167,7 +1167,7 @@ over:
     lv_obj_set_style_text_color(s_msg, lv_color_white(), 0);   /* 正文白色，仅标题内联标红 */
     lv_obj_align(s_msg, LV_ALIGN_CENTER, 0, 0);   /* 结束信息整块居中显示 */
     lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
-    audio_sfx_flap();
+    sdgoods_audio_sfx_flap();
 }
 
 static void on_tap(lv_event_t *e)
@@ -1210,7 +1210,7 @@ static void on_tap(lv_event_t *e)
  * 导致直接进单人）。一次「按下」只触发一次选择。 */
 static void ready_tap_poll(void)
 {
-    bool pressed = (touch_input_get_state() == LV_INDEV_STATE_PRESSED);
+    bool pressed = (sdgoods_touch_get_state() == LV_INDEV_STATE_PRESSED);
     if (!pressed) {
         s_ready_prev_pressed = false;
         return;
@@ -1221,7 +1221,7 @@ static void ready_tap_poll(void)
     s_ready_prev_pressed = true;
 
     lv_point_t p;
-    touch_input_get_point(&p);
+    sdgoods_touch_get_point(&p);
     ESP_LOGI("plane", "ready press x=%d y=%d mode=%d", p.x, p.y, s_mode);
 
     if (s_mode == 0) {
@@ -1260,7 +1260,7 @@ static void ready_tap_poll(void)
  * 通过 s_over_prev_pressed 去抖：同一次按压只触发一次；松手后才能再次触发。 */
 static void over_tap_poll(void)
 {
-    bool pressed = (touch_input_get_state() == LV_INDEV_STATE_PRESSED);
+    bool pressed = (sdgoods_touch_get_state() == LV_INDEV_STATE_PRESSED);
     if (!pressed) {
         s_over_prev_pressed = false;
         return;
@@ -1414,7 +1414,7 @@ static void update_peer_bullets(void)
                         lv_label_set_text(s_score_lbl, buf);
                     }
                     apply_difficulty();
-                    audio_sfx_flap();
+                    sdgoods_audio_sfx_flap();
                 }
                 break;
             }
@@ -1430,7 +1430,7 @@ static void close_to_app(void)
         lv_timer_del(s_timer);
         s_timer = NULL;
     }
-    audio_bgm_stop();
+    sdgoods_audio_bgm_stop();
     plane_net_stop();   /* 退出联机，恢复 BLE GAP 回调（供扫描页） */
     for (int i = 0; i < MAX_ENEMY; i++) despawn_enemy(i);
     for (int i = 0; i < MAX_PBUL; i++) despawn_bul(&s_pbul[i]);
@@ -1629,10 +1629,10 @@ void ui_plane_start(void)
 
     /* 接入「应用标准框架」：顶部下滑弹菜单 + 电源键离开(回 home)。
      * 音量调节与退出已移至应用菜单(框架)，故此处不再创建游戏内按钮。 */
-    ui_app_shell_set_exit_cb(close_to_app);
-    ui_app_shell_set_pause_cb(on_pause);
-    ui_app_shell_set_resume_cb(on_resume);
-    ui_app_shell_bind(s_scr);
+    sdgoods_app_shell_set_exit_cb(close_to_app);
+    sdgoods_app_shell_set_pause_cb(on_pause);
+    sdgoods_app_shell_set_resume_cb(on_resume);
+    sdgoods_app_shell_bind(s_scr);
 
     /* 退出按钮已移至应用菜单(框架)，此处不再创建 */
 
@@ -1648,7 +1648,7 @@ void ui_plane_start(void)
     s_timer = lv_timer_create(plane_tick, 16, NULL);
     lv_scr_load(s_scr);
 
-    audio_bgm_start(AUDIO_BGM_THEME_PLANE);
+    sdgoods_audio_bgm_start(AUDIO_BGM_THEME_PLANE);
 }
 
 void ui_plane_poll(void)
@@ -1656,5 +1656,5 @@ void ui_plane_poll(void)
     if (!s_scr) {
         return;
     }
-    /* 电源键短按/长按统一由 touch_input.c 的 power_key_poll 处理 */
+    /* 电源键短按/长按统一由 sdgoods_input.c 的 sdgoods_power_key_poll 处理 */
 }

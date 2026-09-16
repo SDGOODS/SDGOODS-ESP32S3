@@ -2429,6 +2429,12 @@ CONFIG_WIFI_PROV_STA_ALL_CHANNEL_SCAN=y
 # end of Wi-Fi Provisioning Manager
 
 #
+# SDGOODS Board (BSP)
+#
+CONFIG_SDGOODS_SCREENSHOT=y
+# end of SDGOODS Board (BSP)
+
+#
 # LVGL configuration
 #
 CONFIG_LV_CONF_SKIP=y

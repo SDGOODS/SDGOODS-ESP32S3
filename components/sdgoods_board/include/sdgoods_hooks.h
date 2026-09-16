@@ -26,7 +26,7 @@
  *   2. 开机动画播完，要创建并进入首屏；
  *   3. 应用菜单点「退出」、或游戏中短按电源键，要回到主页 / 应用页。
  *
- * 早期写法是平台层直接 #include 应用的头文件（lvgl_port.c 引了 9 个 ui_*_poll），
+ * 早期写法是平台层直接 #include 应用的头文件（sdgoods_lvgl.c 引了 9 个 ui_*_poll），
  * 结果是「底板反过来依赖上层」：任何人改应用都得碰平台代码，没法单独替换。
  * 现在改成注册制 —— 平台层只认这几个函数指针。
  *
@@ -37,7 +37,7 @@
 typedef void (*sdgoods_cb_t)(void);
 
 /* ---- 1) 应用轮询 ----------------------------------------------------------
- * lvgl_port_loop() 每轮（约 2ms）调用一次。各应用的 *_poll() 由应用层自己汇总。 */
+ * sdgoods_lvgl_loop() 每轮（约 2ms）调用一次。各应用的 *_poll() 由应用层自己汇总。 */
 void sdgoods_apps_set_poll(sdgoods_cb_t fn);
 
 /* ---- 2) 屏幕导航 ---------------------------------------------------------- */
@@ -53,7 +53,7 @@ typedef struct {
 void sdgoods_ui_set_nav(const sdgoods_nav_t *nav);
 
 /* ---- 以下为平台层内部使用（应用层不需要调用） ----------------------------- */
-void sdgoods_apps_poll(void);            /* 由 lvgl_port_loop() 调用 */
-void sdgoods_ui_home_create_show(void);  /* 由 ui_boot.c 在动画结束时调用 */
-void sdgoods_ui_home_show(void);         /* 由 ui_app_shell.c 调用 */
-void sdgoods_ui_apps_show(void);         /* 由 ui_app_shell.c 调用 */
+void sdgoods_apps_poll(void);            /* 由 sdgoods_lvgl_loop() 调用 */
+void sdgoods_ui_home_create_show(void);  /* 由 sdgoods_boot.c 在动画结束时调用 */
+void sdgoods_ui_home_show(void);         /* 由 sdgoods_app_shell.c 调用 */
+void sdgoods_ui_apps_show(void);         /* 由 sdgoods_app_shell.c 调用 */

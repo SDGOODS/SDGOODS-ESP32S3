@@ -18,7 +18,7 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include "ble_scan.h"
+#include "sdgoods_ble.h"
 
 #include "esp_bt.h"
 #include "esp_bt_main.h"
@@ -601,7 +601,7 @@ void plane_net_stop(void)
     s_connected = false;
     s_role = ROLE_NONE;
     /* 恢复扫描页的 GAP 回调 */
-    ble_scan_restore_gap_cb();
+    sdgoods_ble_restore_gap_cb();
     ESP_LOGI(TAG, "stop");
 }
 

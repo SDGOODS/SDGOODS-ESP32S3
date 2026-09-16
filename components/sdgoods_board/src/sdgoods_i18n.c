@@ -38,7 +38,7 @@ static uint32_t   s_seq  = 1;             /* 语言版本号，切换时 +1 */
 
 void sdg_i18n_init(void)
 {
-    /* NVS 可能已被别的模块（wifi_scan）初始化过；重复调用是安全的。 */
+    /* NVS 可能已被别的模块（sdgoods_wifi）初始化过；重复调用是安全的。 */
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_LOGW(TAG, "NVS 分区需要重建（%s），已擦除", esp_err_to_name(err));

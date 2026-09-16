@@ -18,7 +18,7 @@
 
 #include <string.h>
 
-#include "audio_recplay.h"
+#include "sdgoods_audio.h"
 #include "board_pins.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
@@ -26,7 +26,7 @@
 #include "lvgl.h"
 #include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "ui_home.h"
-#include "ui_swipe_back.h"
+#include "sdgoods_swipe_back.h"
 
 LV_FONT_DECLARE(si_yuan_black_icon_16);
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -70,9 +70,9 @@ static void worker(void *arg)
 {
     (void)arg;
     s_state = REC_RECORDING;
-    if (audio_recplay_record() == ESP_OK) {
+    if (sdgoods_audio_record() == ESP_OK) {
         s_state = REC_PLAYING;
-        (void)audio_recplay_play();
+        (void)sdgoods_audio_play();
     }
     s_state = REC_IDLE;
     s_task = NULL;
@@ -94,7 +94,7 @@ static void close_page(void)
     if (!s_scr) {
         return;
     }
-    audio_recplay_abort();
+    sdgoods_audio_abort();
     for (int i = 0; i < 60 && s_task; i++) {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -124,7 +124,7 @@ void ui_rec_page_show(void)
     lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    ui_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
+    sdgoods_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *title = lv_label_create(s_scr);
     lv_label_set_text(title, SDG_T("录音", "Rec"));
@@ -155,7 +155,7 @@ void ui_rec_page_show(void)
 
     lv_obj_t *hint = lv_label_create(s_scr);
     lv_label_set_text(hint, SDG_T("按电源键返回", "Power key to go back"));
-    lv_obj_set_style_text_font(hint, &si_yuan_black_icon_16, 0);
+    lv_obj_set_style_text_font(hint, &si_yuan_black_icon_14, 0);   /* 提示行用小一号的字（14） */
     lv_obj_set_style_text_color(hint, gray, 0);
     lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 296);
 

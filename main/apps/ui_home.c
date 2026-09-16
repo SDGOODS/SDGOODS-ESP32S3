@@ -23,8 +23,7 @@
 #include "sdgoods_i18n.h"    /* SDG_T：中英文案；sdg_i18n_seq：语言切换后重建 */
 #include "ui_demo_page.h"
 #include "ui_app_page.h"
-#include "power_off.h"
-#include "build_version.h"
+#include "sdgoods_power.h"
 
 LV_FONT_DECLARE(si_yuan_black_icon_16);
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -57,7 +56,7 @@ static void power_off_screen(void)
 
     lv_scr_load(scr);
     lv_refr_now(NULL);
-    system_power_off();
+    sdgoods_power_off();
 }
 
 static lv_obj_t *s_home_scr;
@@ -127,12 +126,13 @@ void ui_home_create(void)
 
     const lv_color_t footer_gray = lv_color_hex(0x808080);
 
-    /* 顶部不放标题（原来那行「谷仓电子徽章」已按要求移除），只留版本号 */
-    lv_obj_t *ver = lv_label_create(s_home_scr);
-    lv_label_set_text(ver, BUILD_VERSION_STR);
-    lv_obj_set_style_text_font(ver, &si_yuan_black_icon_14, 0);
-    lv_obj_set_style_text_color(ver, footer_gray, 0);
-    lv_obj_align(ver, LV_ALIGN_TOP_MID, 0, 56);
+    /* 顶部标题：主页 / HOME（y 用栅格常量 SDG_UI_TITLE_Y，和 DEMO / 应用页同高）。
+       不要写死数字，否则二级页调了这里又会对不齐。 */
+    lv_obj_t *title = lv_label_create(s_home_scr);
+    lv_label_set_text(title, SDG_T("主页", "HOME"));
+    lv_obj_set_style_text_font(title, &si_yuan_black_icon_16, 0);
+    lv_obj_set_style_text_color(title, lv_color_white(), 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, SDG_UI_TITLE_Y);
 
     /* 主页 3 个按钮：DEMO / 应用 / 关机，单行垂直居中 */
     make_round_btn(s_home_scr, SDG_UI_BTN1_X, 142, "DEMO",                    "demo");

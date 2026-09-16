@@ -28,9 +28,9 @@
 #include "ui_other_page.h"
 #include "ui_about.h"        /* 「关于」：品牌 / 公司 / 版本 / 授权 */
 #include "ui_home.h"
-#include "ui_swipe_back.h"
-#include "wifi_scan.h"
-#include "ble_scan.h"
+#include "sdgoods_swipe_back.h"
+#include "sdgoods_wifi.h"
+#include "sdgoods_ble.h"
 
 LV_FONT_DECLARE(si_yuan_black_icon_14);
 LV_FONT_DECLARE(cn_font_14);
@@ -69,10 +69,10 @@ static void on_demo_btn(lv_event_t *e)
     if (strcmp(key, "rec") == 0) {
         ui_rec_page_show();
     } else if (strcmp(key, "wifi") == 0) {
-        ui_scan_page_show("WIFI", SDG_T("扫描附近%d个SSID", "%d SSIDs found"), wifi_scan_list);
+        ui_scan_page_show("WIFI", SDG_T("扫描附近%d个SSID", "%d SSIDs found"), sdgoods_wifi_list);
     } else if (strcmp(key, "ble") == 0) {
         ui_scan_page_show(SDG_T("蓝牙", "BLE"), SDG_T("扫描附近%d个蓝牙设备", "%d devices found"),
-                          ble_scan_list);
+                          sdgoods_ble_list);
     } else if (strcmp(key, "other") == 0) {
         ui_other_page_show();
     } else if (strcmp(key, "about") == 0) {
@@ -146,7 +146,7 @@ void ui_demo_page_show(void)
     lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    ui_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
+    sdgoods_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *title = lv_label_create(s_scr);
     lv_label_set_text(title, "DEMO");
@@ -166,7 +166,7 @@ void ui_demo_page_show(void)
 
     lv_obj_t *hint = lv_label_create(s_scr);
     lv_label_set_text(hint, SDG_T("按电源键返回", "Power key to go back"));
-    lv_obj_set_style_text_font(hint, &cn_font_16, 0);
+    lv_obj_set_style_text_font(hint, &cn_font_14, 0);   /* 提示行用小一号的字（14） */
     lv_obj_set_style_text_color(hint, lv_color_hex(0x808080), 0);
     lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 296);
 

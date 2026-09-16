@@ -3,6 +3,7 @@ NOTICE
 
 Copyright (c) 2026 深圳希德创新网络有限公司 (SDGOODS)
 https://github.com/SDGOODS/SDGOODS-ESP32S3
+联系邮箱：zhangzuoliang321@126.com
 
 「谷仓共创计划」与「谷仓 SDGOODS 开放平台」项目、谷仓次元屏（谷仓电子徽章）设备，
 以及本基础代码的著作权与相关权利，均归深圳希德创新网络有限公司所有。
@@ -23,7 +24,7 @@ https://github.com/SDGOODS/SDGOODS-ESP32S3
 
 APACHE-2.0 涵盖范围：
   components/sdgoods_board/ 下的全部自有代码 —— 屏幕驱动、LVGL 移植、
-  触摸、电源键、音频、WiFi/BLE 扫描、截屏、应用外壳（ui_app_shell）、
+  触摸、电源键、音频、WiFi/BLE 扫描、截屏、应用外壳（sdgoods_app_shell）、
   开机动画、圆屏栅格常量（sdgoods_ui.h）、注册接口（sdgoods_hooks.*），
   以及 tools/ 下的全部脚本。
 
@@ -77,6 +78,6 @@ gifdec
 三、开机动画素材
 ================================================================
 
-components/sdgoods_board/src/boot_anim_gif.c 是谷仓次元屏的开机动画帧数据。
+components/sdgoods_board/src/sdgoods_boot_gif.c 是谷仓次元屏的开机动画帧数据。
 若你要基于本工程发布自己的产品，请确认你拥有该素材的分发权，
 或替换为你自己的动画。

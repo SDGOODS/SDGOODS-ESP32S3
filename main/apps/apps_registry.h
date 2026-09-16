@@ -53,5 +53,5 @@ typedef struct {
 extern const sdgoods_app_t *const g_sdgoods_app;
 extern const int                  g_sdgoods_app_count;
 
-/* 由 main.c 调用：把清单与轮询接到平台层。必须在 ui_boot_show() 之前调。 */
+/* 由 main.c 调用：把清单与轮询接到平台层。必须在 sdgoods_boot_show() 之前调。 */
 void apps_register(void);

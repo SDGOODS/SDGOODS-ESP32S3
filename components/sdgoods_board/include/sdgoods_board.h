@@ -27,7 +27,7 @@
  * · 唯一鼓励改的文件是 include/board_pins.h（引脚定义）。
  * · 平台大缓冲要显式申请 PSRAM（heap_caps_malloc + MALLOC_CAP_SPIRAM）；
  *   但 LVGL 的绘制缓冲**不能**放 PSRAM（QSPI DMA 弹跳会出黑条），
- *   详见 src/lvgl_port.c 的注释。
+ *   详见 src/sdgoods_lvgl.c 的注释。
  */
 
 /* 给应用层的接口（导航钩子 + UI 栅格） */
@@ -39,21 +39,26 @@
 
 /* 硬件与显示 */
 #include "board_pins.h"
-#include "st77916.h"
-#include "lvgl_port.h"
-#include "touch_input.h"
-#include "power_off.h"
+#include "sdgoods_lcd.h"
+#include "sdgoods_lvgl.h"
+#include "sdgoods_input.h"
+#include "sdgoods_power.h"
 
 /* 板载外设与服务 */
-#include "audio_recplay.h"
-#include "hw_info.h"
-#include "wifi_scan.h"
-#include "ble_scan.h"
+#include "sdgoods_audio.h"
+#include "sdgoods_hw_info.h"
+#include "sdgoods_wifi.h"
+#include "sdgoods_ble.h"
 
 /* 调试能力（改完 UI 用它截屏自证） */
-#include "screenshot.h"
+#include "sdgoods_screenshot.h"
+
+/* BSP 基础能力登记表 + 串口控制台：网页端通过串口 '?' 查询固件能力，
+ * 据此判断（如截屏 SHOT）是否编入当前固件，未编入时给出「从 BSP 添加」的提示。 */
+#include "sdgoods_caps.h"
+#include "sdgoods_console.h"
 
 /* 应用框架：所有应用统一「顶部下滑菜单 / 退出 / 暂停」体验 */
-#include "ui_app_shell.h"
-#include "ui_swipe_back.h"
-#include "ui_boot.h"
+#include "sdgoods_app_shell.h"
+#include "sdgoods_swipe_back.h"
+#include "sdgoods_boot.h"

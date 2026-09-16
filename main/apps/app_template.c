@@ -34,7 +34,7 @@
  *
  * 这个骨架演示了写一个应用要做的全部事情：
  *   · 建屏、画界面（用平台提供的圆屏栅格常量 SDG_UI_*）
- *   · 用 ui_app_shell 接入标准交互（顶部下滑菜单 / 音量 / 退出）
+ *   · 用 sdgoods_app_shell 接入标准交互（顶部下滑菜单 / 音量 / 退出）
  *   · 退出时清理资源
  *   · 提供 poll 函数供主循环推进（本例用不上，留了空实现）
  *
@@ -67,7 +67,7 @@ static int       s_count;
 
 /* ---------------------------------------------------------------------------
  * 1) 退出清理
- *    ui_app_shell 在「已经切到目标屏之后」才回调这里，所以可以放心删自己的资源：
+ *    sdgoods_app_shell 在「已经切到目标屏之后」才回调这里，所以可以放心删自己的资源：
  *      · 用 lv_timer_create 建的定时器 → lv_timer_del
  *      · 自己 heap_caps_malloc 的大缓冲 → heap_caps_free
  *      · 屏幕对象交给 LVGL 自动回收（lv_scr_load 换走后即可删）
@@ -104,7 +104,7 @@ static void on_btn_click(lv_event_t *e)
         snprintf(buf, sizeof(buf), SDG_T("点了 %d 次", "%d taps"), s_count);
         lv_label_set_text(s_cnt_lbl, buf);
     }
-    audio_sfx_flap();   /* 平台音效：短促提示音（BGM 未播放时是静默的，安全） */
+    sdgoods_audio_sfx_flap();   /* 平台音效：短促提示音（BGM 未播放时是静默的，安全） */
 }
 
 void ui_app_template_show(void)
@@ -155,10 +155,10 @@ void ui_app_template_show(void)
 
     /* ★★★ 接入标准应用框架（三行，顺序别改）★★★
        bind 必须在 lv_scr_load 之后 —— 它要往当前屏上挂手势捕获层。 */
-    ui_app_shell_bind(s_scr);                 /* 1. 顶部下滑出菜单（音量+/-/退出/截屏） */
-    ui_app_shell_set_exit_cb(on_menu_exit);        /* 2. 退出时清理（切屏后才回调） */
-    ui_app_shell_set_pause_cb(on_pause);      /* 3. 菜单打开/关闭（可省，不做就传 NULL） */
-    ui_app_shell_set_resume_cb(on_resume);
+    sdgoods_app_shell_bind(s_scr);                 /* 1. 顶部下滑出菜单（音量+/-/退出/截屏） */
+    sdgoods_app_shell_set_exit_cb(on_menu_exit);        /* 2. 退出时清理（切屏后才回调） */
+    sdgoods_app_shell_set_pause_cb(on_pause);      /* 3. 菜单打开/关闭（可省，不做就传 NULL） */
+    sdgoods_app_shell_set_resume_cb(on_resume);
 
     ESP_LOGI(TAG, "show");
 }

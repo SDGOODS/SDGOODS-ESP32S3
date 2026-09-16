@@ -25,9 +25,16 @@ file(WRITE "${_out}"
 "#define SDGOODS_PRODUCT      \"谷仓次元屏（谷仓电子徽章）\"\n"
 "#define SDGOODS_VENDOR       \"深圳希德创新网络有限公司 (SDGOODS)\"\n"
 "#define SDGOODS_HOMEPAGE     \"https://github.com/SDGOODS/SDGOODS-ESP32S3\"\n"
+"/* 联系邮箱：对外统一入口（商业授权、报 bug、合作）。\n"
+"   关于页会显示它 —— 只拿到一颗烧好的芯片也能找到源头。\n"
+"   改这里就全改，不要在源码里另写别的邮箱字面量。 */\n"
+"#define SDGOODS_CONTACT_EMAIL \"zhangzuoliang321@126.com\"\n"
 "#define SDGOODS_LICENSE_TAG  \"个人免费 · 商用需授权\"\n"
-"/* 英文界面的许可标签（品牌名与公司名不翻译，见 sdgoods_i18n.h 的说明） */\n"
-"#define SDGOODS_LICENSE_TAG_EN \"Free for personal use · Commercial license required\"\n"
+"/* 英文界面的许可标签（品牌名与公司名不翻译，见 sdgoods_i18n.h 的说明）。
+   注意长度：这句单行要 327px，而圆屏在它所在的高度只剩约 291px 宽，
+   所以关于页是限宽折行显示的（见 ui_about.c 的 ABT_LICENSE_W）。
+   改文案后跑 tools/font_metrics.py 量一下宽度。 */\n"
+"#define SDGOODS_LICENSE_TAG_EN \"Free for personal use · Commercial needs license\"\n"
 )
 
 message(STATUS "build_version.h -> ${BUILD_VERSION}")

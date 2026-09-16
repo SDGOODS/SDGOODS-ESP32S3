@@ -24,7 +24,7 @@
 #include "lvgl.h"
 #include "sdgoods_i18n.h"    /* SDG_T：功能性文案中英切换 */
 #include "ui_home.h"
-#include "ui_swipe_back.h"
+#include "sdgoods_swipe_back.h"
 
 LV_FONT_DECLARE(si_yuan_black_icon_14);
 LV_FONT_DECLARE(si_yuan_black_icon_16);
@@ -32,6 +32,27 @@ LV_FONT_DECLARE(si_yuan_black_icon_16);
 static lv_obj_t *s_scr;
 static bool s_key_down;
 static uint32_t s_lang_seq;   /* 建屏时的语言版本号；和当前不一致就重建 */
+
+/* 本页各行在圆屏上的纵向位置。
+   注意：圆屏越靠上/下，可用宽度越窄（弦长）。离屏幕中心 dy 像素处，可用宽度约
+   `2*sqrt(180^2 - dy^2)`；y=254 那行只剩约 291px。所以长句不要写死「一行放得下」，
+   用 make_wrapped_line() 限宽折行 —— 单行硬塞会被圆边切掉两头。 */
+#define ABT_Y_TITLE     44
+#define ABT_Y_PROGRAM   72
+#define ABT_Y_PLATFORM  100
+#define ABT_Y_PRODUCT   130
+#define ABT_Y_VENDOR    170
+#define ABT_Y_VERSION   200
+#define ABT_Y_LICENSE   232
+#define ABT_Y_HINT      296
+
+/* 许可标签的折行宽度。
+   实测英文 "Free for personal use · Commercial needs license" 单行 327px，
+   而 y=254 处可用弦宽仅约 291px —— 必须折行。
+   取 200px 是因为它在自然断点处折开（"Free for personal use ·" / "Commercial needs license"），
+   中文 "个人免费 · 商用需授权" 约 145px 仍是一行，两种语言观感一致。
+   改文案后跑 tools/font_metrics.py 核对宽度。 */
+#define ABT_LICENSE_W   200
 
 static void close_page(void)
 {
@@ -44,6 +65,7 @@ static void close_page(void)
     lv_obj_del(gone);
 }
 
+/* 单行文本（自身宽度即内容宽度，不折行） */
 static lv_obj_t *make_line(lv_obj_t *parent, const char *text,
                            const lv_font_t *font, lv_color_t color, lv_coord_t y)
 {
@@ -51,6 +73,24 @@ static lv_obj_t *make_line(lv_obj_t *parent, const char *text,
     lv_label_set_text(lbl, text);
     lv_obj_set_style_text_font(lbl, font, 0);
     lv_obj_set_style_text_color(lbl, color, 0);
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, y);
+    return lbl;
+}
+
+/* 限宽折行的文本：宽度固定、内容居中、按空格自动折行，高度随行数长。
+   长句（如英文许可标签）必须走这个，否则会顶出圆屏边缘被切掉。 */
+static lv_obj_t *make_wrapped_line(lv_obj_t *parent, const char *text,
+                                   const lv_font_t *font, lv_color_t color,
+                                   lv_coord_t y, lv_coord_t w)
+{
+    lv_obj_t *lbl = lv_label_create(parent);
+    lv_label_set_text(lbl, text);
+    lv_obj_set_style_text_font(lbl, font, 0);
+    lv_obj_set_style_text_color(lbl, color, 0);
+    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(lbl, w);
+    lv_obj_set_height(lbl, LV_SIZE_CONTENT);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
     lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, y);
     return lbl;
 }
@@ -75,29 +115,33 @@ void ui_about_page_show(void)
     lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    ui_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回上一页 */
+    sdgoods_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回上一页 */
 
-    make_line(s_scr, SDG_T("关于", "About"), &si_yuan_black_icon_14, lv_color_white(), 48);
+    make_line(s_scr, SDG_T("关于", "About"),
+              &si_yuan_black_icon_14, lv_color_white(), ABT_Y_TITLE);
 
-    /* 项目标识：本固件属于「谷仓共创计划」，下面依次是开放平台与设备名。
+    /* 项目标识：本固件属于「谷仓共创计划」，下面依次是开放平台、设备名与公司。
        文案全部取自 build_version.h，不要在别处另写一份字面量。
        品牌名与公司名是商标 / 法定名称，两种语言下都显示官方中文原名 —— 不翻译。 */
-    make_line(s_scr, SDGOODS_PROGRAM,  &si_yuan_black_icon_14, lv_color_hex(0xFFCC33), 74);
-    make_line(s_scr, SDGOODS_PLATFORM, &si_yuan_black_icon_14, lv_color_white(), 104);
-    make_line(s_scr, SDGOODS_PRODUCT,  &si_yuan_black_icon_16, lv_color_white(), 138);
+    make_line(s_scr, SDGOODS_PROGRAM,  &si_yuan_black_icon_14, lv_color_hex(0xFFCC33), ABT_Y_PROGRAM);
+    make_line(s_scr, SDGOODS_PLATFORM, &si_yuan_black_icon_14, lv_color_white(), ABT_Y_PLATFORM);
+    make_line(s_scr, SDGOODS_PRODUCT,  &si_yuan_black_icon_16, lv_color_white(), ABT_Y_PRODUCT);
 
-    make_line(s_scr, SDGOODS_VENDOR, &si_yuan_black_icon_14, gray, 180);
+    make_line(s_scr, SDGOODS_VENDOR, &si_yuan_black_icon_14, gray, ABT_Y_VENDOR);
 
+    /* 关于页不展示联系方式（按产品口径，联系邮箱只保留在文档与开机串口横幅里）。
+       需要时加回来：SDG_T("联系：%s", "Contact: %s"), SDGOODS_CONTACT_EMAIL */
     char buf[64];
     snprintf(buf, sizeof(buf), SDG_T("固件版本 %s", "Firmware %s"), BUILD_VERSION_STR);
-    make_line(s_scr, buf, &si_yuan_black_icon_14, gray, 214);
+    make_line(s_scr, buf, &si_yuan_black_icon_14, gray, ABT_Y_VERSION);
 
-    /* 授权状态：这是本工程对外的承诺，放在固件里让它跟着设备走 */
-    make_line(s_scr, SDG_T(SDGOODS_LICENSE_TAG, SDGOODS_LICENSE_TAG_EN),
-              &si_yuan_black_icon_14, lv_color_white(), 250);
+    /* 授权状态：这是本工程对外的承诺，放在固件里让它跟着设备走。
+       英文比中文长得多，限宽折行显示。 */
+    make_wrapped_line(s_scr, SDG_T(SDGOODS_LICENSE_TAG, SDGOODS_LICENSE_TAG_EN),
+                      &si_yuan_black_icon_14, lv_color_white(), ABT_Y_LICENSE, ABT_LICENSE_W);
 
     make_line(s_scr, SDG_T("按电源键返回", "Power key to go back"),
-              &si_yuan_black_icon_16, gray, 296);
+              &si_yuan_black_icon_14, gray, ABT_Y_HINT);   /* 提示行 14 号字 */
 
     lv_scr_load(s_scr);
 }

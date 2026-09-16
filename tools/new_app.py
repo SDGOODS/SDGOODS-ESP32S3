@@ -157,7 +157,7 @@ def main():
 
   1. 编辑 {os.path.relpath(out_c, ROOT)}，把界面改成你要的样子
      · 界面栅格用 SDG_UI_* 常量（见 platform 的 sdgoods_ui.h）
-     · 顶部下滑菜单 / 退出 / 暂停 已由 ui_app_shell 自动接好
+     · 顶部下滑菜单 / 退出 / 暂停 已由 sdgoods_app_shell 自动接好
      · 界面文案用 SDG_T("中文", "English")，默认英文显示（见 sdgoods_i18n.h）
 
   2. ★ 如果加了新的中文文案，必须重新生成字体子集，否则屏上是方框：

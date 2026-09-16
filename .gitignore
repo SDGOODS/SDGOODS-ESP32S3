@@ -34,3 +34,6 @@ node_modules/
 tools/fonts/*.ttf
 tools/fonts/*.otf
 tools/fonts/*.part
+
+# ---- 本机 / 代理工具目录 ----
+.workbuddy/

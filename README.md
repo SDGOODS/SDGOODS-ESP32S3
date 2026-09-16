@@ -16,6 +16,8 @@
 >
 > 你可以按本仓库的许可自由使用代码；但**项目名、产品名与 SDGOODS 标识不在代码许可的授权范围内**，
 > 详见 [TRADEMARK.md](TRADEMARK.md)。
+>
+> **联系我们**：`zhangzuoliang321@126.com`（商业授权 / 报 bug / 合作）
 
 **这份代码同时是「谷仓 SDGOODS 开放平台」的二次开发基础。** 工程刻意分成了两层，
 连许可也是分开的：
@@ -48,8 +50,11 @@ python3 tools/new_app.py my_app "我的应用"    # 生成骨架 + 自动注册�
 
 **界面与系统**
 - 开机 GIF 动画（帧数据烘进固件，PSRAM canvas 播放）
-- 主页 + 应用启动台 + DEMO 页（录音回放 / WiFi 扫描 / 蓝牙扫描 / 硬件信息 / 关于）
-- 统一的应用外壳（`ui_app_shell`）：顶部下滑出菜单（音量 ± / 截屏 / 退出），
+- 主页 + 应用启动台（小鸟 / 飞机）+ DEMO 页（录音回放 / WiFi 扫描 / 蓝牙扫描 /
+  硬件信息 / 关于 / 语言切换）
+- **中英双语界面**：出厂**默认英文**，DEMO 页最后一颗「语言」按钮一键切换
+  （选择存 NVS，重启保留；新增文案写 `SDG_T("中文", "English")` 即可）
+- 统一的应用外壳（`sdgoods_app_shell`）：顶部下滑出菜单（音量 ± / 退出），
   底部上滑或电源键收起 —— **任何应用接三行代码就自动拥有这套交互**
 - 触摸拖拽交互、电量与关机流程、内置开机音效
 
@@ -65,7 +70,7 @@ python3 tools/new_app.py my_app "我的应用"    # 生成骨架 + 自动注册�
   它本身没有界面入口，留在构建里的意义是**保证模板始终能编译**
 
 **调试工具链**
-- 串口一键截屏：设备端 LVGL 快照 → base64 分块 → 电脑端 `tools/screenshot_recv.py` 还原 PNG
+- 串口一键截屏：设备端 LVGL 快照 → **板载 JPEG 编码**（RGB565 直编，典型 20~50KB）→ 电脑端 `tools/screenshot_recv.py` 直接落 .jpg（单张约 2~5 秒；编码失败自动退回原始 RGB565）；截屏时设备显示「截图中」浮层 + 进度条
 - `tools/plane_stat.py`：连双串口边玩边统计道具掉落分布、火力档位、受击次数
 - `tools/gen_fonts.py`：按源码字符集重新生成中文子集字体（带缺字校验）
 - `tools/font_metrics.py`：**离线核对文字宽度** —— 不烧板子就能判断某个文案会不会溢出按钮/圆屏
@@ -87,6 +92,20 @@ python3 tools/new_app.py my_app "我的应用"    # 生成骨架 + 自动注册�
 
 引脚定义集中在 [`components/sdgoods_board/include/board_pins.h`](components/sdgoods_board/include/board_pins.h)
 —— 这是平台层里**唯一鼓励你改**的文件，换板子改它一个就够。
+
+---
+
+## 🔧 开发环境（AI 第一步必查）
+
+用 AI 助手改这份代码前，请让它**先检查环境**，缺什么它会告诉你：
+
+```bash
+python3 tools/check_env.py
+```
+
+必备：Python 3.8+、**ESP-IDF ≥ 5.5**、esptool；改中文文案还需 Node ≥ 16（`npm i lv_font_conv`）。
+完整清单、各系统安装步骤、串口驱动见 [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)。
+环境不对，后面编译 / 烧录 / 截屏自测都做不了。
 
 ---
 
@@ -137,18 +156,21 @@ python3 tools/new_app.py my_app "我的应用"
 
 启动台会按应用数量自动排布按钮（1~3 个单行居中、4~6 个两行居中，最多显示 6 个），
 界面栅格用平台提供的 `SDG_UI_*` 常量（已避开圆边裁切），
-顶部下滑菜单 / 音量 / 退出 / 暂停 / 截屏都由 `ui_app_shell` 自动接好。
+顶部下滑菜单 / 音量 / 退出 / 暂停都由 `sdgoods_app_shell` 自动接好；
+界面文案写成 `SDG_T("中文", "English")`，两种语言共用同一套界面代码。
 
 ### 常见任务索引
 
 | 你想做的事 | 看哪里 |
 |---|---|
 | 用 AI 改代码（**强烈建议先读**） | [`AGENTS.md`](AGENTS.md) —— 编译方式、两层边界、硬约束、提交前检查清单 |
+| 用 AI 改代码**前先查环境** | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) + `python3 tools/check_env.py`（缺什么它会告诉你） |
 | 加一个应用 / 改启动台按钮 | `python3 tools/new_app.py`，或 [`docs/ARCHITECTURE.md` §3](docs/ARCHITECTURE.md) |
 | 改界面 / 加中文文案 | 改完**必须**跑 `tools/gen_fonts.py`，否则出方框；用 `tools/font_metrics.py` 先看会不会超宽 |
 | 改飞机玩法 / 联机逻辑 | [`docs/ARCHITECTURE.md` §6](docs/ARCHITECTURE.md) —— **联机同步四条铁律**，违反会让两台设备敌机分叉 |
 | 改引脚 / 换屏幕 | `components/sdgoods_board/include/board_pins.h` + `components/sdgoods_board/lcd/` |
 | 改完怎么自己验证 | `tools/screenshot_recv.py` 一键截屏看画面（AI 也能直接看图） |
+| **提交固件到谷仓SDGOODS开放平台**（网页 / CLI / 让 AI 直调 API） | [`docs/PUBLISHING.md`](docs/PUBLISHING.md) —— 含 `tools/sdgoods_publish.py` 用法与完整 REST 字段表 |
 | **想拿去做商业产品 / 要授权** | [`LICENSING.md`](LICENSING.md) —— 平台层本来就可免费商用，只有应用层需要谈 |
 
 几个最容易踩的坑（**都在 `AGENTS.md` 里展开了**）：
@@ -158,6 +180,22 @@ python3 tools/new_app.py my_app "我的应用"
 3. 内部 SRAM 很小，大缓冲要显式申请 PSRAM，但 **LVGL 绘制缓冲不能放 PSRAM**；
 4. 飞机联机的确定性同步有四条硬约束 + 同 tick 语句顺序要求，改玩法前必读；
 5. 回调别取 `on_exit` 这种名字 —— 与 libc 符号冲突会直接编译失败。
+
+---
+
+## 🚀 提交到谷仓 SDGOODS 开放平台
+
+做出来的固件可以提交到 **谷仓 SDGOODS 开放平台**（开发者上传、他人下载/烧录的广场）。
+三种方式任选，详见 [`docs/PUBLISHING.md`](docs/PUBLISHING.md)：
+
+1. **网页手动**：打开平台 → 上传固件，填信息、传截图（可点「从设备截图」连真机抓图）、传 `.bin`。
+2. **命令行 / AI 助手**：`python3 tools/sdgoods_publish.py login 邮箱` 一次，`publish` 即可交——
+   纯标准库、无需安装，完整复刻网页提交链路，**AI 也能直接调用**。
+3. **让 AI 直调 REST API**：照 `docs/PUBLISHING.md` 的 curl 示例（鉴权 → presign 直传 → 创建记录）。
+
+> 网页端「从设备截图」会先发 `?` 探测固件能力（`SDGOODS-CAPS:SHOT`），**无截屏能力的固件会弹窗提示
+> 「请让 AI 在 BSP 中启用截屏能力（CONFIG_SDGOODS_SCREENSHOT）后重烧」**，而不是盲抓出颜色错乱的图。
+> 新增任何 BSP 基础能力都应登记到 `sdgoods_caps` 并让控制台应答 `?`（见 [`AGENTS.md`](AGENTS.md) §10）。
 
 ---
 
@@ -178,9 +216,11 @@ python3 tools/new_app.py my_app "我的应用"
 │   │   ├── sdgoods_ui.h            #   圆屏 UI 栅格常量 SDG_UI_*
 │   │   ├── sdgoods_hooks.h         #   平台↔应用 的注册接口（见 ARCHITECTURE §2）
 │   │   ├── board_pins.h            #   ★ 引脚定义（换板子改这里）
-│   │   ├── ui_app_shell.h          #   应用外壳：统一菜单/退出/暂停
-│   │   ├── lvgl_port.h  st77916.h  touch_input.h  power_off.h
-│   │   └── audio_recplay.h  wifi_scan.h  ble_scan.h  hw_info.h  screenshot.h
+│   │   ├── sdgoods_i18n.h          #   中英双语：SDG_T("中文", "English")
+│   │   ├── sdgoods_app_shell.h     #   应用外壳：统一菜单/退出/暂停
+│   │   ├── sdgoods_lvgl.h  sdgoods_lcd.h  sdgoods_input.h  sdgoods_power.h
+│   │   └── sdgoods_audio.h  sdgoods_wifi.h  sdgoods_ble.h  sdgoods_hw_info.h
+│   │       sdgoods_screenshot.h  sdgoods_boot.h  sdgoods_swipe_back.h
 │   ├── src/                        #   实现（LVGL 移植 / 触摸 / 音频 / 框架 / 开机流程…）
 │   ├── lcd/                        #   ST77916 QSPI 面板驱动 + 厂商初始化序列
 │   ├── fonts/                      #   中文子集字体（gen_fonts.py 生成，SIL OFL 1.1）
@@ -206,12 +246,16 @@ python3 tools/new_app.py my_app "我的应用"
 │   ├── fetch_fonts.py              # 下载 OFL 源字体（Noto Sans SC）
 │   ├── gen_fonts.py                # 重新生成中文子集字体（带缺字校验）
 │   ├── font_metrics.py             # 离线核对文字宽度（会不会溢出/缺字）
-│   ├── screenshot_recv.py          # 电脑端：接收串口数据还原 PNG
-│   └── plane_stat.py               # 飞机道具体验数据统计
+│   ├── screenshot_recv.py          # 电脑端：接收串口数据还原 PNG / 查设备能力(--caps)
+│   ├── plane_stat.py               # 飞机道具体验数据统计
+│   ├── sdgoods_publish.py          # ★ 命令行提交固件到谷仓SDGOODS开放平台（AI 友好）
+│   └── check_env.py                # ★ 开发环境检查（AI 改代码第一步必跑）
 │
 ├── docs/
 │   ├── BUILD.md                    # 编译 / 烧录 / 打包分发
-│   └── ARCHITECTURE.md             # 分层设计、钩子机制、联机同步、调试链路
+│   ├── ARCHITECTURE.md             # 分层设计、钩子机制、联机同步、调试链路
+│   ├── ENVIRONMENT.md              # ★ 开发环境要求与安装（AI 第一步）
+│   └── PUBLISHING.md               # 如何把固件提交到谷仓SDGOODS开放平台（网页/CLI/API）
 ├── sdkconfig / sdkconfig.defaults
 └── partitions.csv
 ```
@@ -251,7 +295,7 @@ Apache-2.0，可以闭源、可以卖钱、不必回馈代码。应用层是我�
 > 保留字体名 'Source'），每个生成文件头部都带了完整的版权与许可声明 —— 这是 OFL 的要求，请勿删除。
 > 要换成别的字体：`python3 tools/gen_fonts.py --font <你的字体>`（记得确认对方的再分发授权）。
 >
-> `components/sdgoods_board/src/boot_anim_gif.c` 是开机动画的帧数据，
+> `components/sdgoods_board/src/sdgoods_boot_gif.c` 是开机动画的帧数据，
 > 请确认你拥有其素材的分发权，或替换为你自己的动画。
 
 ### SDGOODS 标识
@@ -263,6 +307,19 @@ Apache-2.0，可以闭源、可以卖钱、不必回馈代码。应用层是我�
 固件层面也有品牌露出：首页页脚、`build_version.h` 里的品牌宏、开机串口日志的品牌横幅，
 以及 **DEMO 页里的「关于」**（谷仓共创计划 / 开放平台 / 设备名 / 公司与授权状态）。
 这样即使有人只拿到一颗烧好的芯片，也能看出它的源头与归属。
+
+---
+
+## 📮 联系
+
+**zhangzuoliang321@126.com** —— 商业授权、报 bug、合作都走这个邮箱，别客气。
+
+这个地址也**烘在固件里**：开机串口日志的品牌横幅里有一份
+（宏 `SDGOODS_CONTACT_EMAIL`，定义在 `main/gen_build_version.cmake`）。
+所以哪怕只剩一颗烧好的芯片、没有任何文档，接上串口也能顺着它找到我们。
+
+> 关于页按产品口径**不展示**联系方式（那里只放项目、设备、公司与授权范围）。
+> 想加回来的话，在 `main/apps/ui_about.c` 里加一行即可，代码里留了注释说明。
 
 ---
 

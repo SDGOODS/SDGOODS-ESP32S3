@@ -24,10 +24,10 @@
 #include "driver/gpio.h"
 #include "lvgl.h"
 #include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
-#include "st77916.h"
+#include "sdgoods_lcd.h"
 #include "ui_app_page.h"
-#include "audio_recplay.h"
-#include "ui_app_shell.h"
+#include "sdgoods_audio.h"
+#include "sdgoods_app_shell.h"
 
 LV_FONT_DECLARE(si_yuan_black_icon_14);
 LV_FONT_DECLARE(cn_font_14);
@@ -572,7 +572,7 @@ static void flappy_tick(lv_timer_t *t)
 static void flap(void)
 {
     s_vy = JUMP_V;
-    audio_sfx_flap();
+    sdgoods_audio_sfx_flap();
 }
 
 static void on_tap(lv_event_t *e)
@@ -611,7 +611,7 @@ static void close_to_app(void)
         lv_timer_del(s_timer);
         s_timer = NULL;
     }
-    audio_bgm_stop();   /* 退出游戏时停止背景音乐 */
+    sdgoods_audio_bgm_stop();   /* 退出游戏时停止背景音乐 */
     lv_obj_t *gone = s_scr;
     s_scr = NULL;
     s_bird = NULL;
@@ -707,10 +707,10 @@ void ui_flappy_start(void)
 
     /* 接入「应用标准框架」：顶部下滑弹菜单 + 电源键离开(回 home)。
      * 音量调节移到菜单内(共享音量)，故此处不再创建游戏内音量按钮。 */
-    ui_app_shell_set_exit_cb(close_to_app);
-    ui_app_shell_set_pause_cb(on_pause);
-    ui_app_shell_set_resume_cb(on_resume);
-    ui_app_shell_bind(s_scr);
+    sdgoods_app_shell_set_exit_cb(close_to_app);
+    sdgoods_app_shell_set_pause_cb(on_pause);
+    sdgoods_app_shell_set_resume_cb(on_resume);
+    sdgoods_app_shell_bind(s_scr);
 
     /* 游戏结束提示（屏幕中间下方）：「点击重玩 / 按键返回」，与居中的结算文案分离 */
     s_over_hint = lv_label_create(s_scr);
@@ -741,7 +741,7 @@ void ui_flappy_start(void)
     s_timer = lv_timer_create(flappy_tick, 16, NULL);
     lv_scr_load(s_scr);
 
-    audio_bgm_start(AUDIO_BGM_THEME_FLAPPY);   /* 进入游戏即播放背景音乐（失败也不影响游戏运行） */
+    sdgoods_audio_bgm_start(AUDIO_BGM_THEME_FLAPPY);   /* 进入游戏即播放背景音乐（失败也不影响游戏运行） */
 }
 
 void ui_flappy_poll(void)
@@ -749,5 +749,5 @@ void ui_flappy_poll(void)
     if (!s_scr) {
         return;
     }
-    /* 电源键短按/长按统一由 touch_input.c 的 power_key_poll 处理 */
+    /* 电源键短按/长按统一由 sdgoods_input.c 的 sdgoods_power_key_poll 处理 */
 }

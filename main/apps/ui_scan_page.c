@@ -27,7 +27,7 @@
 #include "board_pins.h"
 #include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "ui_home.h"
-#include "ui_swipe_back.h"
+#include "sdgoods_swipe_back.h"
 
 LV_FONT_DECLARE(si_yuan_black_icon_16);
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -99,7 +99,7 @@ void ui_scan_page_show(const char *title, const char *sub_fmt, ui_scan_fn_t scan
     lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    ui_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
+    sdgoods_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *t = lv_label_create(s_scr);
     lv_label_set_text(t, title);
@@ -123,7 +123,7 @@ void ui_scan_page_show(const char *title, const char *sub_fmt, ui_scan_fn_t scan
 
     lv_obj_t *hint = lv_label_create(s_scr);
     lv_label_set_text(hint, SDG_T("按电源键返回", "Power key to go back"));
-    lv_obj_set_style_text_font(hint, &si_yuan_black_icon_16, 0);
+    lv_obj_set_style_text_font(hint, &si_yuan_black_icon_14, 0);   /* 提示行用小一号的字（14） */
     lv_obj_set_style_text_color(hint, gray, 0);
     lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 296);
 

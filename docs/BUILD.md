@@ -31,10 +31,10 @@ SDGOODS-ESP32S3/
 | 改启动台按钮文字、顺序 | `main/apps/apps_registry.c` 的 `s_apps[]` |
 | 改某个界面布局 | `main/apps/ui_*.c` |
 | 改引脚（接自己的板子） | `components/sdgoods_board/include/board_pins.h` |
-| 改音频时序 / 功放控制 | `components/sdgoods_board/src/audio_recplay.c` |
+| 改音频时序 / 功放控制 | `components/sdgoods_board/src/sdgoods_audio.c` |
 | 改屏初始化序列 | `components/sdgoods_board/lcd/esp_lcd_st77916/` |
 
-> **别动**：`components/sdgoods_board/src/lvgl_port.c` 的绘制缓冲配置
+> **别动**：`components/sdgoods_board/src/sdgoods_lvgl.c` 的绘制缓冲配置
 > （双缓冲 8 行、放 INTERNAL SRAM）—— 改动容易导致屏上出现黑条/红线。
 > 理由见 `docs/ARCHITECTURE.md` 的显示链路一节。
 
@@ -238,7 +238,7 @@ DEMO 按钮    关于         14      28.0    28.0     +0.0  OK
 
 1. `idf.py -p <串口> flash`；
 2. 逐个界面走一遍；
-3. 应用内「顶部下滑 → 截屏」，或电脑端 `tools/screenshot_recv.py -p <串口> -o x.png -n 1 -t`；
+3. 电脑端 `tools/screenshot_recv.py -p <串口> -o x.png -n 1 -t`（`-t` 自动向串口发 `s`）；
 4. 对着截图确认无方框、无溢出。
 
 > ⚠️ 设备端只有 `'s'` 这一个串口命令，**没有导航命令** —— 手势到不了的界面
