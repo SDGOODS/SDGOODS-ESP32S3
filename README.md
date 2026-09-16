@@ -36,7 +36,7 @@
 | 串口一键截屏 | 连电脑即抓当前画面（调试链路） | — |
 
 > AI 读完这些参考 + [`AGENTS.md`](AGENTS.md) + [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，
-> 用 `python3 tools/new_app.py my_app "我的应用"` 生成骨架，就能照着写你自己的应用。
+> 能快速实现你想要的应用。
 
 ---
 
