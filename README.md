@@ -31,12 +31,15 @@
 | 存储 | **32MB Flash**（QSPI） |
 | 显示屏 | 圆形 **360×360**，**ST77916** 驱动，QSPI 接口，RGB565 |
 | 触摸 | **CST816** 电容触摸（与屏一体，I2C，支持滑动手势） |
+| 惯性传感 | **QMI8658** 六轴 IMU（3 轴加速度计 + 3 轴陀螺仪，I2C） |
 | 音频输出 | 板载 Class-D 功放 + 喇叭（I2S） |
 | 音频输入 | 数字麦克风（I2S） |
 | 物理按键 | 1 颗电源键（GPIO6） |
-| 电池 | 电池检测 / 供电管理（GPIO7） |
+| 电池 | **500mAh** 锂电池 + 电池检测 / 供电管理（GPIO7） |
 | 无线 | 2.4GHz **WiFi** + **Bluetooth 5（BLE）**，支持双人蓝牙联机对战 |
 | 接口 | USB（USB-Serial-JTAG，用于烧录 / 调试 / 串口截屏） |
+
+**外观与佩戴**：圆形机身，直径 **58mm**、厚度 **9mm**；背面带**磁吸**，可吸附在金属表面；另设**挂绳孔**与**别针**（badge pin）两种佩戴方式，可作胸牌 / 挂饰。
 
 所有引脚与面板参数只在 [`components/sdgoods_board/include/board_pins.h`](components/sdgoods_board/include/board_pins.h) 定义，应用层不得复制这些常量。
 
