@@ -7,15 +7,14 @@
 [![Apps: Apache-2.0](https://img.shields.io/badge/apps-Apache--2.0-blue.svg)](LICENSING.md)
 
 > [!IMPORTANT]
-> **What this is, and who owns it**
 > This repo is the base firmware/SDK for the SDGOODS Electric Badge (谷仓电子徽章) device.
 > Copyright and related rights belong to **Shenzhen Seed Innovation Network Co., Ltd. (SDGOODS)**.
 > The code is free to use under this repo's license, but the project name, product name and SDGOODS marks are NOT covered by the code license (see [TRADEMARK.md](TRADEMARK.md)).
-> Site [https://sdgoods.ai](https://sdgoods.ai) · Email `zhangzuoliang321@126.com`
+> Site [https://sdgoods.ai](https://sdgoods.ai) · Email `zhangzuoliang321@126.com`.
 
 This is a complete firmware example for an **ESP32-S3 + 360×360 round touchscreen** device: boot animation → home → DEMO & samples.
 It also ships a from-scratch UI framework, game logic, and a one-command serial screenshot debug pipeline.
-With this code, you can easily do AI-assisted secondary development.
+From this code, you can easily do AI-assisted secondary development on the SDGOODS Electric Badge (谷仓电子徽章).
 
 | Home | App launcher |
 |---|---|
@@ -36,7 +35,7 @@ The firmware ships several demos that both show what the badge can do and serve 
 | Minimal skeleton (`main/apps/app_template.c`) | Minimal runnable app (one-shot `tools/new_app.py`) | **Start new apps here**: edit it into your app |
 | Serial screenshot | Grab current screen from a PC (debug pipeline) | — |
 
-> After reading these references + [AGENTS.md](AGENTS.md) + [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), run `python3 tools/new_app.py my_app "我的应用"` to scaffold, then write your own app following them.
+> After reading these references + [AGENTS.md](AGENTS.md) + [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), you can quickly build the app you want.
 
 ---
 
