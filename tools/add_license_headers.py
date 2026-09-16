@@ -13,8 +13,10 @@
 分级（与仓库的许可分层一一对应）：
 
   平台层  components/sdgoods_board/**（排除 fonts/）  -> Apache-2.0
-  应用层  main/**（排除 patches/）                     -> PolyForm Noncommercial 1.0.0
+  应用层  main/**（排除 patches/）                     -> Apache-2.0
   工具    tools/*.py                                  -> Apache-2.0
+
+本仓库（平台层与应用层）统一以 Apache-2.0 发布，可自由商用、可闭源分发。
 
 **刻意不动**这两处 —— 它们的许可由上游决定，我们无权更改：
 
@@ -69,14 +71,12 @@ NC_C = """/*
  *
  * %s
  * %s
- * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ * SPDX-License-Identifier: Apache-2.0
  *
- * Required Notice: %s
- *
- * 个人学习、研究与业余项目免费使用；商业用途需事前书面授权，见 LICENSING.md。
- * 分发时必须完整保留本声明 —— 这是许可条款，不是建议。
+ * 本文件属于应用层，以 Apache-2.0 发布：可自由商用、可闭源分发，
+ * 只需保留本声明并携带 NOTICE 文件。详见 LICENSING.md。
  */
-""" % (REPO_URL, COPYRIGHT, OWNERSHIP_C, COPYRIGHT)
+""" % (REPO_URL, COPYRIGHT, OWNERSHIP_C)
 
 APACHE_PY = """# 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程 · 开发工具
 # %s
@@ -175,7 +175,7 @@ def main():
     plat, app, tools = collect()
 
     groups = [("平台层 Apache-2.0", plat, APACHE_C),
-              ("应用层 PolyForm NC", app, NC_C),
+              ("应用层 Apache-2.0", app, NC_C),
               ("工具 Apache-2.0", tools, APACHE_PY)]
 
     changed = skipped = 0

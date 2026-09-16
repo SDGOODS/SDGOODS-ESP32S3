@@ -143,17 +143,16 @@ esptool.py --chip esp32s3 --port <串口> --baud 921600 write_flash 0x0 merged.b
 
 ### 发固件给别人时：必须随包带上许可文件
 
-这不是可选项。平台层是 **Apache-2.0**，该许可第 4 条要求**再分发时携带许可全文与
-NOTICE 文件**；应用层的 **PolyForm Noncommercial** 也要求把许可条款一并传递给接收者。
+这不是可选项。本仓库（平台层与应用层）统一以 **Apache-2.0** 发布，该许可第 4 条要求
+**再分发时携带许可全文与 NOTICE 文件**。
 
 所以固件包里至少要有这几份（从仓库根目录直接拷进 `release/fixNN/`）：
 
 ```
 merged.bin
-LICENSE                            # 根许可（应用层 PolyForm NC）
+LICENSE                            # 根许可（Apache-2.0）
 NOTICE                             # 第三方组件归属声明
-LICENSING.md                       # 授权范围与商用申请（接收方最该看的一份）
-components/sdgoods_board/LICENSE   # 平台层 Apache-2.0 全文
+LICENSING.md                       # 授权范围与商标使用（接收方最该看的一份）
 ```
 
 `flash.sh` / 包内 `README.md` 里也建议写一行：

@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml/badge.svg)](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml)
 [![平台层: Apache-2.0](https://img.shields.io/badge/platform-Apache--2.0-blue.svg)](LICENSE)
-[![应用层: PolyForm NC](https://img.shields.io/badge/apps-PolyForm%20NC-orange.svg)](LICENSING.md)
+[![应用层: Apache-2.0](https://img.shields.io/badge/apps-Apache--2.0-blue.svg)](LICENSING.md)
 
 > [!IMPORTANT]
 > **这是什么、属于谁**
@@ -83,7 +83,7 @@
 ```
 components/sdgoods_board/   # 平台层（Apache-2.0，可商用）：驱动/LVGL/触摸/音频/外壳/字体
   └── include/board_pins.h  # 引脚定义（换板子改这里）
-main/apps/                  # 应用层（PolyForm NC，二次开发主要在这里）
+main/apps/                  # 应用层（Apache-2.0，二次开发主要在这里）
   ├── apps_registry.c       # 应用清单（启动台显示什么、谁被轮询）
   ├── app_template.c        # 新应用模板
   ├── ui_home.c  ui_app_page.c  ui_about.c
@@ -120,18 +120,18 @@ LICENSING.md  TRADEMARK.md  NOTICE  LICENSE
 
 ## 许可证（简要）
 
-**本工程是「源码开放（source available）」，不是 OSI 意义上的开源**——因为应用层限制了商业使用领域。
-按层分级，一句话：**平台层随便商用，应用层个人免费、商用需授权。**
+本工程（平台层与应用层）**统一以 Apache-2.0 发布**：商业与非商业均免费，可闭源、可修改、可再分发。
+许可只授权代码，**不含商标**（见 [TRADEMARK.md](TRADEMARK.md)）。
 
 | 部分 | 许可证 | 商业使用 |
 |---|---|---|
 | `components/sdgoods_board/`（平台层） | Apache-2.0 | ✅ 免费 |
+| `main/`（应用层） | Apache-2.0 | ✅ 免费 |
 | `tools/`（脚本） | Apache-2.0 | ✅ 免费 |
-| `main/`（应用层） | PolyForm NC 1.0.0 | ⚠️ 需事前书面授权 |
 | `main/patches/`（LVGL 补丁） | MIT | ✅ 免费（LVGL 原许可） |
 | `components/sdgoods_board/fonts/`（子集字体） | SIL OFL 1.1 | ✅ 免费（字体原许可） |
 
-商业授权申请、商标使用见 [LICENSING.md](LICENSING.md) / [TRADEMARK.md](TRADEMARK.md)。
+授权范围与商标使用见 [LICENSING.md](LICENSING.md) / [TRADEMARK.md](TRADEMARK.md)。
 
 ---
 

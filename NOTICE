@@ -13,23 +13,23 @@ https://github.com/SDGOODS/SDGOODS-ESP32S3
 归属声明。
 
 ================================================================
-一、本仓库的分级许可
+一、本仓库的许可
 ================================================================
 
-  平台层    components/sdgoods_board/        Apache-2.0        可自由商用
-  应用层    main/                            PolyForm NC 1.0.0 非商业免费
+本仓库（平台层 `components/sdgoods_board/` 与应用层 `main/`）**统一以
+Apache-2.0 发布**：可自由商用、可闭源分发，要求保留版权声明与许可声明，
+并随分发携带本 NOTICE 文件。详见根目录 [LICENSE](LICENSE)。
+
+  Apache-2.0 涵盖范围：
+    components/sdgoods_board/ 下的全部自有代码 —— 屏幕驱动、LVGL 移植、
+    触摸、电源键、音频、WiFi/BLE 扫描、截屏、应用外壳（sdgoods_app_shell）、
+    开机动画、圆屏栅格常量（sdgoods_ui.h）、注册接口（sdgoods_hooks.*），
+    以及 main/ 下的全部应用层代码、tools/ 下的全部脚本。
+
   ----------------------------------------------------------------
-  例外      main/patches/                    MIT（LVGL 衍生，不可更改）
-  例外      components/sdgoods_board/fonts/  SIL OFL 1.1（字体，不可更改）
-
-APACHE-2.0 涵盖范围：
-  components/sdgoods_board/ 下的全部自有代码 —— 屏幕驱动、LVGL 移植、
-  触摸、电源键、音频、WiFi/BLE 扫描、截屏、应用外壳（sdgoods_app_shell）、
-  开机动画、圆屏栅格常量（sdgoods_ui.h）、注册接口（sdgoods_hooks.*），
-  以及 tools/ 下的全部脚本。
-
-  该部分允许商业使用、允许闭源分发，要求：保留版权声明与许可声明，
-  并携带本 NOTICE 文件。详见 components/sdgoods_board/LICENSE。
+  例外（许可由上游决定，我们无权更改，沿用原许可）：
+    main/patches/                    MIT（LVGL 衍生）
+    components/sdgoods_board/fonts/  SIL OFL 1.1（Noto Sans SC 子集字体衍生）
 
 ================================================================
 二、第三方组件
@@ -43,7 +43,7 @@ LVGL 8.3.11
   说明：通过 ESP-IDF 组件管理器下载，**未随本仓库分发**。
         本仓库 main/patches/ 存放对其内置 GIF 解码器（gifdec）的修改
         ——让 GIF canvas 分配到 PSRAM。该修改是对 LVGL 源代码的衍生，
-        因此**沿用 LVGL 原许可 MIT**，不受本仓库应用层非商业条款约束。
+        因此**沿用 LVGL 原许可 MIT**，不受本仓库 Apache-2.0 许可约束。
 
 Noto Sans SC
   https://github.com/notofonts/noto-cjk

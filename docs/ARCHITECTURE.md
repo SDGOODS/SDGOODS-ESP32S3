@@ -54,12 +54,12 @@ main/                              应用层
 | 目录 | 许可 | 说明 |
 |---|---|---|
 | `components/sdgoods_board/` | Apache-2.0 | 可自由商用、可闭源 |
-| `main/`（应用层） | PolyForm NC 1.0.0 | 非商业免费，商用需授权 |
+| `main/`（应用层） | Apache-2.0 | 可自由商用、可闭源 |
 | `main/patches/` | MIT | LVGL 衍生 —— **不可更改** |
 | `components/sdgoods_board/fonts/` | SIL OFL 1.1 | Noto Sans SC 衍生 —— **不可更改** |
 
-后两处的许可是上游决定的，我们无权追加限制 —— 所以即使根 `LICENSE` 限定了应用层的
-商业使用，**也不适用于这两个目录**。详见根目录 [LICENSING.md](../LICENSING.md)。
+后两处的许可是上游决定的，我们无权追加限制。本仓库其余部分（平台层与应用层）统一以
+Apache-2.0 发布。详见根目录 [LICENSING.md](../LICENSING.md)。
 
 新建 `.c` / `.h` / `.py` 之后跑一次 `python3 tools/add_license_headers.py --apply`
 补上声明（幂等，已带声明的会跳过）。

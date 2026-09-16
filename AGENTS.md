@@ -104,12 +104,12 @@ idf.py -p <串口> flash monitor
     改回 PSRAM 或调大 queue 会出黑条/红线）
   - `lcd/sdgoods_lcd.c` 的 vendor 初始化序列与 SPI 队列深度/分片大小
   - `src/sdgoods_audio.c` 的 I2S 与功放启停时序（关功放有 64ms 淡出防爆音）
-- **不要改许可分层**（这是对外的法律承诺，不是注释）：
+- **许可：本仓库统一 Apache-2.0**（这是对外的法律承诺，不是注释）：
 
   | 目录 | 许可 | 能不能改 |
   |---|---|---|
   | `components/sdgoods_board/` | Apache-2.0 | ✅ 可商用，保留声明即可 |
-  | `main/`（应用层） | PolyForm NC 1.0.0 | ⚠️ 非商业，商用要授权 |
+  | `main/`（应用层） | Apache-2.0 | ✅ 可商用，保留声明即可 |
   | `main/patches/` | MIT | ❌ **不可改** —— LVGL 衍生，我们无权追加限制 |
   | `components/sdgoods_board/fonts/` | SIL OFL 1.1 | ❌ **不可改** —— Noto Sans SC 衍生 |
 
