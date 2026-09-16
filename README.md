@@ -36,33 +36,32 @@
 python3 tools/new_app.py my_app "我的应用"
 ```
 
-用 AI 编程助手来改，请先让它读 [`AGENTS.md`](AGENTS.md)——那里是编译方式、两层边界、字体流程与几条**不遵守就出 bug** 的硬约束。
+---
+
+## 硬件能力
+
+谷仓次元屏（谷仓电子徽章）的板载硬件：
+
+| 部件 | 型号 / 规格 |
+|---|---|
+| 主控 SoC | ESP32-S3-R8（双核 Xtensa LX7，内置 **8MB Octal PSRAM**） |
+| 存储 | **32MB Flash**（QSPI） |
+| 显示屏 | 圆形 **360×360**，**ST77916** 驱动，QSPI 接口，RGB565 |
+| 触摸 | **CST816** 电容触摸（与屏一体，I2C，支持滑动手势） |
+| 音频输出 | 板载 Class-D 功放 + 喇叭（I2S） |
+| 音频输入 | 数字麦克风（I2S） |
+| 物理按键 | 1 颗电源键（GPIO6） |
+| 电池 | 电池检测 / 供电管理（GPIO7） |
+| 无线 | 2.4GHz **WiFi** + **Bluetooth 5（BLE）**，支持双人蓝牙联机对战 |
+| 接口 | USB（USB-Serial-JTAG，用于烧录 / 调试 / 串口截屏） |
+
+所有引脚与面板参数只在 [`components/sdgoods_board/include/board_pins.h`](components/sdgoods_board/include/board_pins.h) 定义，应用层不得复制这些常量。
 
 ---
 
-## 硬件能力契约
+## 🚀 用一句话开始开发
 
-下表是 `main` 已提供的**已验证能力**，不是芯片数据手册里所有可能的能力。应用代码应使用对应接口，不要绕过 BSP 直接操作硬件。
-
-| 能力 | 已确认实现 | 应用接口 | 必须遵守的边界 |
-|---|---|---|---|
-| 显示 | 圆形 **360×360**，**ST77916**，QSPI，RGB565 | `SDG_UI_*` 栅格 / LVGL | LVGL 绘制缓冲**不能放 PSRAM**；圆边裁切靠栅格常量避开 |
-| 主控 | **ESP32-S3-R8**，8MB Octal PSRAM，32MB Flash | — | 四线（Quad）PSRAM 的板子**不能用**；Flash<32MB 需改 `sdkconfig`+`partitions.csv` |
-| 输入 | 电容触摸（与屏一体） | `sdgoods_input` / 滑动手势 | 触摸在 LVGL 线程；跨线程调 LVGL 会崩 |
-| 音频 | 板载功放 + 喇叭 | `sdgoods_audio` | 无喇叭也能跑（静音）；PCM 读写放工作任务 |
-| 存储 | NVS 掉电保存（语言 / 设置） | — | — |
-| 无线 | WiFi 扫描 / BLE（飞机联机） | `sdgoods_wifi` / `sdgoods_ble` | 联机确定性同步有硬约束（见 `docs/ARCHITECTURE.md` §6） |
-| 截屏 | 板载 JPEG 编码 → 串口 → 电脑 `.jpg` | `sdgoods_screenshot` + `tools/screenshot_recv.py` | 需 `CONFIG_SDGOODS_SCREENSHOT`；无能力固件会被网页识别并提示 |
-| 开机动画 | 240² GIF 居中 15fps | `sdgoods_boot` | canvas 走 PSRAM，勿全局开 `CONFIG_LV_MEM_CUSTOM` |
-| 双语 | 出厂默认英文，一键切换 | `SDG_T("中文","English")` | 新增文案走 `SDG_T`；否则需重建字体 |
-
-所有引脚、面板参数只在 [`components/sdgoods_board/include/board_pins.h`](components/sdgoods_board/include/board_pins.h) 定义，应用层不得复制这些常量。
-
----
-
-## 用一句需求开始开发
-
-简单需求可以直接交给 AI 助手（它改代码前会先跑 `tools/check_env.py` 检查环境）：
+想给谷仓次元屏做一个新应用？把需求直接交给 **AI 编程助手** 即可——它会先跑 `tools/check_env.py` 检查环境，再按本仓库规范开发。
 
 ```
 请为谷仓次元屏开发一个 <你的应用>。
@@ -76,61 +75,7 @@ python3 tools/new_app.py my_app "我的应用"
 需求越具体越容易一次实现正确：用户流程、按键/手势做什么、是否掉电保存、体验目标、验收标准。
 若细节没给全，AI 可在不改变产品方向的前提下采用保守默认值，但需在交付里列出假设。
 
-> 本 README 只描述产品与仓库，不含给 AI 的执行说明。**AI 开始开发前请先读 `AGENTS.md`。**
-
----
-
-## 二次开发
-
-### 加一个自己的应用
-
-```bash
-python3 tools/new_app.py my_app "我的应用"
-```
-
-脚本会自动做三件容易漏的事：生成 `main/apps/ui_my_app.c/.h`、插进 `main/CMakeLists.txt`、
-注册进启动台（`apps_registry.c` 的 `s_apps[]` 表）。你只需改 `ui_my_app.c` 的界面代码。
-启动台按应用数量自动排布按钮（圆屏内居中），顶部下滑菜单 / 音量 / 退出由 `sdgoods_app_shell` 自动接好。
-
-### 现有应用（可作参考，不是成品 UI）
-
-| 应用 | 值得复用的模式 |
-|---|---|
-| 飞机大战 `ui_plane.c` + `plane_net.c` | 双人蓝牙联机、确定性同步、道具系统 |
-| 小鸟 `ui_flappy.c` | 最简游戏循环，适合照着改成自己的游戏 |
-
-新应用应**重新设计并实现**页面与交互，不能直接照搬 demo 界面；BSP API、生命周期模式与纯逻辑可按需复用。
-
----
-
-## 快速开始
-
-### 方式一：直接烧固件（不用编译）
-
-去仓库 **Releases** 页下载 `..._merged.bin`，然后：
-
-```bash
-pip install esptool
-esptool.py --chip esp32s3 --port <你的串口> --baud 921600 \
-  write_flash 0x0 SDGOODS_firmware_merged.bin
-```
-
-合并固件已含 bootloader + 分区表 + 应用，一次写入 `0x0` 即可（首次想更干净可加 `--erase-all`）。
-
-### 方式二：从源码编译
-
-需要 **ESP-IDF v5.5**（[安装指南](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/get-started/index.html)）：
-
-```bash
-git clone https://github.com/SDGOODS/SDGOODS-ESP32S3.git
-cd SDGOODS-ESP32S3
-idf.py set-target esp32s3
-idf.py build
-idf.py -p <你的串口> flash monitor
-```
-
-首次 `build` 会自动拉取 LVGL 8.3.11（版本锁在 `dependencies.lock`）并应用 `main/patches/` 里的补丁。
-详细说明与分发打包见 [`docs/BUILD.md`](docs/BUILD.md)。
+> ★ 本 README 只描述产品与仓库。**AI 开始开发前请先读 `AGENTS.md`**——那里是编译方式、两层边界、字体流程与几条「不遵守就出 bug」的硬约束。
 
 ---
 
