@@ -1,5 +1,5 @@
 # 谷仓次元屏 · SDGOODS-ESP32S3
-# SDGOODS Cyber-Badge · SDGOODS-ESP32S3
+# SDGOODS Electric Badge · SDGOODS-ESP32S3
 
 [![Build](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml/badge.svg)](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml)
 [![平台层: Apache-2.0](https://img.shields.io/badge/platform-Apache--2.0-blue.svg)](LICENSE)
@@ -8,7 +8,7 @@
 > [!IMPORTANT]
 > **这是什么、属于谁 / What this is, and who owns it**
 > 本工程是谷仓次元屏（谷仓电子徽章） 设备的二次开发基础工程，
-> This repo is the base firmware/SDK for the SDGOODS Cyber-Badge (谷仓电子徽章) device,
+> This repo is the base firmware/SDK for the SDGOODS Electric Badge (谷仓电子徽章) device,
 > 著作权及相关权利归 **深圳希德创新网络有限公司（SDGOODS）** 所有。
 > copyright and related rights belong to **Shenzhen SDGOODS Innovation Network Co., Ltd. (SDGOODS)**.
 > 代码按本仓库许可自由使用，但 **项目名、产品名与 SDGOODS 标识不在代码许可授权范围内**（见 [TRADEMARK.md](TRADEMARK.md)）。
@@ -53,7 +53,7 @@ The firmware ships several demos that both show what the badge can do and serve 
 ## 硬件能力 / Hardware
 
 谷仓次元屏（谷仓电子徽章）的板载硬件：
-On-board hardware of the SDGOODS Cyber-Badge:
+On-board hardware of the SDGOODS Electric Badge:
 
 | 部件 / Part | 型号 / 规格 / Model / spec |
 |---|---|
