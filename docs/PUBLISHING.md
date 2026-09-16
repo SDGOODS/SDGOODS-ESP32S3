@@ -1,11 +1,12 @@
 # 把固件提交到「谷仓 SDGOODS 开放平台」
 
 你在这块谷仓次元屏（谷仓电子徽章）上做出来的固件，可以提交到
-**谷仓 SDGOODS 开放平台**——开发者上传固件、其他用户浏览/下载/烧录的广场。
+**谷仓 SDGOODS 开放平台**（官网 **https://sdgoods.ai**）——开发者上传固件、其他用户浏览/下载/烧录的广场。
 本文给你三种提交方式，从「点网页」到「让 AI 一条命令帮你交」。
 
 > 本文里的 **API 基地址**统一记作 `https://你的平台域名/api`，
-> 对应网页端的环境变量 `SDGOODS_API_BASE`。本地起后端调试时换成 `http://localhost:3000/api`。
+> 对应网页端的环境变量 `SDGOODS_API_BASE`。生产环境即 `https://sdgoods.ai/api`；
+> 本地起后端调试时换成 `http://localhost:3000/api`。
 
 ---
 
@@ -30,8 +31,8 @@
 ### 一次性登录
 
 ```bash
-# 设置 API 基地址（和网页端同一个变量）
-export SDGOODS_API_BASE=https://你的平台域名/api
+# 设置 API 基地址（和网页端同一个变量；生产环境见下方）
+export SDGOODS_API_BASE=https://sdgoods.ai/api
 
 python3 tools/sdgoods_publish.py login 你的邮箱@example.com
 # → 邮箱收到 4 位验证码，输入后即登录

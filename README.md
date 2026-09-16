@@ -17,7 +17,7 @@
 > 你可以按本仓库的许可自由使用代码；但**项目名、产品名与 SDGOODS 标识不在代码许可的授权范围内**，
 > 详见 [TRADEMARK.md](TRADEMARK.md)。
 >
-> **联系我们**：`zhangzuoliang321@126.com`（商业授权 / 报 bug / 合作）
+> **联系我们**：官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `zhangzuoliang321@126.com`（商业授权 / 报 bug / 合作）
 
 **这份代码同时是「谷仓 SDGOODS 开放平台」的二次开发基础。** 工程刻意分成了两层，
 连许可也是分开的：
@@ -312,7 +312,8 @@ Apache-2.0，可以闭源、可以卖钱、不必回馈代码。应用层是我�
 
 ## 📮 联系
 
-**zhangzuoliang321@126.com** —— 商业授权、报 bug、合作都走这个邮箱，别客气。
+- **官网**：[https://sdgoods.ai](https://sdgoods.ai)（谷仓 SDGOODS 开放平台）
+- **邮箱**：**zhangzuoliang321@126.com** —— 商业授权、报 bug、合作都走这个邮箱，别客气。
 
 这个地址也**烘在固件里**：开机串口日志的品牌横幅里有一份
 （宏 `SDGOODS_CONTACT_EMAIL`，定义在 `main/gen_build_version.cmake`）。

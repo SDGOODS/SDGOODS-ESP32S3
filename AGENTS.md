@@ -10,9 +10,10 @@
 > 均归**深圳希德创新网络有限公司（SDGOODS）**所有。
 > 改代码时**不要删掉文件头的版权 / Required Notice 声明** —— 那是许可生效条件（见第 9 节清单）。
 >
-> **联系**：`zhangzuoliang321@126.com`（商业授权 / 报 bug / 合作统一走这个邮箱）。
-> 固件里也带着它（开机串口横幅；**关于页按产品口径不展示**），宏是 `SDGOODS_CONTACT_EMAIL`，
-> 定义在 `main/gen_build_version.cmake` —— 不要在别处另写邮箱字面量。
+> **联系**：官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `zhangzuoliang321@126.com`（商业授权 / 报 bug / 合作统一走这个邮箱）。
+> 固件里带着它们（开机串口横幅打印官网与邮箱；**关于页显示官网、不展示邮箱**，按产品口径），
+> 宏是 `SDGOODS_HOMEPAGE` / `SDGOODS_CONTACT_EMAIL`，定义在 `main/gen_build_version.cmake`
+> —— 不要在别处另写字面量。
 
 ---
 
@@ -363,7 +364,7 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
 1. **一次性登录**（邮箱收 4 位码，refreshToken 缓存在 `~/.sdgoods/credentials.json`）：
 
    ```bash
-   export SDGOODS_API_BASE=https://你的平台域名/api
+   export SDGOODS_API_BASE=https://sdgoods.ai/api
    python3 tools/sdgoods_publish.py login 你的邮箱@example.com
    ```
 

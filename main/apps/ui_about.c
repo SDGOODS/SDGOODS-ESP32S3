@@ -41,6 +41,7 @@ static uint32_t s_lang_seq;   /* 建屏时的语言版本号；和当前不一�
 #define ABT_Y_PROGRAM   72
 #define ABT_Y_PLATFORM  100
 #define ABT_Y_PRODUCT   130
+#define ABT_Y_HOMEPAGE  152
 #define ABT_Y_VENDOR    170
 #define ABT_Y_VERSION   200
 #define ABT_Y_LICENSE   232
@@ -126,6 +127,10 @@ void ui_about_page_show(void)
     make_line(s_scr, SDGOODS_PROGRAM,  &si_yuan_black_icon_14, lv_color_hex(0xFFCC33), ABT_Y_PROGRAM);
     make_line(s_scr, SDGOODS_PLATFORM, &si_yuan_black_icon_14, lv_color_white(), ABT_Y_PLATFORM);
     make_line(s_scr, SDGOODS_PRODUCT,  &si_yuan_black_icon_16, lv_color_white(), ABT_Y_PRODUCT);
+
+    /* 官网（取自 build_version.h 的 SDGOODS_HOMEPAGE）。ASCII 在字体里由 0x20-0x7E 全量覆盖，
+       显示 URL 不会出方框。改官网地址只需改 gen_build_version.cmake 一处。 */
+    make_line(s_scr, SDGOODS_HOMEPAGE, &si_yuan_black_icon_14, gray, ABT_Y_HOMEPAGE);
 
     make_line(s_scr, SDGOODS_VENDOR, &si_yuan_black_icon_14, gray, ABT_Y_VENDOR);
 
