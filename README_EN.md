@@ -22,23 +22,6 @@ From this code, you can easily do AI-assisted secondary development on the SDGOO
 
 ---
 
-## DEMO & Reference Apps
-
-The firmware ships several demos that both show what the badge can do and serve as ready-made reference templates for AI. The list below is **not the full hardware catalog** (see "Hardware" below); it picks representative demos to show how the code uses the hardware, and each row notes what it is good to copy as a template:
-
-| Demo or reference file | Hardware demonstrated | What to copy as a template |
-|---|---|---|
-| Home & app launcher (`ui_home.c`) | Round 360×360 touchscreen, capacitive swipe gestures, boot animation | Shell & launcher structure |
-| Demo page (`ui_demo_page.c`) | Basic UI widgets, bilingual text, combined screen+touch calls | Page layout, widgets, hardware calls |
-| Flappy bird (`ui_flappy.c`) | Touch control + timer game loop + audio | Simple game: input + timed refresh + draw |
-| Plane shooter (`ui_plane.c` + `plane_net.c`) | Touch/gyro control, plus **WiFi + BLE two-player Bluetooth co-op** | Full game + two-player BT sync |
-| Minimal skeleton (`main/apps/app_template.c`) | Minimal runnable app (one-shot `tools/new_app.py`) | **Start new apps here**: edit it into your app |
-| Serial screenshot | Grab current screen from a PC (debug pipeline) | — |
-
-> After reading these references + [AGENTS.md](AGENTS.md) + [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), you can quickly build the app you want.
-
----
-
 ## Hardware
 
 On-board hardware of the SDGOODS Electric Badge:
@@ -60,6 +43,23 @@ On-board hardware of the SDGOODS Electric Badge:
 **Look & wear:** Round body, **58mm** diameter, **9mm** thick; back has a **magnet** to stick on metal; also a **lanyard hole** and a **badge pin** for two wear styles (lapel badge / pendant).
 
 All pin and panel constants live only in [components/sdgoods_board/include/board_pins.h](components/sdgoods_board/include/board_pins.h); the app layer must not copy them.
+
+---
+
+## DEMO & Reference Apps
+
+The firmware ships several demos that both show what the badge can do and serve as ready-made reference templates for AI. The list below is **not the full hardware catalog** (see "Hardware" above); it picks representative demos to show how the code uses the hardware, and each row notes what it is good to copy as a template:
+
+| Demo or reference file | Hardware demonstrated | What to copy as a template |
+|---|---|---|
+| Home & app launcher (`ui_home.c`) | Round 360×360 touchscreen, capacitive swipe gestures, boot animation | Shell & launcher structure |
+| Demo page (`ui_demo_page.c`) | Basic UI widgets, bilingual text, combined screen+touch calls | Page layout, widgets, hardware calls |
+| Flappy bird (`ui_flappy.c`) | Touch control + timer game loop + audio | Simple game: input + timed refresh + draw |
+| Plane shooter (`ui_plane.c` + `plane_net.c`) | Touch/gyro control, plus **WiFi + BLE two-player Bluetooth co-op** | Full game + two-player BT sync |
+| Minimal skeleton (`main/apps/app_template.c`) | Minimal runnable app (one-shot `tools/new_app.py`) | **Start new apps here**: edit it into your app |
+| Serial screenshot | Grab current screen from a PC (debug pipeline) | — |
+
+> After reading these references + [AGENTS.md](AGENTS.md) + [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), you can quickly build the app you want.
 
 ---
 
