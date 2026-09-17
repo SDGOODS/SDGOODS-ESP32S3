@@ -10,12 +10,12 @@
 
 | 目录 | 内容 |
 |---|---|
-| `skills/` | 6 个 WorkBuddy Skill，封装 `tools/` 脚本与项目坑位 |
+| `skills/` | 6 个**跨平台** Skill，封装 `tools/` 脚本与项目坑位 |
 | `agent/sdgoods-dev.md` | 领域 Agent 定义（内嵌 `AGENTS.md` 硬约束 + 绑定 6 个 Skill） |
-| `mcp/mcp-config.example.json` | 连接开放平台 MCP 的客户端配置样例（**不含任何密钥**） |
-| `install.sh` | 一键装到 WorkBuddy |
+| `mcp/` | 连接开放平台 MCP 的客户端配置样例（**不含任何密钥**） |
+| `install.sh` | 一键装到 WorkBuddy / Claude Code / Cursor（多平台） |
 
-## 6 个 Skill
+## 6 个 Skill（跨平台通用）
 
 | Skill | 封装的动作 | 关键回退 |
 |---|---|---|
@@ -26,26 +26,57 @@
 | `sdgoods-fonts` | 改中文后重跑 `gen_fonts.py` + `font_metrics.py` | 漏字=方框，圆屏弦宽校验 |
 | `sdgoods-publish` | 提交固件到开放平台 | **优先 MCP，否则回退 `sdgoods_publish.py`** |
 
-## 安装到 WorkBuddy（优先）
+Skill 正文是平台无关的 Markdown，仅在安装时按目标平台落到不同位置、并生成对应形态的
+领域 Agent（Claude 的 `agents/` subagent、Cursor 的 `rules/` rule）。
+
+## 安装（多平台）
 
 ```bash
+# 探测已装平台并全部安装（全局，仅装到本机用户目录）
 bash sdgoods-ai/install.sh
+
+# 指定平台
+bash sdgoods-ai/install.sh --platform=workbuddy
+bash sdgoods-ai/install.sh --platform=claude
+bash sdgoods-ai/install.sh --platform=cursor
+bash sdgoods-ai/install.sh --platform=all
+
+# 装到「当前仓库」（项目级 .claude/ .cursor/ .mcp.json，可随仓库提交）
+bash sdgoods-ai/install.sh --platform=all --scope=local
+
+# 同时落 MCP 配置（见下方「连接开放平台」）
+bash sdgoods-ai/install.sh --platform=all --with-mcp
+
+# 只预览会做什么、不改文件
+bash sdgoods-ai/install.sh --dry-run
 ```
 
-把 `skills/*` 复制到 `~/.workbuddy/skills/`，重启 WorkBuddy 后，AI 在涉及本设备开发时会自动调用。
-领域 Agent 可手动作为 Expert 包加载 `agent/sdgoods-dev.md`。
+### 各平台落点
 
-## 其它平台（下一步：全平台通用）
+| 平台 | Skill 落点 | 领域 Agent 形态 | MCP 落点（`--with-mcp`） |
+|---|---|---|---|
+| **WorkBuddy** | `~/.workbuddy/skills/` | 可作为 Expert 包加载 `agent/sdgoods-dev.md` | 合并进 `~/.workbuddy/mcp.json` |
+| **Claude Code**（全局） | `~/.claude/skills/` | `~/.claude/agents/sdgoods-dev.md`（自动带 frontmatter） | `claude mcp add sdgoods -- sdgoods-mcp` 或并入 `~/.claude.json` |
+| **Claude Code**（项目） | `./.claude/skills/` | `./.claude/agents/sdgoods-dev.md` | `./.mcp.json`（脚本自动生成） |
+| **Cursor**（全局） | `~/.cursor/skills/` | `~/.cursor/rules/sdgoods-ai.mdc`（自动带 frontmatter） | 并入 `~/.cursor/mcp.json` |
+| **Cursor**（项目） | `./.cursor/skills/` | `./.cursor/rules/sdgoods-ai.mdc` | `./.cursor/mcp.json`（脚本自动生成） |
+| **通用 / Codex 等** | 不装——直接读仓库根 `AGENTS.md` + 本包 `skills/` 即可 | 读 `agent/sdgoods-dev.md` | 按平台粘贴 `mcp/` 样例 |
 
-本包 Skill 用通用 Markdown 格式，不绑定 WorkBuddy 私有语法。后续会提供：
-- `claude mcp add` / `.mcp.json` 配置；
-- Cursor / Codex 的 `agents/` 接入说明。
-（逻辑一致，仅配置外壳不同。）
+> Claude Code / Cursor 的 skill 目录与 WorkBuddy 格式一致（同为 `SKILL.md` + frontmatter），
+> 平台会忽略不认识的字段（`agent_created`），无需转换。
 
 ## 连接开放平台（MCP）
 
-谷仓 SDGOODS 开放平台是**不开源的后端**，MCP server 由其服务端实现。
-本仓库**只放客户端配置样例**（`mcp/mcp-config.example.json`）与协议说明，**不含 server 代码、不含密钥**。
+谷仓 SDGOODS 开放平台是**不开源的后端**，MCP server 由其服务端实现（Phase 3 落地）。
+本仓库**只放客户端配置样例**与协议说明，**不含 server 代码、不含密钥**。
+
+`install.sh --with-mcp` 会按平台把对应样例落到正确位置：
+
+| 平台 | 配置样例文件 | 目标位置 |
+|---|---|---|
+| WorkBuddy | `mcp/mcp-config.example.json` | `~/.workbuddy/mcp.json`（手动合并/粘贴） |
+| Claude Code | `mcp/claude-mcp.example.json` | `.mcp.json`（项目）或 `claude mcp add`（全局） |
+| Cursor | `mcp/cursor-mcp.example.json` | `.cursor/mcp.json`（项目）或 `~/.cursor/mcp.json`（全局） |
 
 - 连上 MCP 后，`sdgoods-publish` 会优先调用 `mcp__sdgoods__upload_firmware`，登录走邮箱验证码/OAuth 交互。
 - 未连 MCP 时，回退到 `tools/sdgoods_publish.py`（同样邮箱验证码登录，凭据只存本机 `~/.sdgoods/credentials.json`，600）。
