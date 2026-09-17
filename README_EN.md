@@ -83,6 +83,18 @@ If details are missing, the AI may adopt conservative defaults without changing 
 
 ---
 
+## 🤖 AI Dev Toolkit
+
+Besides [`AGENTS.md`](AGENTS.md) (the "must-read spec for AI"), the repo also ships an **AI Dev Toolkit** [`sdgoods-ai/`](sdgoods-ai/README.md): 6 WorkBuddy Skills (env check / new-app / build-flash / screenshot / fonts / publish) + a domain Agent definition + an MCP config sample for connecting to the Open Platform.
+
+- **Install & go**: `bash sdgoods-ai/install.sh` copies the Skills into WorkBuddy; the AI calls them automatically when developing for this device.
+- **MCP first, CLI fallback**: publishing prefers the Open Platform MCP; without MCP it falls back to `tools/sdgoods_publish.py` (email-code login, credentials stay local only).
+- **Security**: the Open Platform is not open-source; this repo ships only client config samples and protocol notes — **no server code, no secrets**.
+
+See [`sdgoods-ai/README.md`](sdgoods-ai/README.md).
+
+---
+
 ## Publish to the SDGOODS Open Platform
 
 Built firmware can be submitted to the **SDGOODS Open Platform** (a plaza where developers upload and others download/flash). Three ways, see [docs/PUBLISHING.md](docs/PUBLISHING.md):

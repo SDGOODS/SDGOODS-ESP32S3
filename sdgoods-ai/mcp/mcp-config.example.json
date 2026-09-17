@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "sdgoods": {
+      "transport": "stdio",
+      "command": "sdgoods-mcp",
+      "args": [],
+      "env": {
+        "SDGOODS_API_BASE": "https://sdgoods.ai/api"
+      },
+      "_note": "实际 MCP server 由谷仓 SDGOODS 开放平台服务端提供（不开源）。本地开发可指向平台提供的本地调试二进制或 HTTP 端点。本配置不含任何 token；登录走邮箱验证码/OAuth 交互，由 server 侧处理。不要在此写入密钥。"
+    }
+  }
+}

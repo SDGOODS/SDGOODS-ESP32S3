@@ -84,6 +84,18 @@
 
 ---
 
+## 🤖 AI 辅助开发工具包
+
+除了 [`AGENTS.md`](AGENTS.md) 这份「AI 必读规范」，仓库还附带一套 **AI 辅助开发工具包** [`sdgoods-ai/`](sdgoods-ai/README.md)：6 个 WorkBuddy Skill（封装环境检查 / 新建应用 / 编译烧录 / 截屏 / 字体 / 提交固件）+ 一个领域 Agent 定义 + 连接开放平台的 MCP 配置样例。
+
+- **装上即用**：`bash sdgoods-ai/install.sh` 把 Skill 装到 WorkBuddy，AI 在涉及本设备开发时自动调用。
+- **优先 MCP、回退 CLI**：提交固件优先走开放平台 MCP；未连 MCP 时回退到 `tools/sdgoods_publish.py`（邮箱验证码登录，凭据只存本机）。
+- **安全**：开放平台不开源，本仓库只含客户端配置样例与协议说明，**不含 server 代码与任何密钥**。
+
+详见 [`sdgoods-ai/README.md`](sdgoods-ai/README.md)。
+
+---
+
 ## 提交到谷仓 SDGOODS 开放平台
 
 做出来的固件可以提交到 **谷仓 SDGOODS 开放平台**（开发者上传、他人下载 / 烧录的广场）。三种方式任选，详见 [`docs/PUBLISHING.md`](docs/PUBLISHING.md)：
