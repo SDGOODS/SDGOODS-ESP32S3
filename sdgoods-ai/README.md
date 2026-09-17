@@ -86,6 +86,27 @@ bash sdgoods-ai/install.sh --dry-run
 - MCP 配置样例里只允许出现 `SDGOODS_API_BASE` 这类公开基地址，不得写入内部地址或密钥。
 - 凭据只在用户本机或 MCP 会话内，AI 不读取、不写仓库。
 
+## 一键配置页与 Agent 市场（Phase 4）
+
+| 文件 | 作用 |
+|---|---|
+| `catalog.json` | 工具包**机器可读清单**：6 Skill + Agent + MCP server（5 工具）+ 3 平台的落点 / 安装命令 / MCP 配置模板。开放平台「Agent 市场」与「复制 MCP 配置」按钮的**单一数据源**。 |
+| `setup/index.html` | 自包含离线页（`file://` 直接打开）：平台选择 + MCP 配置预览 + **「复制 MCP 配置」按钮**（剪贴板）+ 安装一行命令 + 可浏览的 Agent 市场卡片。同时是开放平台网页端的**客户端参考实现**。 |
+| `setup/gen_setup.py` | 从 `catalog.json` 重新生成 `setup/index.html`（改了清单后跑一次，勿手改 index.html）。 |
+| `setup/gen_config.py` | CLI：按平台输出 MCP 配置 JSON 与安装命令（`--platform=claude --json`）。开放平台后端可直接调用，拿到与前端一致的配置。 |
+
+```bash
+# 改了 catalog.json 后重新生成 setup 页
+python3 sdgoods-ai/setup/gen_setup.py
+
+# 后端取某平台的 MCP 配置（机器可读 JSON）
+python3 sdgoods-ai/setup/gen_config.py --platform=claude --json
+```
+
+**开放平台后端怎么接**：「Agent 市场」渲染与「复制 MCP 配置」按钮直接消费
+`catalog.json`（或调用 `gen_config.py` 生成 per-platform 配置）。本仓库不存放任何
+服务端代码，也不含密钥；平台侧只需读取清单并按平台渲染。
+
 ## 配套文档
 - 开发硬约束：根目录 [`AGENTS.md`](../../AGENTS.md)
 - 架构：`docs/ARCHITECTURE.md`

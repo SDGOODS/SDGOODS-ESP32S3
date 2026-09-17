@@ -91,6 +91,7 @@
 - **装上即用**：`bash sdgoods-ai/install.sh` 把 Skill 装到 WorkBuddy，AI 在涉及本设备开发时自动调用。
 - **优先 MCP、回退 CLI**：提交固件优先走开放平台 MCP；未连 MCP 时回退到 `tools/sdgoods_publish.py`（邮箱验证码登录，凭据只存本机）。
 - **安全**：开放平台不开源，本仓库只含客户端配置样例与协议说明，**不含 server 代码与任何密钥**。
+- **一键配置页**：`sdgoods-ai/setup/index.html`（离线双击即开）——平台选择 + 「复制 MCP 配置」按钮 + Agent 市场卡片；其数据源 `catalog.json` 同时是开放平台后端接入的机器可读清单。
 
 详见 [`sdgoods-ai/README.md`](sdgoods-ai/README.md)。
 

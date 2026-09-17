@@ -90,6 +90,7 @@ Besides [`AGENTS.md`](AGENTS.md) (the "must-read spec for AI"), the repo also sh
 - **Install & go**: `bash sdgoods-ai/install.sh` copies the Skills into WorkBuddy; the AI calls them automatically when developing for this device.
 - **MCP first, CLI fallback**: publishing prefers the Open Platform MCP; without MCP it falls back to `tools/sdgoods_publish.py` (email-code login, credentials stay local only).
 - **Security**: the Open Platform is not open-source; this repo ships only client config samples and protocol notes — **no server code, no secrets**.
+- **One-click setup page**: `sdgoods-ai/setup/index.html` (open offline via double-click) — platform picker + "Copy MCP config" button + Agent marketplace cards; its data source `catalog.json` doubles as the machine-readable manifest for the Open Platform backend.
 
 See [`sdgoods-ai/README.md`](sdgoods-ai/README.md).
 
