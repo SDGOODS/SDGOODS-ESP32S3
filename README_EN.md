@@ -85,7 +85,7 @@ If details are missing, the AI may adopt conservative defaults without changing 
 
 ## 🤖 AI Dev Toolkit
 
-Besides [`AGENTS.md`](AGENTS.md) (the "must-read spec for AI"), the repo also ships an **AI Dev Toolkit** [`sdgoods-ai/`](sdgoods-ai/README.md): 6 cross-platform Skills (env check / new-app / build-flash / screenshot / fonts / publish — for WorkBuddy / Claude Code / Cursor) + a domain Agent definition + an MCP config sample for connecting to the Open Platform.
+Besides [`AGENTS.md`](AGENTS.md) (the "must-read spec for AI"), the repo also ships an **AI Dev Toolkit** [`sdgoods-ai/`](sdgoods-ai/README.md): 6 cross-platform Skills (env check / new-app / build-flash / screenshot / fonts / publish — for WorkBuddy / Claude Code / Cursor) + a domain Agent definition + a **local MCP server** (pure stdlib, closing the "AI dev → one-click upload to Open Platform" loop) + per-platform MCP config samples.
 
 - **Install & go**: `bash sdgoods-ai/install.sh` copies the Skills into WorkBuddy; the AI calls them automatically when developing for this device.
 - **MCP first, CLI fallback**: publishing prefers the Open Platform MCP; without MCP it falls back to `tools/sdgoods_publish.py` (email-code login, credentials stay local only).

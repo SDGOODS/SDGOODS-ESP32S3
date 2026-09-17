@@ -21,6 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_SRC="$SCRIPT_DIR/skills"
 AGENT_SRC="$SCRIPT_DIR/agent/sdgoods-dev.md"
 MCP_DIR="$SCRIPT_DIR/mcp"
+SERVER_PATH="$SCRIPT_DIR/mcp/sdgoods-mcp-server/server.py"
 
 # ---- 默认参数 ----
 PLATFORM="auto"        # auto | workbuddy | claude | cursor | all
@@ -108,37 +109,50 @@ gen_cursor_rule() {
   echo "  ✓ rule  -> $out"
 }
 
+# 把 MCP 配置样例复制为目标文件，并把 PATH_TO_SERVER 占位符替换为真实 server.py 绝对路径
+install_mcp_config() {
+  local src="$1" dst="$2"
+  run "mkdir -p \"$(dirname "$dst")\""
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "  ✓ MCP config -> $dst (PATH_TO_SERVER 替换为 $SERVER_PATH)"
+    return
+  fi
+  sed "s|PATH_TO_SERVER|$SERVER_PATH|g" "$src" > "$dst"
+  echo "  ✓ MCP config -> $dst"
+}
+
 # 安装 MCP 配置（仅当 --with-mcp）
 install_mcp() {
   local platform="$1"
   case "$platform" in
     workbuddy)
       echo "  · MCP (WorkBuddy): 把 $MCP_DIR/mcp-config.example.json 的内容合并进 ~/.workbuddy/mcp.json"
-      echo "    （WorkBuddy 设置里也可在 MCP 连接器页粘贴该 JSON。本样例不含任何 token。）"
+      echo "    （WorkBuddy 设置里也可在 MCP 连接器页粘贴该 JSON；记得把 PATH_TO_SERVER 换成"
+      echo "      $SERVER_PATH ）"
+      echo "    本样例不含任何 token；登录走邮箱验证码，凭据只存本机。"
       ;;
     claude)
       if [ "$SCOPE" = "local" ]; then
         if [ ! -f "./.mcp.json" ]; then
-          run "cp \"$MCP_DIR/claude-mcp.example.json\" \"./.mcp.json\""
-          echo "  ✓ MCP (Claude 项目) -> ./.mcp.json"
+          install_mcp_config "$MCP_DIR/claude-mcp.example.json" "./.mcp.json"
         else
           echo "  · ./.mcp.json 已存在，跳过（如需覆盖请手动合并 $MCP_DIR/claude-mcp.example.json）"
         fi
       else
-        echo "  · MCP (Claude 全局): 运行  claude mcp add sdgoods -- sdgoods-mcp"
-        echo "    （或把 $MCP_DIR/claude-mcp.example.json 内容并入 ~/.claude.json 的 mcpServers）"
+        echo "  · MCP (Claude 全局): 运行  claude mcp add sdgoods -- python3 $SERVER_PATH"
+        echo "    （或把 $MCP_DIR/claude-mcp.example.json 内容并入 ~/.claude.json，并把 PATH_TO_SERVER 换成真实路径）"
       fi
       ;;
     cursor)
       if [ "$SCOPE" = "local" ]; then
         if [ ! -f "./.cursor/mcp.json" ]; then
-          run "mkdir -p ./.cursor && cp \"$MCP_DIR/cursor-mcp.example.json\" \"./.cursor/mcp.json\""
-          echo "  ✓ MCP (Cursor 项目) -> ./.cursor/mcp.json"
+          install_mcp_config "$MCP_DIR/cursor-mcp.example.json" "./.cursor/mcp.json"
         else
           echo "  · ./.cursor/mcp.json 已存在，跳过（如需覆盖请手动合并 $MCP_DIR/cursor-mcp.example.json）"
         fi
       else
         echo "  · MCP (Cursor 全局): 把 $MCP_DIR/cursor-mcp.example.json 内容并入 ~/.cursor/mcp.json"
+        echo "    （把 PATH_TO_SERVER 换成 $SERVER_PATH）"
       fi
       ;;
   esac

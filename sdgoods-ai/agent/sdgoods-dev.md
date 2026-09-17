@@ -65,4 +65,4 @@
 
 - 绝不在仓库/回复里提交或回显 API 密钥 / accessToken / refreshToken。
 - 凭据只在本机 `~/.sdgoods/credentials.json`（600）或 MCP 会话内；AI 不读取、不写仓库。
-- MCP server 由谷仓 SDGOODS 开放平台服务端实现（不开源），本仓库只含客户端配置样例与协议说明。
+- MCP server 的**服务端实现**由谷仓 SDGOODS 开放平台提供（不开源）；本仓库随附**本地 MCP server 客户端**（`sdgoods-ai/mcp/sdgoods-mcp-server/server.py`，纯标准库，只调公开 REST API），并含各平台配置样例与协议说明。

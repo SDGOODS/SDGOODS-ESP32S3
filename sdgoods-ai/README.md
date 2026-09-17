@@ -12,7 +12,7 @@
 |---|---|
 | `skills/` | 6 个**跨平台** Skill，封装 `tools/` 脚本与项目坑位 |
 | `agent/sdgoods-dev.md` | 领域 Agent 定义（内嵌 `AGENTS.md` 硬约束 + 绑定 6 个 Skill） |
-| `mcp/` | 连接开放平台 MCP 的客户端配置样例（**不含任何密钥**） |
+| `mcp/` | 连接开放平台 MCP 的**本地 server 实现**（`sdgoods-mcp-server/`，纯标准库客户端）+ 各平台配置样例（**不含任何密钥**） |
 | `install.sh` | 一键装到 WorkBuddy / Claude Code / Cursor（多平台） |
 
 ## 6 个 Skill（跨平台通用）

@@ -1,15 +1,23 @@
 ---
 name: sdgoods-publish
-description: 把谷仓次元屏（SDGOODS-ESP32S3）上做好的固件提交到「谷仓 SDGOODS 开放平台」（https://sdgoods.ai）。优先走 MCP（mcp__sdgoods__upload_firmware，若已连接开放平台）；否则回退 tools/sdgoods_publish.py（邮箱验证码登录 + 一键 publish，纯标准库）。Use when asked to publish / 提交 / upload / 上传 firmware to the SDGOODS open platform.
+description: 把谷仓次元屏（SDGOODS-ESP32S3）上做好的固件提交到「谷仓 SDGOODS 开放平台」（https://sdgoods.ai）。优先走本地 MCP server（sdgoods-ai/mcp/sdgoods-mcp-server/server.py，暴露 mcp__sdgoods__login / list_categories / upload_firmware / whoami / logout）；否则回退 tools/sdgoods_publish.py（邮箱验证码登录 + 一键 publish，纯标准库）。Use when asked to publish / 提交 / upload / 上传 firmware to the SDGOODS open platform.
 agent_created: true
 ---
 
 # 提交固件到开放平台
 
 ## 两种路径（优先级）
-1. **MCP（优先）**：若用户已连接谷仓 SDGOODS 开放平台的 MCP server，直接调用
-   `mcp__sdgoods__upload_firmware({file, name, descZh, descEn, category, version, hardware, shots, ...})`，
-   内部完成 presign+PUT+POST，返回固件 id。登录由 MCP server 用邮箱验证码/会话处理，AI 不碰 token。
+
+1. **MCP（优先）**：若用户已连接谷仓 SDGOODS 开放平台的 MCP server（仓库已随附本地实现
+   `sdgoods-ai/mcp/sdgoods-mcp-server/server.py`，纯标准库、stdio；接入方式见该目录 README 与
+   `sdgoods-ai/README.md`），直接调用下面工具，AI 不碰 token：
+   - `mcp__sdgoods__login(email)`：发验证码；用户给码后再 `mcp__sdgoods__login(email, code="1234")` 完成登录。
+   - `mcp__sdgoods__list_categories()`：取合法分类 slug。
+   - `mcp__sdgoods__upload_firmware(file, name, category, desc_zh?, desc_en?, version?, hardware?, tags?, shots?, github?, draft?)`：
+     内部 presign+PUT+POST，返回固件 id。
+   - `mcp__sdgoods__whoami()`：当前登录用户。
+   - `mcp__sdgoods__logout()`：清本机凭据。
+   - 登录只需一次，之后 `accessToken` 由本机缓存的 `refreshToken` 自动续期。
 2. **CLI 回退**：未连 MCP 时，用仓库自带 `tools/sdgoods_publish.py`（纯标准库，无需 pip）。
 
 ## CLI 用法（从仓库根目录）
@@ -31,10 +39,10 @@ python3 tools/sdgoods_publish.py publish \
 - 服务端字段名 `descZh`/`descEn`（非 `desc`）。多分区固件用 `parts` 数组。详见 `docs/PUBLISHING.md`。
 
 ## ⚠️ 安全（开放平台不开源，务必遵守）
-- **绝不在本仓库提交任何 API 密钥 / accessToken / refreshToken**。凭据只在用户本机
+- **绝不在本仓库提交 / 回显任何 API 密钥、accessToken、refreshToken**。凭据只在用户本机
   `~/.sdgoods/credentials.json`（600）或 MCP 会话里，AI 不读取、不回显、不写进仓库。
-- MCP server 由谷仓 SDGOODS 开放平台服务端实现（属不开源的后端），**不在本开源仓库内**；
-  本仓库只放客户端配置样例（`sdgoods-ai/mcp/mcp-config.example.json`）与协议说明。
+- MCP server（`sdgoods-ai/mcp/sdgoods-mcp-server/server.py`）是开放平台后端的**客户端**，
+  只调用公开 REST API，**不含 server 端代码、不含密钥**；接入配置样例在 `sdgoods-ai/mcp/`。
 - 不要把 `SDGOODS_API_BASE` 之外的内部地址、密钥写进 README/提交。
 - 截图（`--shots`）建议先用 skill `sdgoods-screenshot` 抓真实设备画面，再随固件提交。
 

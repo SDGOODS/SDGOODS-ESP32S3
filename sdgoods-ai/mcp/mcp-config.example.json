@@ -2,12 +2,12 @@
   "mcpServers": {
     "sdgoods": {
       "transport": "stdio",
-      "command": "sdgoods-mcp",
-      "args": [],
+      "command": "python3",
+      "args": ["PATH_TO_SERVER"],
       "env": {
         "SDGOODS_API_BASE": "https://sdgoods.ai/api"
       },
-      "_note": "实际 MCP server 由谷仓 SDGOODS 开放平台服务端提供（不开源）。本地开发可指向平台提供的本地调试二进制或 HTTP 端点。本配置不含任何 token；登录走邮箱验证码/OAuth 交互，由 server 侧处理。不要在此写入密钥。"
+      "_note": "本仓库已随附本地 MCP server 实现：sdgoods-ai/mcp/sdgoods-mcp-server/server.py（纯标准库、stdio）。将 PATH_TO_SERVER 替换为它的绝对路径，或用 sdgoods-ai/install.sh --with-mcp 自动填入。登录走邮箱验证码，凭据只存本机 ~/.sdgoods/credentials.json（600），本配置不含任何 token。不要在此写入密钥。"
     }
   }
 }

@@ -1,12 +1,12 @@
 {
   "mcpServers": {
     "sdgoods": {
-      "command": "sdgoods-mcp",
-      "args": [],
+      "command": "python3",
+      "args": ["PATH_TO_SERVER"],
       "env": {
         "SDGOODS_API_BASE": "https://sdgoods.ai/api"
       },
-      "_note": "Claude Code 项目级 MCP 配置（存为仓库根 .mcp.json，或全局用 `claude mcp add sdgoods -- sdgoods-mcp`）。实际 MCP server 由谷仓 SDGOODS 开放平台服务端提供（不开源）。本配置不含任何 token；登录走邮箱验证码/OAuth 交互，由 server 侧处理。不要在此写入密钥。"
+      "_note": "Claude Code 项目级 MCP 配置（存为仓库根 .mcp.json，或全局用 `claude mcp add sdgoods -- python3 /abs/path/server.py`）。本仓库已随附本地 MCP server：sdgoods-ai/mcp/sdgoods-mcp-server/server.py，将 PATH_TO_SERVER 替换为它的绝对路径（install.sh --with-mcp 会自动填入）。登录走邮箱验证码，凭据只存本机 ~/.sdgoods/credentials.json（600），本配置不含任何 token。不要在此写入密钥。"
     }
   }
 }
