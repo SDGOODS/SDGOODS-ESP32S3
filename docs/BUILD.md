@@ -27,7 +27,7 @@ SDGOODS-ESP32S3/
 
 | 你的需求 | 改哪里 |
 |---|---|
-| 加一个新应用 / 小游戏 | `python3 tools/new_app.py my_app "我的应用"`（见第 6 节） |
+| 加一个新应用 / 小游戏 | 本仓库内加演示应用见第 6 节；**自己的应用请用** `python3 tools/new_app_project.py <name>` 派生独立工程（见 skill sdgoods-new-app） |
 | 改启动台按钮文字、顺序 | `main/apps/apps_registry.c` 的 `s_apps[]` |
 | 改某个界面布局 | `main/apps/ui_*.c` |
 | 改引脚（接自己的板子） | `components/sdgoods_board/include/board_pins.h` |
@@ -72,6 +72,9 @@ idf.py build
 | `build/partition_table/partition-table.bin` | `0x8000` |
 | `build/SDGOODS_EBADGE.bin` | `0x10000` |
 
+> 上交开放平台的是**最后一行** —— `build/SDGOODS_EBADGE.bin`，一份**不带地址**的纯应用
+> 镜像。不要用 `merge_bin` 生成合并镜像去提交，那会让用户设备刷完无法启动（详见第 4 节）。
+
 正常体积约 **1.72 MB**（app 分区 31 MB，用掉约 5%），编译结束应看到：
 
 ```
@@ -80,8 +83,30 @@ SDGOODS_EBADGE.bin binary size 0x1a3c00 bytes. ... 0x1d5c400 bytes (95%) free.
 
 > **改了 `components/` 或 `main/` 后如果行为像没生效**：确认源码确实在
 > 工程目录内（IDF 只从工程根下的 `components/` 与 `main/` 找文件），
-> 并注意 `main/CMakeLists.txt` 已写好 `# >>> new_app.py: 新应用源文件插到这里 >>>`
-> 标记 —— 新文件不加进 `SRCS` 就不会被编译。
+> 并注意把新文件加进 `main/CMakeLists.txt` 的 `SRCS` 才会被编译 —— 没加进 `SRCS` 的文件不会被编译。
+
+### 2.1 sdkconfig 里有两条不能动（appdata 靠它们才能用）
+
+本工程已设好，**新建工程时要照抄**：
+
+```
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_MAX_LFN=64
+```
+
+原因：`appdata` 分区按 `app_id` 建目录（`/appdata/<app_id>/`），而 `app_id` 取自 IDF 的
+`esp_app_desc_t.project_name`（**最长 32 字符**），本工程就是 `SDGOODS_EBADGE`（14 字符）——
+**远超 FAT 的 8.3 短名限制**。IDF 默认是 `CONFIG_FATFS_LFN_NONE=y`，此时
+`mkdir("/appdata/SDGOODS_EBADGE")` 会拿到 `FR_INVALID_NAME` ⇒ VFS 报 `EINVAL(22)`
+⇒ 目录建不出来 ⇒ **app 的持久化数据静默落空**（只有 ≤8 字符的 app_id 看着正常，
+所以短名字的示例很容易「验证通过」）。真机日志特征：
+
+```
+E sdg_app_sdk: mkdir('/appdata/SDGOODS_EBADGE') failed: errno=22
+```
+
+⚠️ **改 `sdkconfig.defaults` 不够，必须同时改 `sdkconfig`**：IDF 只在「该符号没有出现在
+`sdkconfig` 里」时才套用 defaults；`CONFIG_FATFS_LFN_NONE=y` 已经写在 `sdkconfig` 里了。
 
 ## 3. 烧录
 
@@ -100,9 +125,79 @@ lsof /dev/cu.usbmodemXXXX      # 有输出说明被占用（常见于浏览器 W
 
 烧录后应看到：开机动画（约 4 秒）→ 主页。
 
-## 4. 打包给别人（不含源码）
+### 3.1 `flash` 刷三件套，`app-flash` 只刷应用
 
-只有一台设备、想让别人也能用，就发**合并固件**（单个文件，写 `0x0` 即可）：
+`idf.py flash` 一次会刷**三样**：
+
+| 段 | 地址 | 由什么生成 |
+|---|---|---|
+| bootloader | `0x0` | IDF 按 `sdkconfig.defaults` 编译 |
+| 分区表 | `0x8000` | `partitions.csv` 生成 |
+| app | `0x10000` | `build/SDGOODS_EBADGE.bin` |
+
+**所以 `idf.py flash` 会改写设备上的分区表。** 只改了应用代码、没动分区布局时用
+`app-flash` 就够了 —— 快得多，也不会碰引导层：
+
+```bash
+idf.py -p <串口> app-flash monitor
+```
+
+> ⚠️ **改了 `partitions.csv` 必须同步平台。** 平台「默认文件」里那份分区表与本仓库的
+> `partitions.csv` 是**同一套布局的两个副本**：用户在平台上刷应用包时刷的是平台那份，
+> 你本地 `idf.py flash` 刷的是这份。两边任何一边改了而另一边没跟上，症状都是
+> **「刷完起不来」** —— 平台把 app 写到 `0x10000`，bootloader 却按另一张表去别处找。
+>
+> 当前布局两边一致：`nvs@0x9000` / `phy_init@0xF000` / `factory@0x10000`（31MB）。
+> 要改就同时改，并在改完重新上传平台的默认文件（平台侧会校验应用分区的落点，
+> 与平台落点对不上的分区表会被拒绝）。
+
+## 4. 打包：交付物是「不带地址」的应用包
+
+**约定：烧录地址由设备上的分区表决定，包本身不携带地址。**
+所以本工程要交出去的东西只有一份 —— 构建目录里的纯应用镜像：
+
+| 产物 | 是什么 | 去处 |
+|---|---|---|
+| `build/SDGOODS_EBADGE.bin` | **纯应用镜像（app），不带地址** | **交给平台**（或给别人升级） |
+| `build/bootloader/bootloader.bin` | 引导程序（烧 `0x0`） | 只在救砖 / 空片首次烧录时用 |
+| `build/partition_table/partition-table.bin` | 分区表（烧 `0x8000`） | 同上 |
+
+用仓库自带的工具**校验并导出**（产物落到 `dist/`，并顺手生成一份 `.json` 元数据）：
+
+```bash
+python3 tools/pack_app.py              # → dist/SDGOODS_EBADGE_app.bin
+python3 tools/pack_app.py --json       # 结构化输出，给 AI 助手 / CI 用
+python3 tools/pack_app.py --no-emit    # 只校验当前构建产物，不导出
+```
+
+五项校验，任何一项不过都**拒绝导出**：
+
+| # | 判据 | 拦下来的是什么 |
+|---|---|---|
+| 1 | `0x8000` 处**不是**分区表魔数 | `merged.bin`（带地址的合并镜像）—— 上架后用户一刷就砖 |
+| 2 | 首字节 `0xE9` | 选错文件（截图、文档、压缩包……） |
+| 3 | `0x20` 处 == `0xABCD5432` | bootloader、分区表、或被截断的文件 |
+| 4 | 偏移 `0x0C` 的 chip_id == `0x0009` | 别的芯片的固件（ESP32 / S2 / C3…） |
+| 5 | 体积 ≤ 槽上限（默认 3 MB） | 会写穿到相邻槽的超大固件 |
+
+### 4.1 为什么必须「不带地址」
+
+镜像里存的是**虚拟地址**（IROM `0x42000000` / DROM `0x3C000000`），真正的物理偏移
+由 bootloader 通过 MMU 页表在启动时决定 —— **同一份 `app.bin` 写到任何位置都能跑**。
+所以地址不该由包来定：
+
+| 对方设备 | 平台 / 工具写到哪 |
+|---|---|
+| 还没有启动器（旧布局，只有一个 `factory`） | `0x10000` |
+| 已装启动器（多应用） | 某个空槽 |
+
+一旦包里带了地址，平台就会**照着包里的地址写**：`merged.bin` 从 `0x0` 起，
+第一件事就是覆盖 bootloader 与分区表 —— 用户刷完设备直接起不来。
+（这不是假设：谷仓徽章2 首版就是把 app 镜像当整包传，造成了砖机。）
+
+### 4.2 `merged.bin`（合并镜像）：只用于救砖 / 空片首次烧录
+
+只有**自己救砖**、或给**从没烧过固件的空片**刷机时才需要它 —— 单个文件、写 `0x0`：
 
 ```bash
 cd build
@@ -114,16 +209,25 @@ python -m esptool --chip esp32s3 merge_bin \
     0x10000 SDGOODS_EBADGE.bin
 ```
 
-对方烧录：
+刷写：
 
 ```bash
 esptool.py --chip esp32s3 --port <串口> --baud 921600 write_flash 0x0 merged.bin
 ```
 
-地址表（**必须一致**，与 `partitions.csv` 的 factory 分区对应）：
-`bootloader → 0x0`、`partition-table → 0x8000`、`app → 0x10000`。
+> ⛔ **这个文件不要提交到开放平台。** 它自带烧录地址、从 `0x0` 起写，平台按它刷机
+> 会把用户设备上的 bootloader 与分区表一起覆盖。`tools/pack_app.py` 与
+> `tools/sdgoods_publish.py` 都会把它拦下来 —— 被拦到时请改传构建目录里的
+> `SDGOODS_EBADGE.bin`。
 
-### 合并固件到底写了哪些区域
+**两条路别搞混：**
+
+| 场景 | 交什么 |
+|---|---|
+| 上架开放平台（用户设备上已有引导程序与分区表） | 纯 `app.bin`（**不带地址**） |
+| 给朋友 / 空片首次烧录 / 救砖 | `merged.bin`（整机镜像，写 `0x0`） |
+
+### 4.3 合并镜像到底写了哪些区域
 
 | 区域 | 内容 |
 |---|---|
@@ -135,13 +239,13 @@ esptool.py --chip esp32s3 --port <串口> --baud 921600 write_flash 0x0 merged.b
 所以常规烧录**不需要** `--erase-all`；`app 结束` 之后的内容不会被写入。
 注意分区表把 factory 声明到 31MB，**flash 必须与原板一致为 32MB**。
 
-### 硬件硬约束（发给别人时必须说清）
+### 4.4 硬件硬约束（发给别人时必须说清）
 
 - ESP32-S3 **必须带 Octal（8 线）PSRAM** —— Quad PSRAM 的板子跑不起来。
 - 屏：**360×360 ST77916 QSPI 圆屏**，带电容触摸。
 - Flash：≥ 4 MB（固件约 1.72 MB）。本工程默认按 32 MB 配置。
 
-### 发固件给别人时：必须随包带上许可文件
+### 4.5 发固件给别人时：必须随包带上许可文件
 
 这不是可选项。本仓库（平台层与应用层）统一以 **Apache-2.0** 发布，该许可第 4 条要求
 **再分发时携带许可全文与 NOTICE 文件**。
@@ -149,7 +253,7 @@ esptool.py --chip esp32s3 --port <串口> --baud 921600 write_flash 0x0 merged.b
 所以固件包里至少要有这几份（从仓库根目录直接拷进 `release/fixNN/`）：
 
 ```
-merged.bin
+SDGOODS_EBADGE_app.bin             # 纯应用镜像（不带地址，用 tools/pack_app.py 导出）
 LICENSE                            # 根许可（Apache-2.0）
 NOTICE                             # 第三方组件归属声明
 LICENSING.md                       # 授权范围与商标使用（接收方最该看的一份）
@@ -245,26 +349,18 @@ DEMO 按钮    关于         14      28.0    28.0     +0.0  OK
 
 ## 6. 新增一个应用
 
-一条命令生成骨架（自动建 `.c`/`.h`、改 `main/CMakeLists.txt`、
-在 `main/apps/apps_registry.c` 的应用表里插一行）：
+在本仓库（参考固件）里再加演示应用，手动三步（原 `tools/new_app.py` 已移除）：
 
-```bash
-python3 tools/new_app.py my_app "我的应用"
-```
+1. 复制 `main/apps/app_template.c/.h` → `main/apps/ui_my_app.c/.h`，替换应用名与按钮文字；
+2. 在 `main/CMakeLists.txt` 的 `SRCS` 里加一行 `"apps/ui_my_app.c"`；
+3. 在 `main/apps/apps_registry.c` 加 `#include` 与 `s_apps[]` 表项。
 
-会生成 `main/apps/my_app.c` + `main/apps/my_app.h`，并注册到启动台。
-命令末尾会打印后续步骤，照做即可。先看计划不落盘：
-
-```bash
-python3 tools/new_app.py my_app "我的应用" --dry-run
-```
-
-三个注意点：
-
-- 文件名**不要**带 `ui_` 前缀（脚本会自动规范化，`ui_timer` → `timer`）。
-- 生成的三处 `>>> new_app.py ... >>>` 标记**不要删** —— 脚本靠它们定位插入点。
-- 退出回调**不要叫 `on_exit`** —— libc 里有同名函数，会报 `conflicting types`。
+退出回调**不要叫 `on_exit`** —— libc 里有同名函数，会报 `conflicting types`。
 
 完整实现参考 `main/apps/app_template.c`：它本身就可以直接编译，覆盖了建屏、栅格定位、
 应用外壳接入、退出清理、每帧轮询。（它没有界面入口 —— 留在仓库里的意义是
 保证模板始终能编译。）
+
+> 💡 **要开发你自己的应用并上架**，别在本仓库里加：用
+> `python3 tools/new_app_project.py <name>` 派生独立工程（PLANE 形单应用直启）。
+> 详见 skill `sdgoods-new-app`。

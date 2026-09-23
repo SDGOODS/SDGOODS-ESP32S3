@@ -16,12 +16,10 @@
  * 新应用骨架（模板）—— 复制改名后就是你的应用
  *
  * ---------------------------------------------------------------------------
- * 最快上手方式（推荐）：
- *
- *     python3 tools/new_app.py 应用名 "按钮文字" "Button text"
- *
- * 它会复制本文件成 main/apps/ui_应用名.c/.h，替换掉里面的应用名与按钮文字，
- * 并自动帮你注册进启动台（apps_registry.c）与构建（CMakeLists.txt）。
+ * 最快上手方式（推荐）：基于本模板派生一个独立应用工程 ——
+ *     python3 tools/new_app_project.py <应用名>
+ * 它会复制本模板为 main/apps/ui_<应用名>.c/.h 并自动注册（见 skill sdgoods-new-app）。
+ * 也可以在现有工程里手动复制本对 .c/.h 改名、再在 apps_registry.c / CMakeLists.txt 注册。
  *
  * 手动接一个应用也可以，只需 3 步（见 apps_registry.c 顶部注释）。
  *
@@ -53,6 +51,7 @@
 #include "lvgl.h"
 #include "esp_log.h"
 #include "sdgoods_board.h"   /* 平台层全部能力：屏 / 触摸 / 音频 / 框架 / 栅格常量 */
+#include "sdgoods_gesture.h"  /* 应用级手势回调（sdgoods_app_on_gesture / sdgoods_app_on_tap） */
 
 LV_FONT_DECLARE(si_yuan_black_icon_16);
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -91,6 +90,27 @@ static void on_pause(void)  { ESP_LOGI(TAG, "pause"); }
 static void on_resume(void) { ESP_LOGI(TAG, "resume"); }
 
 /* ---------------------------------------------------------------------------
+ * 2.5) 应用自己的手势（可选）
+ *   设备级导航（顶部下滑出菜单 / 上滑回主页）已由 sdgoods_app_shell_bind 接管，
+ *   这里只演示「app 自己想要的手势」：左滑返回、点按屏幕任意处 +1。
+ *   底层用的是平台打磨过的成熟原语（sdgoods_swipe_back_bind / sdgoods_tap_bind），
+ *   **不要自己写手势检测**，也不要用 LV_EVENT_CLICKED 直接绑（会绕过位移守卫、误触）。
+ *   s_tap_ctx 必须是静态存储（生命周期要覆盖整屏），调用方提供、不动态分配。
+ * ------------------------------------------------------------------------- */
+static sdgoods_tap_ctx_t s_tap_ctx;
+static void on_my_back(void)  { ESP_LOGI(TAG, "swipe back -> 返回"); }
+static void on_my_tap(void *ud)
+{
+    (void)ud;
+    s_count++;
+    if (s_cnt_lbl) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), SDG_T("点了 %d 次", "%d taps"), s_count);
+        lv_label_set_text(s_cnt_lbl, buf);
+    }
+}
+
+/* ---------------------------------------------------------------------------
  * 3) 界面
  * ------------------------------------------------------------------------- */
 static void on_btn_click(lv_event_t *e)
@@ -118,7 +138,10 @@ void ui_app_template_show(void)
     lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 标题（用 SDG_UI_TITLE_Y 与其它页面保持同一水平线） */
+    /* 标题（用 SDG_UI_TITLE_Y 与其它页面保持同一水平线）
+     * ⚠️ 圆屏安全区：本屏是 360×360 的**圆**，四角会被圆边切掉。所有非全屏控件都应落在
+     *   安全矩形 SDG_UI_SAFE_X/Y/W/H（即 x,y ∈ [60,300)、宽高不超 240）内；
+     *   用 sdgoods_ui_in_safe_area(x,y) 可程序化判断。详见 sdgoods_ui.h。 */
     lv_obj_t *title = lv_label_create(s_scr);
     lv_label_set_text(title, SDG_T("我的应用", "My App"));
     lv_obj_set_style_text_font(title, &si_yuan_black_icon_16, 0);
@@ -157,6 +180,11 @@ void ui_app_template_show(void)
     sdgoods_app_shell_set_exit_cb(on_menu_exit);        /* 2. 退出时清理（切屏后才回调） */
     sdgoods_app_shell_set_pause_cb(on_pause);      /* 3. 菜单打开/关闭（可省，不做就传 NULL） */
     sdgoods_app_shell_set_resume_cb(on_resume);
+
+    /* ★ 应用自己的手势（可选，见文件上方 2.5 节）：
+     *   左滑返回、点按屏幕任意处 +1。一行一个，直观且复用平台成熟原语。 */
+    sdgoods_app_on_gesture(s_scr, SDGOODS_GESTURE_BACK, on_my_back);
+    sdgoods_app_on_tap(s_scr, &s_tap_ctx, on_my_tap, NULL);
 
     ESP_LOGI(TAG, "show");
 }

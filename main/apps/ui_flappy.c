@@ -23,9 +23,9 @@
 #include "lvgl.h"
 #include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "sdgoods_lcd.h"
-#include "ui_app_page.h"
 #include "sdgoods_audio.h"
 #include "sdgoods_app_shell.h"
+#include "sdgoods_cc.h"   /* sdgoods_cc_set_app_ctx：小鸟游戏下改写控制中心布局 */
 
 LV_FONT_DECLARE(si_yuan_black_icon_14);
 LV_FONT_DECLARE(cn_font_14);
@@ -605,6 +605,8 @@ static void close_to_app(void)
     if (!s_scr) {
         return;
     }
+    /* 离开游戏：控制中心恢复标准布局（6 按钮），避免影响后续其他界面。 */
+    sdgoods_cc_set_app_ctx(SDGOODS_CC_CTX_DEFAULT);
     if (s_timer) {
         lv_timer_del(s_timer);
         s_timer = NULL;
@@ -710,6 +712,10 @@ void ui_flappy_start(void)
     sdgoods_app_shell_set_resume_cb(on_resume);
     sdgoods_app_shell_bind(s_scr);
 
+    /* 进入游戏即切到「小鸟上下文」：控制中心只留 Volume / Brightness / Home，
+     * 隐藏 Data / Battery / About，第 5 键（Home）点按返回主页。 */
+    sdgoods_cc_set_app_ctx(SDGOODS_CC_CTX_BIRD);
+
     /* 游戏结束提示（屏幕中间下方）：「点击重玩 / 按键返回」，与居中的结算文案分离 */
     s_over_hint = lv_label_create(s_scr);
     lv_label_set_text(s_over_hint, "");
@@ -748,4 +754,18 @@ void ui_flappy_poll(void)
         return;
     }
     /* 电源键短按/长按统一由 sdgoods_input.c 的 sdgoods_power_key_poll 处理 */
+}
+
+bool ui_flappy_is_open(void)
+{
+    return s_scr != NULL;
+}
+
+/* 电源键短按「一级返回」：游戏 → 应用主页。
+ * 走应用外壳标准退出（先加载主页、再释放游戏资源），避免直接删屏闪黑。 */
+void ui_flappy_close(void)
+{
+    if (s_scr) {
+        sdgoods_app_shell_leave(true);
+    }
 }

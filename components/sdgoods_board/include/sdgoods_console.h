@@ -17,6 +17,12 @@
  * @brief BSP 串口控制台：始终编译。轮询 USB-Serial-JTAG 的 RX FIFO，分发命令：
  *   '?'      -> 回传一行 "SDGOODS-CAPS:<能力名逗号列表>"（网页端据此检测固件能力）
  *   's'/'S'  -> 若 SDGOODS_CAP_SCREENSHOT 已登记，触发截屏（sdgoods_screenshot_capture）
+ *   'X'      -> 进入二进制注入模式（把 app 镜像写进槽；见 sdgoods_console.c 文件头）
+ *   'R'      -> 立即重启（esp_restart）。平台级命令，**任何固件**（启动器 / app /
+ *               单应用）都有，与具体应用无关。
+ *               ⚠️ 存在的理由：本机 USB-Serial-JTAG 的 DTR/RTS 脉冲复位并非每次都生效，
+ *               验证脚本靠它才能把「重启」变成确定性动作（如启动失败回滚的验证）。
+ *   'r'/'L' 等 -> 交给 sdgoods_console_ext_cmd（弱符号，应用层可覆盖）
  *
  * 控制台常驻，是「能力查询」的可靠应答方：即使某个具体能力（如截屏）未编入固件，
  * '?' 仍能回传（只是列表里没有该项），网页端即可明确提示「该功能未启用」。

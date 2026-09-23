@@ -17,8 +17,6 @@
 #include <string.h>
 
 #include "sdgoods_audio.h"
-#include "board_pins.h"
-#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
@@ -41,7 +39,6 @@ static lv_obj_t *s_btn_lbl;
 static TaskHandle_t s_task;
 static volatile rec_state_t s_state;
 static volatile rec_state_t s_ui_state;
-static bool s_key_down;
 
 static void set_btn(rec_state_t st)
 {
@@ -87,7 +84,8 @@ static void on_start(lv_event_t *e)
     xTaskCreatePinnedToCore(worker, "recplay", 8192, NULL, 20, &s_task, 1);
 }
 
-static void close_page(void)
+/* 子页 → 应用主页（与左滑返回同一动作）。导出给电源键「一级返回」钩子调用。 */
+void ui_rec_page_close(void)
 {
     if (!s_scr) {
         return;
@@ -106,6 +104,12 @@ static void close_page(void)
     lv_obj_del(gone);
 }
 
+/* 电源键「一级返回」钩子用：本子页当前是否处于打开状态。 */
+bool ui_rec_page_is_open(void)
+{
+    return s_scr != NULL;
+}
+
 void ui_rec_page_show(void)
 {
     if (s_scr) {
@@ -115,14 +119,13 @@ void ui_rec_page_show(void)
     const lv_color_t gray = lv_color_hex(0x808080);
     s_state = REC_IDLE;
     s_ui_state = REC_IDLE;
-    s_key_down = false;
 
     s_scr = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(s_scr, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    sdgoods_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
+    sdgoods_swipe_back_bind(s_scr, ui_rec_page_close);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *title = lv_label_create(s_scr);
     lv_label_set_text(title, SDG_T("录音", "Rec"));
@@ -168,9 +171,4 @@ void ui_rec_page_poll(void)
     if (s_state != s_ui_state) {
         set_btn(s_state);
     }
-    const int down = (gpio_get_level(BOARD_KEY_GPIO) == BOARD_KEY_ACTIVE_LEVEL);
-    if (down && !s_key_down) {
-        close_page();
-    }
-    s_key_down = down;
 }

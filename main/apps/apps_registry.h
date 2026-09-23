@@ -17,19 +17,19 @@
 /*
  * apps_registry.h —— 应用注册表
  *
- * 把 main/apps/ 下散落的应用「接线」到平台层与启动台：
+ * 把 main/apps/ 下散落的应用「接线」到平台层：
  *   · 平台层：每轮 UI 循环要推进哪些应用的 poll（平台不知道有哪些应用）
- *   · 启动台（ui_app_page.c）：显示哪些圆按钮
- *   · 开机动画结束后首屏是什么、应用菜单「退出」时回哪个页面
+ *   · 首页（ui_home.c）直接以「小鸟」按钮启动首个应用，其余功能按钮平铺在首页
+ *   · 应用菜单「退出」时回首页（见 apps_registry.c 的 apps_show）
  *
  * ★ 新增应用只需要改两个文件：
  *     1. main/apps/apps_registry.c —— 往 s_apps[] 表里加一行
- *     2. main/CMakeLists.txt       —— 往 SRCS 加一行（自动生成脚本会代劳）
- *   用 tools/new_app.py 生成骨架时这两步会自动完成。
+ *     2. main/CMakeLists.txt       —— 往 SRCS 加一行
+ *   要独立开发并上架自己的应用，用 `tools/new_app_project.py <name>` 派生工程（见 skill sdgoods-new-app）。
  */
 
 /* ---------------------------------------------------------------------------
- * 一个「应用入口」= 启动台上的一个圆按钮
+ * 一个「应用入口」：登记 .poll 供每帧推进，.show 由首页按钮 / 应用菜单调用
  * ------------------------------------------------------------------------- */
 typedef struct {
     /* 按钮文字（中文 / 英文）。渲染时按当前界面语言二选一（sdgoods_i18n）。
@@ -37,8 +37,7 @@ typedef struct {
           否则屏上是方框。 */
     const char *label_zh;
     const char *label_en;
-    /* 像素图标键（见 ui_app_page.c 的 icon_map_for）："bird" / "plane" …
-       没有图标填 NULL，届时退化成显示文字标签。
+    /* 像素图标键："bird" / …（保留作元数据；当前首页按钮为纯文字，不再由启动台渲染图标）。
        注意它是**语言无关**的固定串 —— 别拿按钮文字当键，切语言后就查不到了。 */
     const char *icon;
     /* 点按钮后进入应用（通常是 ui_xxx_show / ui_xxx_start） */
@@ -47,9 +46,9 @@ typedef struct {
     void (*poll)(void);
 } sdgoods_app_t;
 
-/* 应用清单。改动它即可增删启动台上的入口（顺序 = 按钮顺序 1..6）。 */
+/* 应用清单。每帧 poll 由 apps_poll() 调用；.show 由首页「小鸟」按钮直接调用。 */
 extern const sdgoods_app_t *const g_sdgoods_app;
 extern const int                  g_sdgoods_app_count;
 
-/* 由 main.c 调用：把清单与轮询接到平台层。必须在 sdgoods_boot_show() 之前调。 */
+/* 由 main.c 调用：把清单与轮询接到平台层。必须在 sdgoods_ui_home_create_show()（创建首屏）之前调。 */
 void apps_register(void);

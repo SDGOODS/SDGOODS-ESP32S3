@@ -20,7 +20,7 @@
  * 里的几个回调，由这里填上。
  *
  * ---------------------------------------------------------------------------
- * 新增一个应用（tools/new_app.py 会自动完成下面三步）：
+ * 新增一个应用（复制 app_template.c/.h 为 ui_<name>.c/.h 并改名，下面三步手动完成；旧 tools/new_app.py 已移除）：
  *
  *   1. 在 main/apps/ 下写 ui_你的应用.c/.h —— 用 app_template.c 当骨架
  *      （它已接好 ui_app_shell 的四步，菜单/暂停/退出都不用自己写）
@@ -37,41 +37,31 @@
 #include <stddef.h>
 
 #include "sdgoods_board.h"   /* 平台层：sdgoods_apps_set_poll / sdgoods_ui_set_nav */
+#include "sdgoods_hooks.h"   /* sdgoods_set_power_short_handler：电源键「一级返回」钩子 */
 
 /* ---- 导航页（不算应用，但也要轮询） ---- */
-#include "ui_home.h"         /* 根页面 */
-#include "ui_app_page.h"     /* 「应用」启动台 */
-#include "ui_demo_page.h"
+#include "ui_home.h"         /* 根页面（首页：6 个功能按钮平铺） */
 #include "ui_scan_page.h"
 #include "ui_rec_page.h"
 #include "ui_other_page.h"
-#include "ui_about.h"        /* 「关于」页（DEMO 页的子页，用电源键返回） */
 
 /* ---- 应用清单里用到的应用 ---- */
-#include "ui_flappy.h"
-#include "ui_plane.h"
-/* >>> new_app.py: 新应用 include 插到这里 >>> */
+#include "ui_flappy.h"       /* 首页「小鸟」按钮直接启动；poll 由 apps_poll 调用 */
 
 /* ===========================================================================
  * ★ 应用清单 ★
  *
- * 顺序 = 启动台上的按钮顺序。排布由 ui_app_page.c 按数量自适应：
- *   1~3 个 → 单行居中；4~6 个 → 两行居中。
- * 超过 6 个的应用不会显示按钮（但 poll 仍会被调用），要更多入口请调整
- * ui_app_page.c 的 SDG_UI_LAUNCHER_MAX 与排布规则。
- *
- * 注意：「关于」不在这里 —— 它是 DEMO 页的入口（ui_demo_page.c）。
+ * 这一份清单是「应用层 ⇄ 平台层」的接线点：每个应用在这里登记 .poll，
+ * 由 apps_poll() 每帧调用；.show 目前由首页「小鸟」按钮直接调用
+ * （ui_flappy_start），飞机应用已随「应用」目录一并屏蔽，不再登记。
  *
  *   .label_zh 中文按钮文字 / .label_en 英文按钮文字（按界面语言二选一）
- *   .icon     像素图标键（"bird" / "plane" / …，没有图标填 NULL）
- *   .show     点按钮进入应用 / .poll 每帧推进（可为 NULL）
+ *   .icon     像素图标键（"bird" / …，保留作元数据，首页按钮为纯文字）
+ *   .show     进入应用 / .poll 每帧推进（可为 NULL）
  * =========================================================================== */
 static const sdgoods_app_t s_apps[] = {
     { .label_zh = "小鸟", .label_en = "Bird",  .icon = "bird",
       .show = ui_flappy_start, .poll = ui_flappy_poll },
-    { .label_zh = "飞机", .label_en = "Plane", .icon = "plane",
-      .show = ui_plane_start,  .poll = ui_plane_poll  },
-    /* >>> new_app.py: 新应用插到这里（保持缩进即可） >>> */
 };
 
 const sdgoods_app_t *const g_sdgoods_app   = s_apps;
@@ -87,13 +77,10 @@ const int                  g_sdgoods_app_count = (int)(sizeof(s_apps) / sizeof(s
  * ------------------------------------------------------------------------- */
 static void apps_poll(void)
 {
-    /* 导航页 */
+    /* 导航页（子页）：各自 poll 自己不是前台就立刻返回，不拖慢 UI 刷新 */
     ui_scan_page_poll();
     ui_rec_page_poll();
     ui_other_page_poll();
-    ui_about_page_poll();   /* 「关于」页：电源键返回上一页（漏了这行按电源键没反应） */
-    ui_demo_page_poll();
-    ui_app_page_poll();
 
     /* 应用清单：表里加了新应用，这里自动生效，不用再改 */
     for (int i = 0; i < g_sdgoods_app_count; i++) {
@@ -120,12 +107,16 @@ static void home_show(void)
 
 static void apps_show(void)
 {
-    ui_app_page_show();
+    /* 应用（如小鸟）退出后落回首页，而不是已删除的「应用」启动台 */
+    ui_home_show();
 }
 
 void apps_register(void)
 {
     sdgoods_apps_set_poll(apps_poll);
+
+    /* 电源键短按「一级一级返回」：子页→主页由本应用钩子消费，主页交给平台默认导航。 */
+    sdgoods_set_power_short_handler(ui_app_power_short_handler);
 
     static const sdgoods_nav_t nav = {
         .home_create_show = home_create_show,

@@ -72,7 +72,7 @@ static volatile bool s_bgm_stopped;   /* BGM 任务已完全退出（PA/SPK 已�
 static volatile int s_flap_rem;     /* 拍翅音效剩余采样数（>0 时混合输出） */
 static float        s_flap_ph;      /* 拍翅音效相位累加器 */
 static bool         s_spk_inited;   /* 扬声器硬件（PA GPIO + I2S 通道）是否已初始化 */
-static volatile int s_vol_pct = 70; /* 全局音量（0~100，默认 70）；volatile：UI 线程改、BGM 任务读，防止编译器提升出循环 */
+static volatile int s_vol_pct = 10; /* 全局音量（0~100，默认 10%）；volatile：UI 线程改、BGM 任务读，防止编译器提升出循环 */
 
 /* 三套 8-bit 风格旋律；lead = 主旋律，bass = 低音伴奏 */
 static const float g_flappy_lead_f[BGM_NOTES] = {
@@ -120,6 +120,14 @@ static void pa_set(bool on)
 {
     const int want = on ? BOARD_AUDIO_PA_EN_ACTIVE_LEVEL : (1 - BOARD_AUDIO_PA_EN_ACTIVE_LEVEL);
     gpio_set_level(BOARD_AUDIO_PA_EN_GPIO, want);
+}
+
+/* 功放使能策略：仅当「BGM 正在播放」且「音量 > 0」时才开功放；
+ * 否则关功放。这样「声音关了（vol=0）但 BGM 仍在跑」时不会把
+ * DAC/I2S 的静音底噪放大出来（用户反馈：静音后仍有杂音）。 */
+static void pa_apply(void)
+{
+    pa_set(s_bgm_run && s_vol_pct > 0);
 }
 
 static inline int16_t sat16(int32_t s)
@@ -566,7 +574,7 @@ esp_err_t sdgoods_audio_bgm_start(audio_bgm_theme_t theme)
     s_flap_rem = 0;
     s_flap_ph = 0.0f;
     spk_set(true);
-    pa_set(true);
+    pa_apply();   /* 音量=0 时保持功放关闭，避免静音底噪 */
     if (xTaskCreate(bgm_task, "bgm", 2048, NULL, 5, &s_bgm_task) != pdPASS) {
         s_bgm_run = false;
         pa_set(false);
@@ -621,6 +629,8 @@ void sdgoods_audio_set_volume(int pct)
         pct = 100;
     }
     s_vol_pct = pct;
+    pa_apply();   /* 音量归零立刻关功放，消除静音底噪；调大再开功放 */
+    ESP_LOGI("audio", "volume=%d%% -> PA %s", pct, (s_bgm_run && pct > 0) ? "ON" : "OFF");
 }
 
 int sdgoods_audio_get_volume(void)

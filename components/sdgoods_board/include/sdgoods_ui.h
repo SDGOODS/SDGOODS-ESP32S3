@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <stdbool.h>   /* sdgoods_ui_in_circle / sdgoods_ui_in_safe_area 用到 bool */
+
 /*
  * sdgoods_ui.h —— 圆屏通用 UI 栅格（平台层）
  *
@@ -58,3 +60,44 @@
 #define SDG_UI_ROW2_Y      SDG_UI_BTN4_Y                          /* 191 */
 #define SDG_UI_ROW_MID_Y   ((SDG_UI_ROW1_Y + SDG_UI_ROW2_Y) / 2)  /* 142：单行时的垂直居中高度 */
 #define SDG_UI_CENTER_X    (SDG_UI_BTN2_X + SDG_UI_BTN_SIZE / 2)  /* 180：圆屏水平中心 */
+
+/* ===========================================================================
+ * 圆屏安全区（给 AI / 应用放控件用）
+ * ---------------------------------------------------------------------------
+ * 这块屏是 360×360 的**圆形**显示区，四角会被圆边切掉。任何**非全屏**的控件、
+ * 文字、图片都应落在下面的「安全矩形」内，否则会被圆边裁掉一块。
+ *   - 安全矩形：以圆心 (180,180) 为中心、边长 240 的方（四周留 60px 余量）。
+ *   - 全屏背景 / 圆形遮罩才允许超出安全区，贴住圆边。
+ * ⚠️ 这些是几何参考值；不同批次屏的可见半径略有差异，**改完务必用
+ *    tools/screenshot_recv.py 截屏核验**，尤其贴边内容。
+ * ========================================================================= */
+#define SDG_UI_W          360        /* 屏宽（像素） */
+#define SDG_UI_H          360        /* 屏高（像素） */
+#define SDG_UI_CX         180        /* 圆心 x */
+#define SDG_UI_CY         180        /* 圆心 y */
+#define SDG_UI_RADIUS     180        /* 圆屏几何半径（像素） */
+
+/* 安全矩形：控件左上角 (x,y) 与尺寸 (w,h) 都应满足
+ *   x >= SDG_UI_SAFE_X && x + w <= SDG_UI_SAFE_X + SDG_UI_SAFE_W
+ *   y >= SDG_UI_SAFE_Y && y + h <= SDG_UI_SAFE_Y + SDG_UI_SAFE_H
+ * 即内容完全落在圆内、不碰圆边。 */
+#define SDG_UI_SAFE_X     60
+#define SDG_UI_SAFE_Y     60
+#define SDG_UI_SAFE_W     240
+#define SDG_UI_SAFE_H     240
+#define SDG_UI_SAFE_R     120        /* 安全区半边长；点离圆心距离 > 此值即越界 */
+
+/* 点 (x,y) 是否落在圆屏内（距圆心 <= 半径）。用于裁剪 / 命中判断。 */
+static inline bool sdgoods_ui_in_circle(int x, int y)
+{
+    int dx = x - SDG_UI_CX;
+    int dy = y - SDG_UI_CY;
+    return (dx * dx + dy * dy) <= (SDG_UI_RADIUS * SDG_UI_RADIUS);
+}
+
+/* 点 (x,y) 是否落在安全矩形内（不碰圆边）。用于放置文本 / 按钮 / 图片。 */
+static inline bool sdgoods_ui_in_safe_area(int x, int y)
+{
+    return (x >= SDG_UI_SAFE_X && x < SDG_UI_SAFE_X + SDG_UI_SAFE_W &&
+            y >= SDG_UI_SAFE_Y && y < SDG_UI_SAFE_Y + SDG_UI_SAFE_H);
+}

@@ -41,8 +41,19 @@
     # 指定输出文件名 / 目录
     python3 screenshot_recv.py -o my_shot.png
 
+    # 截「非首屏」界面：先发一个切换字符（串口调试命令），等页面渲染好再截
+    python3 screenshot_recv.py -p /dev/cu.usbmodem21301 --pre c -o cc.png
+
     # 2) 设备端：无需操作 —— 上面 -t 已自动向串口发触发字符 's'
     #    PNG 默认存到当前目录：shot_YYYYmmdd_HHMMSS.png
+
+为什么需要 --pre
+----------------
+截屏只能拿到「当前显示的那一屏」。控制中心 / 二级页这类要靠触摸才能到的界面，
+在固件里挂一个串口调试命令（例如启动器的 `c` 开控制中心）后用 --pre 先把它切出来，
+等 --wait 秒让 LVGL 渲染完，再发 's' 截屏 —— 这是唯一能离屏核验非首屏 UI 的手段。
+⚠️ 调试命令的回调跑在 console RX 任务里，固件侧必须用 lv_async_call() 转到 LVGL
+线程再建对象，否则对象树会在错误线程被改。
 
 自检（不需要设备，只验证解析 + RGB565 转换 + PNG 写出）
     python3 screenshot_recv.py --selftest
@@ -227,7 +238,7 @@ def out_path_for(base, index, count, ext):
     return '%s_%d%s' % (root, index, old or ext)
 
 
-def run(port, baud, count, out, timeout_sec, trigger):
+def run(port, baud, count, out, timeout_sec, trigger, pre=None, pre_wait=1.5):
     ser = open_port(port, baud)
     if ser is None:
         return 2
@@ -240,6 +251,19 @@ def run(port, baud, count, out, timeout_sec, trigger):
     shots = 0
     print('监听 %s（%d baud）' % (port, baud))
     print("等串口触发；用 -t 可让脚本自动向串口发 's'")
+
+    # --pre：先发切换字符（固件里的串口调试命令），等页面渲染好，随后由下面的
+    #        trigger 逻辑发 's' 截屏。这样才能截到控制中心 / 二级页这类非首屏 UI。
+    if pre:
+        trigger = True
+        print("先发切换字符 %r，等 %.1fs 渲染后再截屏" % (pre, pre_wait))
+        try:
+            ser.write(pre.encode('ascii', 'replace'))
+            ser.flush()
+        except Exception as e:
+            print('发送切换字符失败：%s' % e)
+            return 4
+        time.sleep(pre_wait)
 
     t0 = time.time()
     last_trig = 0.0
@@ -457,6 +481,10 @@ def main():
     ap.add_argument('-o', '--out', default=None, help='输出 PNG 路径（默认 shot_时间戳.png）')
     ap.add_argument('-n', '--count', type=int, default=1, help='接收多少张后退出（默认 1）')
     ap.add_argument('-t', '--trigger', action='store_true', help="自动向串口发送 's' 触发截屏")
+    ap.add_argument('--pre', default=None, metavar='CHAR',
+                    help="先发送该切换字符（固件串口调试命令，如启动器的 c/d/b），等 --wait 秒后再触发截屏")
+    ap.add_argument('--wait', type=float, default=1.5,
+                    help='--pre 之后等待渲染的秒数（默认 1.5）')
     ap.add_argument('--caps', action='store_true', help="查询固件支持的基础能力（串口发 '?'）")
     ap.add_argument('--timeout', type=float, default=120.0, help='等待超时秒数（默认 120）')
     ap.add_argument('--selftest', action='store_true', help='不需要设备，自检解析与 PNG 写出')
@@ -466,7 +494,8 @@ def main():
         return selftest(args.out)
     if args.caps:
         return query_caps(args.port, args.baud, args.timeout)
-    return run(args.port, args.baud, args.count, args.out, args.timeout, args.trigger)
+    return run(args.port, args.baud, args.count, args.out, args.timeout, args.trigger,
+               args.pre, args.wait)
 
 
 if __name__ == '__main__':

@@ -14,7 +14,11 @@
 
 #pragma once
 
+#include <stdbool.h>
+
 /* Flappy Bird 小游戏：点屏幕让小鸟跳，避过滚动的水管 */
 
 void ui_flappy_start(void);
 void ui_flappy_poll(void);
+bool ui_flappy_is_open(void);      /* 电源键短按「一级返回」用：游戏是否前台 */
+void ui_flappy_close(void);        /* 游戏 → 应用主页（经由应用外壳标准退出） */

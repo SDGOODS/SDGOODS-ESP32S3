@@ -1,0 +1,55 @@
+name: Release firmware
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, pack and attach firmware to GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build with ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: esp32s3
+          path: '.'
+
+      - name: Pack pure app image (platform auto-prepends bootloader)
+        run: python3 tools/pack_app.py -b build
+
+      - name: Generate checksums and flash manifest
+        run: |
+          cd dist
+          sha256sum ./*.bin > SHA256SUMS.txt
+          BIN=$(ls ./*_app.bin | head -n1)
+          cat > flash-manifest.json <<EOF
+          {
+            "tag": "${GITHUB_REF_NAME}",
+            "board": "sdgoods (ESP32-S3-R8, 360x360 round ST77916, 32MB flash)",
+            "app": "$(basename "$BIN")",
+            "app_sha256": "$(sha256sum "$BIN" | cut -d' ' -f1)",
+            "size_bytes": $(stat -c%s "$BIN"),
+            "install": "Upload the app .bin on https://sdgoods.ai — the platform auto-prepends the official bootloader (bootloader@0x0 + partition-table@0x8000 + otadata@0x310000) and flashes your app to 0x10000.",
+            "local_flash": "Single-app direct boot: esptool.py write_flash 0x10000 $(basename "$BIN")   (or: idf.py -p <PORT> flash for a full image with bootloader)"
+          }
+          EOF
+          cat flash-manifest.json
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          files: |
+            dist/*_app.bin
+            dist/*_app.json
+            dist/SHA256SUMS.txt
+            dist/flash-manifest.json

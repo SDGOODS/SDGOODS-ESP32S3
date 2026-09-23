@@ -232,7 +232,7 @@ def main():
         print("  详见 docs/ENVIRONMENT.md")
         return 1
     print("✓ 编译/烧录所需环境齐全。改中文文案前再确认 node/npm（见 WARN 项）。")
-    print("  下一步：idf.py build  （或 python3 tools/new_app.py 加应用）")
+    print("  下一步：idf.py build  （或 python3 tools/new_app_project.py <name> 派生独立应用工程）")
     return 0
 
 

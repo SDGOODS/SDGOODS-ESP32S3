@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <stdbool.h>
+
 #include <stddef.h>
 
 #define UI_SCAN_NAME_MAX  32
@@ -22,3 +24,5 @@ typedef int (*ui_scan_fn_t)(char names[][UI_SCAN_NAME_MAX + 1], size_t max_n);
 
 void ui_scan_page_show(const char *title, const char *sub_fmt, ui_scan_fn_t scan_fn);
 void ui_scan_page_poll(void);
+bool ui_scan_page_is_open(void);   /* 电源键短按「一级返回」用：子页是否前台 */
+void ui_scan_page_close(void);     /* 子页 → 应用主页（与左滑返回同一动作） */

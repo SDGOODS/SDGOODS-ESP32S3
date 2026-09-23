@@ -55,6 +55,18 @@ main/                         应用层
     main.c        装配点：初始化平台 + apps_register() 接线
     apps/         ★ 用户的应用写在这里
     patches/      对 LVGL 的补丁（自动应用）
+
+platform/                    ★ 平台托管层（开发者勿改、勿提交改动）
+    partitions.csv          多应用分区表（平台安装时用自己的官方版覆盖）
+    prebuilt/               本地调试用的预编译引导层：
+                                bootloader.bin / partition-table.bin
+
+tools/                      开发 / 发布脚本
+    new_app_project.py     派生独立应用工程（PLANE 形单应用直启，见 §3 与 skill sdgoods-new-app）
+    gen_fonts.py            生成中文子集字体（新增中文文案后必跑）
+    pack_app.py             打包单应用固件（平台提审用）
+    flash_local.sh          ★ 本地调试一键烧录（自动用 platform/prebuilt 引导层）
+    screenshot_recv.py      串口截屏（真机自证用）
 ```
 
 **改代码前先问自己：这是应用层的事，还是平台层的事？**
@@ -87,6 +99,11 @@ idf.py -p <串口> flash monitor
    （常见：浏览器打开了 Web Serial 页面，关掉即可）。
 5. **不要改 `managed_components/`**。它是组件管理器下载的，会被重新覆盖；
    要改 LVGL 就改 `main/patches/` 下的补丁文件（见第 6 节）。
+6. **不要改 `platform/` 下的引导层**。它包含 `partitions.csv`（分区表）与
+   `prebuilt/bootloader.bin`、`prebuilt/partition-table.bin`（平台官方预编译引导层）。
+   平台安装固件时会用自己的官方引导层覆盖这些内容，本地调试用的预编译件也由仓库维护者
+   用平台构建产物同步，**开发者改了也不会生效、还可能让分区表与平台不一致导致 OTA 失败**。
+   本地自测烧录用 `python3 tools/flash_local.sh`，它会自动烧入 `platform/prebuilt/` 的引导层。
 
 ---
 
@@ -98,7 +115,7 @@ idf.py -p <串口> flash monitor
   平台层需要"回主页""有新应用要轮询"这类信息时，走注册接口 —— 见下一小节。
   反过来（应用 `#include "sdgoods_board.h"`）是正常且推荐的。
 - **新增应用必须注册**。只写了 `ui_my_app.c` 而不改 `apps_registry.c`，表现是
-  「编译通过、但启动台没有按钮、poll 也不被调用」。用 `tools/new_app.py` 可自动完成。
+  「编译通过、但启动台没有按钮、poll 也不被调用」。在本仓库内加演示应用时手动加进 s_apps[]；要独立开发自己的应用请用 `new_app_project.py` 派生（见 §3）。
 - **不要动 `components/sdgoods_board/` 里的这些**（调过参数、有实测依据）：
   - `src/sdgoods_lvgl.c` 的绘制缓冲配置（内部 SRAM 双缓冲 8 行 + 异步 flush；
     改回 PSRAM 或调大 queue 会出黑条/红线）
@@ -146,7 +163,7 @@ sdgoods_ui_set_nav(&nav);           /* nav = { home_create_show, home_show, apps
 - `components/sdgoods_board/src/sdgoods_console.c`：**常驻串口控制台**（始终编译，不依赖某能力是否编入），
   轮询 USB-Serial-JTAG：收到 `?` 回一行 `SDGOODS-CAPS:SHOT,...`（多能力逗号分隔，未启用任何可选能力则为空串）；
   收到 `s`/`S` 仅当 `sdgoods_caps_has(SDGOODS_CAP_SCREENSHOT)` 才触发截屏。
-- 网页端「从设备截图」（`cyb2-dev-site/upload-firmware.html`）先发 `?` 解析能力行：
+- 网页端「从设备截图」（谷仓开放平台 `upload-firmware.html`）先发 `?` 解析能力行：
   有 `SHOT` 才截图；**无 `SHOT`（含两次重试仍无响应）就弹窗提示用户去 BSP 启用该能力并重新烧录**，
   绝不盲发命令（旧/不兼容固件盲截会回颜色错乱的图）。
 
@@ -156,21 +173,20 @@ sdgoods_ui_set_nav(&nav);           /* nav = { home_create_show, home_show, apps
 
 ---
 
-## 3. 加一个新应用（标准姿势）
+## 3. 加一个新应用
 
-```bash
-python3 tools/new_app.py my_app "我的应用"
-```
+有两种场景，别混：
 
-脚本做三件事（也是手改时要做的三步）：
+### 3a. 在本仓库（参考固件）里再加一个演示应用
+手动三步（原 `tools/new_app.py` 已移除）：
 
 1. 复制 `main/apps/app_template.c/.h` → `main/apps/ui_my_app.c/.h`，替换应用名与按钮文字；
-2. 往 `main/CMakeLists.txt` 的 `SRCS` 里插入 `"apps/ui_my_app.c"`
-   （插在 `# >>> new_app.py: ... >>>` 标记之前）；
-3. 往 `main/apps/apps_registry.c` 插入 `#include` 与 `s_apps[]` 表项
-   （同样有 `>>>` 标记定位）。
+2. 在 `main/CMakeLists.txt` 的 `SRCS` 里加一行 `"apps/ui_my_app.c"`；
+3. 在 `main/apps/apps_registry.c` 加 `#include` 与 `s_apps[]` 表项。
 
-**不要删那两个 `>>>` 标记** —— 脚本靠它们定位。
+### 3b. 从零开发你自己的应用并上架（推荐路径）
+**不要**在本仓库里加 —— 用 `tools/new_app_project.py` 派生一个独立工程（PLANE 形单应用直启，
+开机直接进你的 app，无启动台/演示），再从 `main/apps/ui_<name>.c` 改起。详见 skill `sdgoods-new-app`。
 
 新应用要接的框架（`app_template.c` 里已写好）：
 
@@ -197,6 +213,99 @@ lv_scr_load(s_scr);                       /* bind 要在 load 之后 */
 
 参考实现：`main/apps/app_template.c`（最小完整例子，无界面入口但一直参与编译，
 所以模板不会失效）、`ui_flappy.c`（简单）、`ui_plane.c`（最复杂，带游戏循环和联机）。
+
+---
+
+## 3.5 应用级接口速查（写 app 必看：圆屏安全区 / 手势 / 一键构建）
+
+下面三个是 AI 给这块圆屏写应用时**最高频**要用到的接口，集中在平台层头文件，
+`#include "sdgoods_board.h"`（或对应的 `sdgoods_ui.h` / `sdgoods_gesture.h`）即可拿到。
+
+### 3.5.1 圆屏安全区（`sdgoods_ui.h`）
+
+这块屏是 **360×360 的圆形**，四角会被圆边切掉。**所有非全屏控件 / 文字 / 图片都应落在
+安全矩形内**，否则被圆边裁掉一块：
+
+```c
+#include "sdgoods_ui.h"
+/* 安全矩形：x,y ∈ [SDG_UI_SAFE_X, SDG_UI_SAFE_X+SDG_UI_SAFE_W) 同理 y。 */
+#define SDG_UI_SAFE_X 60  #define SDG_UI_SAFE_Y 60
+#define SDG_UI_SAFE_W 240 #define SDG_UI_SAFE_H 240
+#define SDG_UI_RADIUS  180 #define SDG_UI_CX 180 #define SDG_UI_CY 180
+
+if (!sdgoods_ui_in_safe_area(x, y)) { /* 这个点在圆边外，会被裁掉 */ }
+if (sdgoods_ui_in_circle(x, y))      { /* 点在圆内 */ }
+```
+
+> 这些是几何参考值；不同批次屏可见半径略有差异，**改完务必用截屏核验**（见第 8 节）。
+> 全屏背景 / 圆形遮罩才允许超出安全区贴住圆边。按钮栅格常量 `SDG_UI_BTN1_X…SDG_UI_BTN6_*`
+> 已经在本安全区内，直接用即可。
+
+### 3.5.2 应用手势（`sdgoods_gesture.h`）
+
+设备级导航（顶部下滑出控制中心、上滑回主页）由 `sdgoods_app_shell_bind(scr)` **自动接管**，
+不要重复绑。app 只想加自己的手势时，用这一层薄封装（内部复用平台打磨过的成熟原语，
+**不新写手势检测**，因此不会重蹈 LVGL 接管 / 误触的坑）：
+
+```c
+static sdgoods_tap_ctx_t s_tap_ctx;          /* 必须是静态存储，生命周期覆盖整屏 */
+static void on_back(void)   { /* 左滑返回 */ }
+static void on_tap(void *ud){ (void)ud; /* 点按（带位移守卫，滑动掠过不算点按） */ }
+
+void ui_myapp_show(void) {
+    s_scr = lv_obj_create(NULL);
+    /* ... 画界面 ... */
+    lv_scr_load(s_scr);
+    sdgoods_app_shell_bind(s_scr);           /* 设备级导航：必须先 bind */
+    sdgoods_app_on_gesture(s_scr, SDGOODS_GESTURE_BACK, on_back);  /* 左滑返回 */
+    sdgoods_app_on_tap(s_scr, &s_tap_ctx, on_tap, NULL);          /* 点按屏幕任意处 */
+}
+```
+
+- 手势类型目前支持 `SDGOODS_GESTURE_UP`（底部上滑）/ `SDGOODS_GESTURE_BACK`（左滑到右）。
+- **点按务必走 `sdgoods_app_on_tap` / `sdgoods_tap_bind`**，不要 `lv_obj_add_event_cb(..., LV_EVENT_CLICKED, ...)`
+  直接绑——那会绕过位移守卫（按下滑走再松手也触发，误触）。
+- 更细的设备级手势策略（PRESS_LOCK 所有权、点按位移守卫）见 `sdgoods_tap.h` 顶部长注释。
+
+### 3.5.3 一键构建 / 烧录（`tools/build.sh`）
+
+封装了「env 坑」（关闭三个沙箱变量、保留 `CODEBUDDY_SESSION_ID`、自动 `source` IDF export），
+AI 或开发者一行就能构建，不用记 export / unset：
+
+```bash
+python3 tools/check_env.py          # 照例先查环境
+tools/build.sh                      # 原地构建到 build_pub
+tools/build.sh flash                # 构建 + 烧录（引导层用 platform/prebuilt 预编译件）
+tools/build.sh dev                  # 构建 + 烧录 + 打开串口监视
+tools/build.sh -B build_fixNN       # 指定构建目录（换名字即可，不要 rm -rf 旧目录）
+```
+
+- 烧录用 `platform/prebuilt/` 的官方引导层（bootloader@0x0、partition-table@0x8000），
+  **不要改 `platform/`**（见第 6 条）。等价手写见 `tools/flash_local.sh`。
+- 想看底层手动命令（含 env unset 三连）见 `sdgoods-ai/skills/sdgoods-build-flash/SKILL.md`。
+
+---
+
+### 3.6 派生独立工程（做成你自己的产品，而非在参考固件里加 app）
+
+如果你要的不是「在本仓库加一个 app」，而是「**把仓库复制成你自己的独立固件工程**」
+（独立命名、开机直入你的 app、独立 git，但仍保留手势 / 控制中心 / 开发边界），
+**不要**按 §3 改——另行照 [`docs/STANDALONE_PROJECT.md`](../docs/STANDALONE_PROJECT.md) 走完整 Step 1–8。
+
+关键提醒（AI 常踩）：独立工程**自动拥有控制中心**，它来自 `components/sdgoods_launcher`
+（`sdgoods_cc.c`），只要你 `sdgoods_app_shell_bind(scr)` 且 `main/CMakeLists.txt` 的
+`REQUIRES` 里留着 `sdgoods_launcher`，顶部下滑就会弹出（音量 ± / 亮度 / 数据 / 电量 / 第 5 键 / 截屏），
+**无需自己实现**。删掉 `components/sdgoods_launcher` 才会丢控制中心。
+
+> 控制中心的**完整 API 与一级/二级页布局**见 [`docs/APP_SDK.md §3.2`](../docs/APP_SDK.md)。
+> **SINGLE（单应用）模式下，控制中心第 5 个键是 `Power`（关机）；MULTI（被启动器管理）模式下才是 `Exit`（返回启动器）**——
+> 这是平台按本固件是否「被启动器管理」自动切换的，app 不用管。想感知「控制中心是否盖在我上面」（如游戏暂停），
+> 复用外壳的 `set_pause_cb` / `set_resume_cb` 即可。
+
+> 🛠️ **自动化（普通用户上平台首选）**：「复制仓库 → 改名 → 瘦注册表 → 删 demo → 替换硬编码」已封装进
+> `tools/new_standalone_project.py`，一条命令即可生成独立工程（详见 `docs/STANDALONE_PROJECT.md` 顶部）。
+> 手动改时务必注意下文「改名坑」——全仓约 35 处 `SDGOODS_EBADGE` 写死在工具/文档里，
+> 漏改会导致烧录/打包去找不存在的文件。
 
 ---
 
@@ -346,6 +455,11 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
 - [ ] 改玩法的话：联机四条铁律 + same-tick 顺序都遵守了
 - [ ] `board_pins.h`、`sdgoods_lvgl.c` 的缓冲配置没被顺手改掉
 - [ ] 新建的 `.c` / `.h` / `.py` 都带了许可头（`python3 tools/add_license_headers.py`）
+- [ ] 提交平台的是**不带地址**的应用包（`python3 tools/pack_app.py` 校验通过），
+      不是 `merge_bin` 生成的合并镜像（后者会让用户设备刷完无法启动）
+      —— 引导层（bootloader / 分区表 / 启动器）由官方发布，开发者账号传这类包平台会 **403** 拒绝
+- [ ] 改过 `platform/partitions.csv` 的话：平台「默认文件」里那份分区表也重新上传了
+      （两边是同一套布局的两个副本，任一不同步 → 用户刷完起不来；平台会校验应用分区的落点）
 - [ ] 没有删掉已有文件头的版权 / `Required Notice` 声明（删掉即失去使用授权）
 - [ ] 没动 `main/patches/` 与 `fonts/` 的许可声明（这两处的许可由上游决定，不可更改）
 - [ ] 截屏验证过画面（UI 类改动）；临时探针 / 调试代码**已全部删干净**
@@ -359,7 +473,8 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
 ## 10. 把固件提交到谷仓 SDGOODS 开放平台（AI 也能做）
 
 开发完、本地截屏自测通过后，把固件交到 **谷仓 SDGOODS 开放平台**（广场）。完整说明在
-[`docs/PUBLISHING.md`](docs/PUBLISHING.md)，这里给 AI 最短路径：
+[`docs/PUBLISHING.md`](docs/PUBLISHING.md)，REST 端点 / 字段表 / 两条 MCP 通道的区别见
+[`docs/MCP_CONTRACT.md`](docs/MCP_CONTRACT.md)，这里给 AI 最短路径：
 
 1. **一次性登录**（邮箱收 4 位码，refreshToken 缓存在 `~/.sdgoods/credentials.json`）：
 
@@ -368,14 +483,26 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
    python3 tools/sdgoods_publish.py login 你的邮箱@example.com
    ```
 
-2. **提交**（自动用缓存的 refreshToken 换新 accessToken，无需再验证码）：
+2. **校验并导出应用包**（**必做**）。平台收的是**不带地址**的纯应用镜像 ——
+   地址由设备上的分区表决定，包不携带地址：
+
+   ```bash
+   python3 tools/pack_app.py      # → dist/SDGOODS_EBADGE_app.bin（附 .json 元数据）
+   ```
+
+   它会拦下：`merged.bin`（带地址的合并镜像，会把用户设备写砖）、bootloader、
+   分区表、别的芯片的固件、超过槽上限的固件。
+
+3. **提交**（自动用缓存的 refreshToken 换新 accessToken，无需再验证码）：
 
    ```bash
    python3 tools/sdgoods_publish.py publish \
-     --file build/SDGOODS_EBADGE.bin --name "我的固件" \
+     --file dist/SDGOODS_EBADGE_app.bin --name "我的固件" \
      --desc-zh "中文简介" --desc-en "English intro" \
      --category game --shots shot1.png shot2.png
    ```
+
+   `publish` 会上传前再校验一次同一个文件（判据与 `pack_app.py` 一致）。
 
 不想要这个工具、直接调接口也行：`tools/sdgoods_publish.py` 就是「鉴权 →
 `POST /api/uploads/presign` 直传 → `POST /api/firmwares`」的纯标准库复刻，`docs/PUBLISHING.md`

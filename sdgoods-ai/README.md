@@ -20,11 +20,11 @@
 | Skill | 封装的动作 | 关键回退 |
 |---|---|---|
 | `sdgoods-check-env` | 跑 `check_env.py`，解析 MUST/WARN | 缺项给安装指引 |
-| `sdgoods-new-app` | `new_app.py` 生成骨架并自动注册 | 不删 `>>>` 标记 |
-| `sdgoods-build-flash` | `idf.py build` + `flash` | 含 env 坑（unset 三变量、不 rm -rf build） |
+| `sdgoods-new-app` | `new_app_project.py` 从开源工程派生 PLANE 形单应用直启工程（改名 + 裁剪 + 可选 --run 烧录截屏） | 种子=本开源仓；不含 SDGOODS_ 前缀 |
+| `sdgoods-build-flash` | `tools/build.sh`（封装 env 坑）一键构建/烧录/监视 | 底层仍是 `idf.py build`+`flash`，但 env 坑（unset 三变量、保留 SESSION_ID、不 rm -rf build）已固化进脚本，AI/开发者一行即可 |
 | `sdgoods-screenshot` | 串口一键截屏 + 自动打开 PNG 给 AI「看图」 | 单张约 2~25s，UI 改动必做 |
 | `sdgoods-fonts` | 改中文后重跑 `gen_fonts.py` + `font_metrics.py` | 漏字=方框，圆屏弦宽校验 |
-| `sdgoods-publish` | 提交固件到开放平台 | **优先 MCP，否则回退 `sdgoods_publish.py`** |
+| `sdgoods-publish` | 提交固件到开放平台 | 单 app.bin 应用包（平台自动补引导层）；能力检查定截图来源、逐条草稿问字段、三铁律（重编+1 / 删旧建新 / 审中可取消） |
 
 Skill 正文是平台无关的 Markdown，仅在安装时按目标平台落到不同位置、并生成对应形态的
 领域 Agent（Claude 的 `agents/` subagent、Cursor 的 `rules/` rule）。
@@ -67,8 +67,10 @@ bash sdgoods-ai/install.sh --dry-run
 
 ## 连接开放平台（MCP）
 
-谷仓 SDGOODS 开放平台是**不开源的后端**，MCP server 由其服务端实现（Phase 3 落地）。
-本仓库**只放客户端配置样例**与协议说明，**不含 server 代码、不含密钥**。
+谷仓 SDGOODS 开放平台是**不开源的后端**，但本仓库**自带一个本地 stdio MCP server**
+（`mcp/sdgoods-mcp-server/server.py`，纯标准库**客户端**，包装 `tools/sdgoods_publish.py` 调公开 REST API）。
+它也**不含服务端代码、不含密钥**——平台若再托管自己的 operator MCP（base64 内联形态），那是另一套通道，
+详见 `docs/MCP_CONTRACT.md` 的「两条 MCP 通道」。本目录放的是**客户端配置样例**与协议说明。
 
 `install.sh --with-mcp` 会按平台把对应样例落到正确位置：
 
@@ -111,3 +113,4 @@ python3 sdgoods-ai/setup/gen_config.py --platform=claude --json
 - 开发硬约束：根目录 [`AGENTS.md`](../../AGENTS.md)
 - 架构：`docs/ARCHITECTURE.md`
 - 发布：三种方式 `docs/PUBLISHING.md`
+- 发布契约（REST / 字段表 / 两条 MCP 通道）：`docs/MCP_CONTRACT.md`

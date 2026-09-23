@@ -114,8 +114,9 @@ static const sdgoods_app_t s_apps[] = {
 坐标由 `sdgoods_ui.h` 的 `SDG_UI_BTN_PITCH / SDG_UI_ROW1_Y / SDG_UI_ROW2_Y /
 SDG_UI_ROW_MID_Y / SDG_UI_CENTER_X` 推导 —— **增减应用不必手改坐标**。
 
-`tools/new_app.py` 会自动往这张表和 `CMakeLists.txt` 插一行，插入点靠
-`# >>> new_app.py: ... >>>` 标记定位（**别删标记**）。
+往这张表和 `CMakeLists.txt` 加应用行是手动的（原 `tools/new_app.py` 已移除）：
+在 `apps_registry.c` 的 `s_apps[]` 加一项、在 `CMakeLists.txt` 的 `SRCS` 加一行即可。
+要独立开发自己的应用，用 `tools/new_app_project.py` 派生工程（见 BUILD.md / skill sdgoods-new-app）。
 
 ---
 

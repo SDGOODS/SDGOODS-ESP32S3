@@ -96,8 +96,12 @@ python3 tools/gen_fonts.py --check       # 校验缺字（很快）
 
 ```bash
 idf.py -p <串口> flash monitor
-# 或合并固件直写：esptool.py --chip esp32s3 --port <串口> --baud 921600 write_flash 0x0 merged.bin
+# 或整机镜像直写（合并镜像，仅救砖 / 空片首次烧录用）：
+# esptool.py --chip esp32s3 --port <串口> --baud 921600 write_flash 0x0 merged.bin
 ```
+
+> ⚠️ `merged.bin` 是**带烧录地址**的整机镜像，只用于救砖或空片；提交到开放平台的
+> 必须是**不带地址**的纯应用镜像（`build/SDGOODS_EBADGE.bin`），见 `docs/BUILD.md` 第 4 节。
 
 > 串口号会变（与芯片 MAC 绑定）。如果报 `Resource busy`，多半是浏览器开着 Web Serial
 > 页面占着串口，关掉标签页即可。详见 `AGENTS.md` §1。

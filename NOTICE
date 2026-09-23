@@ -29,7 +29,8 @@ Apache-2.0 发布**：可自由商用、可闭源分发，要求保留版权声�
   ----------------------------------------------------------------
   例外（许可由上游决定，我们无权更改，沿用原许可）：
     main/patches/                    MIT（LVGL 衍生）
-    components/sdgoods_board/fonts/  SIL OFL 1.1（Noto Sans SC 子集字体衍生）
+    components/sdgoods_board/fonts/  SIL OFL 1.1（Noto Sans SC / 思源黑体
+                                     Source Han Sans 子集字体衍生，全文见该目录 OFL.txt）
 
 ================================================================
 二、第三方组件
@@ -56,6 +57,17 @@ Noto Sans SC
         作为该字体的衍生，这些文件**沿用 SIL OFL 1.1**，
         不受本仓库应用层非商业条款约束。每个文件头部都带有完整的
         版权与许可声明，请勿删除。
+
+Source Han Sans（思源黑体）
+  https://github.com/adobe-fonts/source-han-sans
+  Copyright (c) 2014-2021 Adobe (http://www.adobe.com/),
+  with Reserved Font Name 'Source'.
+  Licensed under the SIL Open Font License, Version 1.1.
+
+  说明：components/sdgoods_board/fonts/si_yuan_black_icon_*.c 是依据该项目
+        字形生成的图标/符号子集字体。作为该字体的衍生，这些文件沿用
+        SIL OFL 1.1（全文见 components/sdgoods_board/fonts/OFL.txt）。
+        请保留文件头部的版权与许可声明。
 
 ESP-IDF
   https://github.com/espressif/esp-idf

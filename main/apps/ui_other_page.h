@@ -14,5 +14,9 @@
 
 #pragma once
 
+#include <stdbool.h>
+
 void ui_other_page_show(void);
 void ui_other_page_poll(void);
+bool ui_other_page_is_open(void);   /* 电源键短按「一级返回」用：子页是否前台 */
+void ui_other_page_close(void);     /* 子页 → 应用主页（与左滑返回同一动作） */

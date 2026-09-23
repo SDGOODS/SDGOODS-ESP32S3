@@ -6,6 +6,18 @@ agent_created: true
 
 # SDGOODS 编译 · 烧录 · 验证
 
+## 一行搞定（推荐）
+本仓库已把 env 坑固化进 `tools/build.sh`，**绝大多数情况直接用脚本即可**，不用记 export / unset：
+
+```bash
+tools/build.sh                 # 原地构建到 build_pub
+tools/build.sh flash           # 构建 + 烧录（引导层用 platform/prebuilt 预编译件）
+tools/build.sh dev             # 构建 + 烧录 + 打开串口监视
+tools/build.sh -B build_fixNN  # 指定构建目录（换名字即可，不要 rm -rf 旧目录）
+```
+
+只有脚本不满足（比如要换 IDF 版本、改 export 路径）时才看下面的手动命令。
+
 ## 关键事实（本仓库 = SDGOODS-ESP32S3，原地构建）
 - 真正的工程就在仓库内：`main/`（应用层）+ `components/sdgoods_board/`（平台层 BSP）+ 构建目录 `build_fixNN/` 同仓。
 - **没有 rsync、没有外层/内层副本**：改完直接在原地构建，只需 `touch` 强制重编。

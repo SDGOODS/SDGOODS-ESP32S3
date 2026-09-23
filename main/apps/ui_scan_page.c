@@ -17,12 +17,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
 
-#include "board_pins.h"
 #include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "ui_home.h"
 #include "sdgoods_swipe_back.h"
@@ -40,12 +38,11 @@ static volatile int s_n = -1;
 static char s_names[LIST_N][UI_SCAN_NAME_MAX + 1];
 static const char *s_sub_fmt;
 static ui_scan_fn_t s_scan_fn;
-static bool s_key_down;
 
 static void apply_results(void)
 {
     char buf[48];
-    int n = s_n < 0 ? 0 : s_n;
+    int n = s_n < 0 ? 0 : n;
     snprintf(buf, sizeof(buf), s_sub_fmt, n);
     lv_label_set_text(s_sub, buf);
     for (int i = 0; i < LIST_N; i++) {
@@ -63,7 +60,8 @@ static void scan_task(void *arg)
     vTaskDelete(NULL);
 }
 
-static void close_page(void)
+/* 子页 → 应用主页（与左滑返回同一动作）。导出给电源键「一级返回」钩子调用。 */
+void ui_scan_page_close(void)
 {
     if (!s_scr) {
         return;
@@ -75,6 +73,12 @@ static void close_page(void)
     s_n = -1;
     ui_nav_back();
     lv_obj_del(gone);
+}
+
+/* 电源键「一级返回」钩子用：本子页当前是否处于打开状态。 */
+bool ui_scan_page_is_open(void)
+{
+    return s_scr != NULL;
 }
 
 void ui_scan_page_show(const char *title, const char *sub_fmt, ui_scan_fn_t scan_fn)
@@ -89,7 +93,6 @@ void ui_scan_page_show(const char *title, const char *sub_fmt, ui_scan_fn_t scan
     s_sub_fmt = sub_fmt;
     s_scan_fn = scan_fn;
     s_n = -1;
-    s_key_down = false;
     memset(s_names, 0, sizeof(s_names));
 
     s_scr = lv_obj_create(NULL);
@@ -97,7 +100,7 @@ void ui_scan_page_show(const char *title, const char *sub_fmt, ui_scan_fn_t scan
     lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    sdgoods_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
+    sdgoods_swipe_back_bind(s_scr, ui_scan_page_close);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *t = lv_label_create(s_scr);
     lv_label_set_text(t, title);
@@ -139,9 +142,4 @@ void ui_scan_page_poll(void)
     if (s_n >= 0) {
         apply_results();
     }
-    const int down = (gpio_get_level(BOARD_KEY_GPIO) == BOARD_KEY_ACTIVE_LEVEL);
-    if (down && !s_key_down) {
-        close_page();
-    }
-    s_key_down = down;
 }

@@ -21,7 +21,8 @@
  *
  * 二次开发建议
  * ------------
- * · 应用代码请放在 main/apps/ 下，用 tools/new_app.py 生成骨架。
+ * · 应用代码请放在 main/apps/ 下；新建应用用 `tools/new_app_project.py <name>`
+ *   派生独立工程（见 skill sdgoods-new-app），或复制 app_template.c/.h 改名后手动注册。
  * · 这个目录（components/sdgoods_board）是平台层：引脚、屏驱动、LVGL 移植、
  *   触摸、音频、应用框架。**一般不需要改**，除非你要换硬件或改平台行为。
  * · 唯一鼓励改的文件是 include/board_pins.h（引脚定义）。
@@ -60,5 +61,12 @@
 
 /* 应用框架：所有应用统一「顶部下滑菜单 / 退出 / 暂停」体验 */
 #include "sdgoods_app_shell.h"
+
+/* 设备级触摸手势（全设备统一口径，启动器与所有 app 共用）：
+ *   sdgoods_tap.h       —— 点按位移守卫 + PRESS_LOCK 所有权 + 装饰物穿透
+ *   sdgoods_swipe_back.h —— 左缘右滑返回上一级
+ *   sdgoods_swipe_up.h   —— 底部上滑回主页
+ * 一般无需手动调用：sdgoods_app_shell_init() 已自动安装手势策略。 */
+#include "sdgoods_tap.h"
 #include "sdgoods_swipe_back.h"
-#include "sdgoods_boot.h"
+#include "sdgoods_swipe_up.h"

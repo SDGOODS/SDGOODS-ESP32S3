@@ -99,7 +99,7 @@ gen_cursor_rule() {
     printf '\n'
     printf '硬约束（违反即出 bug）：\n'
     printf '1. 两层边界：平台层 components/sdgoods_board/ 一般不改（只鼓励改 board_pins.h）；应用只放 main/apps/；平台层不得 include 应用层头；跨层用 sdgoods_hooks 函数指针表。\n'
-    printf '2. 新应用用 `python3 tools/new_app.py <id> "<名>"` 生成，不要删 `# >>> new_app.py` 标记。\n'
+    printf '2. 新应用用 `python3 tools/new_app_project.py <name>` 生成（PLANE 形单应用直启，见 skill `sdgoods-new-app`）；它重写 apps_registry.c，不使用 `# >>> new_app.py` 标记。\n'
     printf '3. 全仓 Apache-2.0；新文件跑 `python3 tools/add_license_headers.py --apply` 盖章。\n'
     printf '4. 界面文案一律 `SDG_T("中文","English")`。\n'
     printf '5. 不要 `rm -rf build_xxx`，换新 build 目录名。\n'

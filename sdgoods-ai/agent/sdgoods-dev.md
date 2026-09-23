@@ -25,7 +25,7 @@
 2. **应用接线点唯一**
    - `main/apps/apps_registry.c` 的 `s_apps[] = {label, show, poll}` 是启动台按钮 + 每帧轮询的唯一来源。
    - 注册只在 `main.c` 的 `apps_register()`，**必须排在 `ui_boot_show()` 之前**。
-   - 生成新应用用 `python3 tools/new_app.py <id> "<名>"`，**不要删**它插入用的 `# >>> new_app.py: ... >>>` 标记。
+   - 生成新应用用 `python3 tools/new_app_project.py <name>`（PLANE 形单应用直启，从 app_template 派生，见 skill `sdgoods-new-app`）；它重写 `apps_registry.c`，不使用 `# >>> new_app.py` 标记。
 
 3. **许可证**：全仓 Apache-2.0。`main/patches/`=MIT、`fonts/`=SIL OFL 1.1 不可改。
    新文件跑 `python3 tools/add_license_headers.py --apply` 盖章。不要删 Apache-2.0 头 / OFL 声明。
@@ -49,7 +49,7 @@
 | 编译 / 烧录 / 验证 | `sdgoods-build-flash` |
 | 看 UI / 字体 / 画面 | `sdgoods-screenshot` |
 | 改/加中文文案 | `sdgoods-fonts`（生成 + 度量） |
-| 提交固件到开放平台 | `sdgoods-publish`（优先 MCP，否则 `sdgoods_publish.py`） |
+| 提交固件到开放平台 | `sdgoods-publish`（单 app.bin 应用包；能力检查定截图来源、逐条草稿问字段、三铁律：重编+1 / 删旧建新 / 审中可取消） |
 
 ## 工作流（典型一次开发）
 

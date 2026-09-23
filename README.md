@@ -12,26 +12,32 @@
 > 代码按本仓库许可自由使用，但 **项目名、产品名与 SDGOODS 标识不在代码许可授权范围内**（见 [TRADEMARK.md](TRADEMARK.md)）。
 > 官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `zhangzuoliang321@126.com`。
 
-这是一块 **ESP32-S3 + 360×360 圆形触摸屏** 设备的完整固件示例工程：开机动画 → 主页 → DEMO和示例。
-还包含从零手写的 UI 框架与游戏逻辑，以及一套串口一键截屏调试链路等。
-参考这份代码，你能轻松使用 AI 在谷仓次元屏（谷仓电子徽章）上进行二次开发。
+---
 
-| 主页 | 应用启动台 |
-|---|---|
-| ![home](docs/images/screenshot-home.png) | ![home2](docs/images/screenshot-home-2.png) |
+## 项目目标
+
+> **让任何人（通过自己手上的 AI 编程助手）都能在 5 分钟内，从 GitHub 克隆这份代码 → 派生出自己的应用 → 开发 → 发布到谷仓开放平台，全程不需要先成为嵌入式专家。**
+
+这份仓库被设计成「**AI 可读、AI 可改、AI 可发**」：
+
+- **AI 读得懂**：`AGENTS.md` 是 AI 改代码前的必读规范；`docs/` 是分层架构、编译、发布、SDK 的完整说明；`sdgoods-ai/` 是一套可一键安装的 AI 开发工具包（Skill + Agent + 本地 MCP server）。
+- **AI 改得动**：内置从零手写的 UI 框架与多个示例（小鸟游戏 / 主页启动台 / 扫描·识别示例页），既是「板子能做什么」的展示，也是 AI 照着改的现成模板。
+- **AI 发得出**：配套发布链路把「开发 → 打包 → 上传到谷仓开放平台」闭合成一条命令 / 一次 MCP 调用。
+
+你只要把需求用自然语言交给 AI，它就会按本仓库的规范把应用做出来、并帮你上架。
 
 ---
 
-## 硬件能力
+## 谷仓电子徽章（硬件）
 
-谷仓次元屏（谷仓电子徽章）的板载硬件：
+这是一块 **ESP32-S3 + 360×360 圆形触摸屏** 的随身设备（badge），可当胸牌 / 挂饰佩戴。板载硬件：
 
 | 部件 | 型号 / 规格 |
 |---|---|
 | 主控 SoC | ESP32-S3-R8（双核 Xtensa LX7，内置 **8MB Octal PSRAM**） |
 | 存储 | **32MB Flash**（QSPI） |
-| 显示屏 | 圆形 **360×360**，**ST77916** 驱动，QSPI 接口，RGB565 |
-| 触摸 | **CST816** 电容触摸（与屏一体，I2C，支持滑动手势） |
+| 显示屏 | 圆形 **360×360**，**ST77916** 驱动，QSPI，RGB565 |
+| 触摸 | **CST816** 电容触摸（I2C，支持滑动手势） |
 | 惯性传感 | **QMI8658** 六轴 IMU（3 轴加速度计 + 3 轴陀螺仪，I2C） |
 | 音频输出 | 板载 Class-D 功放 + 喇叭（I2S） |
 | 音频输入 | 数字麦克风（I2S） |
@@ -40,73 +46,139 @@
 | 无线 | 2.4GHz **WiFi** + **Bluetooth 5（BLE）**，支持双人蓝牙联机对战 |
 | 接口 | USB（USB-Serial-JTAG，用于烧录 / 调试 / 串口截屏） |
 
-**外观与佩戴**：圆形机身，直径 **58mm**、厚度 **9mm**；背面带**磁吸**，可吸附在金属表面；另设**挂绳孔**与**别针**（badge pin）两种佩戴方式，可作胸牌 / 挂饰。
+**外观与佩戴**：圆形机身，直径 **58mm**、厚度 **9mm**；背面带**磁吸**，可吸附在金属表面；另设**挂绳孔**与**别针**（badge pin）两种佩戴方式。
 
-所有引脚与面板参数只在 [`components/sdgoods_board/include/board_pins.h`](components/sdgoods_board/include/board_pins.h) 定义，应用层不得复制这些常量。
+> 为什么这些参数重要：360×360 的**圆**意味着四角会被切掉——所有 UI 必须落在圆屏安全矩形内（平台提供 `SDG_UI_SAFE_X/Y/W/H` 栅格常量）；8MB PSRAM 让 LVGL 全量帧缓冲和较大图片素材都放得下。应用层**不要**复制 `components/sdgoods_board/include/board_pins.h` 里的引脚常量。
+
+### 实机效果（基于本工程开发的应用：飞机大战，单人 / 双人蓝牙联机）
+
+| 模式选择 | 游戏结束 |
+|---|---|
+| ![飞机大战模式选择](screenshot/game-plane-menu.jpg) | ![飞机大战游戏结束](screenshot/game-plane-gameover.jpg) |
 
 ---
 
-## DEMO 与参考应用
+## 谷仓开放平台是什么
 
-固件里预置了几个 demo，既用来直观展示这块屏「能做什么」，也是给 AI 当参考模板的现成代码。下面**不是硬件全量清单**（全量见上方「硬件能力」），而是挑几个代表性 demo，看代码怎么用硬件；每一行也标了它适合给 AI 当模板参考什么：
+[谷仓开放平台](https://sdgoods.ai) 是这块徽章的 **应用市场 / 广场**：
 
-| Demo / 参考文件 | 演示的硬件能力 | 给 AI 当模板参考什么 |
+- **对开发者**：你上传自己编译好的应用固件（一个 `.bin`），填名称 / 简介 / 分类 / 截图，提交后由平台**审核**，过审即**上架**，其他用户就能搜到、装到自己的徽章上。
+- **对终端用户**（买了徽章的人）：在平台上浏览应用、一键下载、通过 Web 串口或平台工具烧录到自己的徽章；一台徽章支持**多应用插槽**，可同时装多个 app 自由切换。
+- **对 AI / CI**：平台提供 **MCP 开发者接口**（拿一个 `sdg_` 开发者令牌即可），让你的 AI 助手把「开发完的固件」直接推送到平台，无需人工填表。
+
+几个关键约定（开发者必知）：
+
+- **你只传「纯应用镜像」**：平台会自动在底部拼接官方引导层（bootloader / 分区表），所以你上传的 `.bin` **不带地址**、不含出厂区。
+- **审核机制**：提交后进入审核队列，过审后公开上架；同一应用任何时候平台上只应有一条记录（重新发布 = 删旧建新）。
+- **多应用 vs 单应用**：同一份 `app.bin` 既能作为「多应用模式」的一个 app 上架，也能刷成「单应用模式」主机固件直启——由设备运行时判定，不需要两套编译（详见 `docs/SINGLE_APP_FIRMWARE.md`）。
+
+---
+
+## 🚀 5 分钟：生成你的第一个应用
+
+你**不需要**先懂 C 或 ESP-IDF。三步把需求交给 AI 即可：
+
+```bash
+# 1) 克隆本仓库
+git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
+cd SDGOODS-ESP32S3
+
+# 2) （推荐）安装 AI 开发工具包：让 WorkBuddy / Claude Code / Cursor 在涉及本设备时自动套用本仓库规范
+bash sdgoods-ai/install.sh
+
+# 3) 一键派生一个属于你自己的独立应用工程（独立命名、开机直入你的 app）
+python3 tools/new_app_project.py MyApp
+```
+
+派生出来的 `MyApp/` 是一个**完整可编译、开机直入你的应用**的独立工程：没有主页、没有启动台、没有 demo，一上电就进你的界面。
+
+然后把需求直接交给你的 AI 助手（中英文皆可）：
+
+```
+读取 https://github.com/SDGOODS/SDGOODS-ESP32S3 的代码与文档，
+基于 MyApp 工程，为谷仓电子徽章做一个 <你的应用>。
+需求：<用大白话描述你想做什么、点按/手势做什么、要不要存数据>。
+界面文案用中英双语。请遵守 AGENTS.md 与 docs/ 规范，完成可运行实现。
+```
+
+需求越具体越容易一次做对（用户流程、按键/手势做什么、是否掉电保存、验收标准）。细节没给全时，AI 会用保守默认值并列出假设。
+
+> ★ 本 README 只讲产品与流程。**AI 开始改代码前必须先读 `AGENTS.md`**——那里是编译方式、两层边界、字体流程与几条「不遵守就出 bug」的硬约束。
+
+---
+
+## 你的第一个应用，已经会这些
+
+`new_app_project.py` 生成的最小应用来自仓库里的 `app_template.c`，它**不是空白壳**，而是已经接好了平台全部标准能力。开箱即用的能力清单：
+
+| 能力 | 说明 | 你改哪里 |
 |---|---|---|
-| 主页 / 应用启动台（`ui_home.c`） | 圆形 360×360 触摸屏、电容触摸滑动手势、开机动画 | 外壳 / 启动台写法 |
-| 演示页（`ui_demo_page.c`） | 基础 UI 控件、双语文案、屏与触摸的综合调用 | 页面布局、控件与硬件调用的写法 |
-| 小鸟（`ui_flappy.c`） | 触摸控制 + 定时器游戏循环 + 音频播放 | 简单游戏：触摸输入 + 定时刷新 + 绘制 |
-| 飞机大战（`ui_plane.c` + `plane_net.c`） | 触摸 / 陀螺仪操控，以及 **WiFi + BLE 双人蓝牙联机对战** | 完整游戏 + 双人蓝牙联机同步逻辑 |
-| 最小骨架（`main/apps/app_template.c`） | 最小可运行应用（用 `tools/new_app.py` 一键生成） | **新应用从这里改**：改它就成新应用 |
-| 串口一键截屏 | 连电脑即抓当前画面（调试链路） | — |
+| **开机直入你的 app** | 没有主页 / 启动台 / demo，上电就进你的界面 | `ui_<name>.c` |
+| **圆屏安全区** | 自带 `SDG_UI_SAFE_X/Y/W/H` 栅格，控件不会被圆边切掉 | 布局时引用常量 |
+| **触摸交互** | 点按钮、点屏幕任意处、左滑返回，全部走平台成熟原语（不让你自己写手势检测） | `sdgoods_app_on_tap` / `sdgoods_app_on_gesture` |
+| **顶部下滑菜单** | 顶部下滑唤出控制中心：音量 ± / 亮度 / 截屏 / 退出 | 平台层自动提供 |
+| **控制中心 / 关于页** | 音量、亮度、设备信息（含固件版本）——开发者无需自己写 | 平台层自动提供 |
+| **平台音效** | 调用 `sdgoods_audio_sfx_flap()` 即播提示音，安全无副作用 | 事件回调里调用 |
+| **中英双语文案** | 用 `SDG_T("中文", "English")` 写文案，用户可在设置里切换语言 | 所有界面字符串 |
+| **串口一键截屏** | 连电脑即可抓当前画面（调试 / 发布配图都用它） | `tools/screenshot_recv.py` |
+| **每帧推进循环** | `ui_<name>_poll()` 由主循环每轮调用，做动画 / 游戏逻辑 | `poll` 函数 |
+| **生命周期** | pause（菜单盖屏时冻结）/ resume / exit（切走时清理资源）回调 | 对应回调 |
+| **掉电持久化** | 通过 `appdata` 分区做数据存储（平台已留好） | `APP_SDK.md` |
 
-> AI 读完这些参考 + [`AGENTS.md`](AGENTS.md) + [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，
-> 能快速实现你想要的应用。
-
----
-
-## 🚀 用一句话开始开发
-
-想给谷仓次元屏做一个新应用？把需求直接交给 **AI 编程助手** 即可——它会先跑 `tools/check_env.py` 检查环境，再按本仓库规范开发。
-
-```
-请读取 https://github.com/SDGOODS/SDGOODS-ESP32S3 的代码和文档，
-为谷仓次元屏开发一个 <你的应用> 应用。
-使用触摸操控，界面文案使用中英双语。
-遵守 AGENTS.md 与 docs/ARCHITECTURE.md；
-完成运行实现与测试，
-并给报告和建议。
-```
-
-需求越具体越容易一次实现正确：用户流程、按键/手势做什么、是否掉电保存、体验目标、验收标准。
-若细节没给全，AI 可在不改变产品方向的前提下采用保守默认值，但需在交付里列出假设。
-
-> ★ 本 README 只描述产品与仓库。**AI 开始开发前请先读 `AGENTS.md`**——那里是编译方式、两层边界、字体流程与几条「不遵守就出 bug」的硬约束。
+> ⚠️ **唯一不能忘的一条**：界面里只要出现**新的中文文案**，就必须重跑字体子集工具，否则那些字在屏上是方框（tofu）：
+> ```bash
+> python3 tools/fetch_fonts.py   # 首次需要：下载 OFL 源字体
+> python3 tools/gen_fonts.py
+> ```
 
 ---
 
-## 🤖 AI 辅助开发工具包
+## 把第一个应用发布到平台
 
-除了 [`AGENTS.md`](AGENTS.md) 这份「AI 必读规范」，仓库还附带一套 **AI 辅助开发工具包** [`sdgoods-ai/`](sdgoods-ai/README.md)：6 个跨平台 Skill（封装环境检查 / 新建应用 / 编译烧录 / 截屏 / 字体 / 提交固件，支持 WorkBuddy / Claude Code / Cursor）+ 一个领域 Agent 定义 + 一个**本地 MCP server 实现**（纯标准库，把「提交固件」走通成「AI 开发 → 一键上传到开放平台」闭环）+ 各平台 MCP 配置样例。
+开发完成、本地烧录验证后，有两条官方发布路径（推荐顺序：MCP → 网页）：
+
+### 方式 1 · MCP 开发者令牌（推荐，AI / CI 直推）
+
+1. 在谷仓开放平台开发者设置里生成一个 `sdg_` 开头的开发者令牌。
+2. 先打包出纯应用镜像（平台会自动拼引导层）：
+   ```bash
+   idf.py -B build build
+   python3 tools/pack_app.py -b build      # 产出 dist/<name>_app.bin
+   ```
+3. 保存开发者令牌（只需一次），然后用令牌直推（AI 也可直接调 MCP server）：
+   ```bash
+   # 保存令牌（或临时用环境变量：export SDGOODS_DEV_TOKEN="sdg_你的令牌"）
+   python3 tools/sdgoods_publish.py set-token "sdg_你的令牌"
+
+   python3 tools/sdgoods_publish.py mcp-upload \
+     --file dist/<name>_app.bin \
+     --name "MyApp" --category tool \
+     --desc-zh "..." --desc-en "..." \
+     --shots shot1.jpg shot2.jpg shot3.jpg shot4.jpg
+   ```
+   提交后进入审核，过审即上架。重新发布时先 `mcp-replace <旧id>` 删旧再上传。
+
+### 方式 2 · 网页手动（最简人工路径）
+
+打开 [sdgoods.ai](https://sdgoods.ai) → 上传 `dist/<name>_app.bin` → 填名称 / 简介 / 分类 → 上传截图（可点「从设备截图」连真机抓图）→ 提交审核。
+
+### 其他 CLI 子命令（令牌通道）
+
+`tools/sdgoods_publish.py` 还提供查询与维护子命令：`mcp-firmwares`（列出自己提交的固件）、
+`mcp-unpublish`（下架）、`mcp-delete`（删除草稿/被拒记录）、
+`mcp-download <id> --check-sha256 <本地sha256>`（拉平台刷机清单做防砖校验）。
+全部子命令见 `python3 tools/sdgoods_publish.py --help` 与 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
+
+> 网页「从设备截图」会先发 `?` 探测固件能力（`SDGOODS-CAPS:SHOT`）；**无截屏能力的固件会提示你先在 BSP 启用 `CONFIG_SDGOODS_SCREENSHOT` 再重烧**，而不是盲抓出颜色错乱的图。
+
+---
+
+## 🤖 AI 怎么读这个仓库
+
+除了 `AGENTS.md`（AI 必读规范），仓库附带一套 **AI 开发工具包** [`sdgoods-ai/`](sdgoods-ai/README.md)：6 个跨平台 Skill（环境检查 / 新建应用 / 编译烧录 / 截屏 / 字体 / 发布，支持 WorkBuddy / Claude Code / Cursor）+ 一个领域 Agent 定义 + 一个**本地 MCP server 实现**（纯标准库，把「提交固件」闭合成「AI 开发 → 一键上传到开放平台」）+ 各平台 MCP 配置样例。
 
 - **装上即用**：`bash sdgoods-ai/install.sh` 把 Skill 装到 WorkBuddy，AI 在涉及本设备开发时自动调用。
-- **优先 MCP、回退 CLI**：提交固件优先走开放平台 MCP；未连 MCP 时回退到 `tools/sdgoods_publish.py`（邮箱验证码登录，凭据只存本机）。
 - **安全**：开放平台不开源，本仓库只含客户端配置样例与协议说明，**不含 server 代码与任何密钥**。
-- **一键配置页**：`sdgoods-ai/setup/index.html`（离线双击即开）——平台选择 + 「复制 MCP 配置」按钮 + Agent 市场卡片；其数据源 `catalog.json` 同时是开放平台后端接入的机器可读清单。
-
-详见 [`sdgoods-ai/README.md`](sdgoods-ai/README.md)。
-
----
-
-## 提交到谷仓 SDGOODS 开放平台
-
-做出来的固件可以提交到 **谷仓 SDGOODS 开放平台**（开发者上传、他人下载 / 烧录的广场）。三种方式任选，详见 [`docs/PUBLISHING.md`](docs/PUBLISHING.md)：
-
-1. **网页手动**：平台上传固件，填信息、传截图（可点「从设备截图」连真机抓图）、传 `.bin`。
-2. **命令行 / AI 助手**：`python3 tools/sdgoods_publish.py login 邮箱` 一次，`publish` 即可交——纯标准库，AI 也能直接调用。
-3. **让 AI 直调 REST API**：照 `docs/PUBLISHING.md` 的 curl 示例（鉴权 → presign 直传 → 创建记录）。
-
-> 网页「从设备截图」会先发 `?` 探测固件能力（`SDGOODS-CAPS:SHOT`），**无截屏能力的固件会弹窗提示**
-> 「请让 AI 在 BSP 中启用截屏能力（`CONFIG_SDGOODS_SCREENSHOT`）后重烧」，而不是盲抓出颜色错乱的图。
 
 ---
 
@@ -116,19 +188,22 @@
 components/sdgoods_board/   # 平台层（Apache-2.0，可商用）：驱动/LVGL/触摸/音频/外壳/字体
   └── include/board_pins.h  # 引脚定义（换板子改这里）
 main/apps/                  # 应用层（Apache-2.0，二次开发主要在这里）
-  ├── apps_registry.c       # 应用清单（启动台显示什么、谁被轮询）
-  ├── app_template.c        # 新应用模板
-  ├── ui_home.c  ui_app_page.c  ui_about.c
-  ├── ui_flappy.c           # 小鸟
-  └── ui_plane.c  plane_net.c  # 飞机大战 + 双人蓝牙联机
+  ├── apps_registry.c       # 应用清单（主页显示什么、谁被轮询）
+  ├── app_template.c        # 新应用模板（new_app_project.py 派生时复制它）
+  ├── ui_home.c             # 主页（单应用模式首屏）
+  ├── ui_scan_page.c  ui_rec_page.c  ui_other_page.c   # 示例页面
+  └── ui_flappy.c           # 小鸟（游戏 demo）
 tools/                      # 脚手架与调试脚本（Apache-2.0）
-  ├── new_app.py            # 一条命令生成新应用并自动接线
+  ├── new_app_project.py    # 从零派生独立应用工程（开机直入、独立上架，见 skill sdgoods-new-app）
   ├── check_env.py          # 开发环境检查（AI 第一步必跑）
   ├── gen_fonts.py          # 重新生成中文子集字体
-  ├── font_metrics.py       # 离线核对文字宽度
   ├── screenshot_recv.py    # 电脑端接收串口截屏
-  └── sdgoods_publish.py    # 命令行提交固件到开放平台
-docs/                       # BUILD / ARCHITECTURE / ENVIRONMENT / PUBLISHING
+  ├── pack_app.py           # 打包纯应用镜像（供发布）
+  └── sdgoods_publish.py    # 命令行 / MCP 提交固件到开放平台
+platform/                   # ★ 平台托管层：开发者勿改、勿提交改动
+  ├── partitions.csv        # 多应用分区表（平台安装时用官方版覆盖）
+  └── prebuilt/             # 本地调试用的预编译引导层
+docs/                       # BUILD / ARCHITECTURE / ENVIRONMENT / PUBLISHING / APP_SDK ...
 AGENTS.md                   # ★ AI 编程助手必读入口
 LICENSING.md  TRADEMARK.md  NOTICE  LICENSE
 ```
@@ -143,8 +218,11 @@ LICENSING.md  TRADEMARK.md  NOTICE  LICENSE
 | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) | 开发环境要求与安装（Python / ESP-IDF / esptool） |
 | [`docs/BUILD.md`](docs/BUILD.md) | 编译 / 烧录 / 打包分发 |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 分层设计、钩子机制、联机同步、调试链路 |
-| [`docs/PUBLISHING.md`](docs/PUBLISHING.md) | 提交固件到开放平台（网页 / CLI / API） |
-| [`LICENSING.md`](LICENSING.md) | 授权范围 / 商业授权申请 / 什么算商业用途（FAQ） |
+| [`docs/APP_SDK.md`](docs/APP_SDK.md) | app 侧 SDK 与多/单应用模式检测 |
+| [`docs/SINGLE_APP_FIRMWARE.md`](docs/SINGLE_APP_FIRMWARE.md) | 把应用当主机固件直启（单应用模式） |
+| [`docs/PUBLISHING.md`](docs/PUBLISHING.md) | 提交固件到开放平台（网页 / CLI / MCP） |
+| [`docs/MCP_CONTRACT.md`](docs/MCP_CONTRACT.md) | MCP / 平台发布的字段契约（本地 stdio server 与平台托管 MCP） |
+| [`LICENSING.md`](LICENSING.md) | 授权范围 / 商业授权申请 / FAQ |
 | [`TRADEMARK.md`](TRADEMARK.md) | SDGOODS 标识与商标使用规范 |
 | [`NOTICE`](NOTICE) | 第三方组件与归属声明 |
 
@@ -152,8 +230,7 @@ LICENSING.md  TRADEMARK.md  NOTICE  LICENSE
 
 ## 许可证（简要）
 
-本工程（平台层与应用层）**统一以 Apache-2.0 发布**：商业与非商业均免费，可闭源、可修改、可再分发。
-许可只授权代码，**不含商标**（见 [TRADEMARK.md](TRADEMARK.md)）。
+本工程（平台层与应用层）**统一以 Apache-2.0 发布**：商业与非商业均免费，可闭源、可修改、可再分发。许可只授权代码，**不含商标**（见 [TRADEMARK.md](TRADEMARK.md)）。
 
 | 部分 | 许可证 | 商业使用 |
 |---|---|---|
@@ -163,17 +240,15 @@ LICENSING.md  TRADEMARK.md  NOTICE  LICENSE
 | `main/patches/`（LVGL 补丁） | MIT | ✅ 免费（LVGL 原许可） |
 | `components/sdgoods_board/fonts/`（子集字体） | SIL OFL 1.1 | ✅ 免费（字体原许可） |
 
-授权范围与商标使用见 [LICENSING.md](LICENSING.md) / [TRADEMARK.md](TRADEMARK.md)。
-
 ---
 
 ## 联系
 
-- **官网**：[https://sdgoods.ai](https://sdgoods.ai)（谷仓 SDGOODS 开放平台）
+- **官网 / 开放平台**：[https://sdgoods.ai](https://sdgoods.ai)
 - **邮箱**：`zhangzuoliang321@126.com` —— 商业授权、报 bug、合作都走这个邮箱
 
 ---
 
 ## 致谢
 
-- [LVGL](https://lvgl.io/) · [ESP-IDF](https://github.com/espressif/esp-idf) · [Noto Sans SC](https://github.com/notofonts/noto-cjk) · [gifdec](https://github.com/lecram/gifdec)
+- [LVGL](https://lvgl.io/) · [ESP-IDF](https://github.com/espressif/esp-idf) · [Noto Sans SC](https://github.com/notofonts/noto-cjk) · [Source Han Sans](https://github.com/adobe-fonts/source-han-sans) · [gifdec](https://github.com/lecram/gifdec)

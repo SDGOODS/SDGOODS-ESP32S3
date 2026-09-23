@@ -3,7 +3,8 @@ CONFIG_IDF_TARGET_ESP32S3=y
 CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="32MB"
 CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="platform/partitions.csv"
+CONFIG_SDGOODS_APP_SLOTS=4
 # CONFIG_PARTITION_TABLE_SINGLE_APP is not set
 # CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE is not set
 
@@ -35,3 +36,12 @@ CONFIG_BT_BLUEDROID_ENABLED=y
 CONFIG_BT_BLE_ENABLED=y
 # CONFIG_BT_CLASSIC_ENABLED is not set
 CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y
+
+# appdata 分区按 app_id 建目录（/appdata/<app_id>/），而 app_id 来自 IDF 的
+# esp_app_desc_t.project_name —— 最长 32 字符，**远超 FAT 的 8.3 短名限制**。
+# 不开长文件名时 f_mkdir("SDGOODS_EBADGE") 会返回 FR_INVALID_NAME ⇒ VFS 报 EINVAL ⇒
+# 目录建不出来，app 的持久化数据静默落空（2026-09-19 真机抓到，见 SKILL 红线 ⑧）。
+# LFN_HEAP：长名缓冲区按需从堆取（单次约 (MAX_LFN+1)*2 字节，用完即还），
+# 不占栈也不常驻。MAX_LFN 取 64 足够（app_id ≤ 32 + 文件名）。
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_MAX_LFN=64

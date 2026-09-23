@@ -20,10 +20,13 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_flash.h"
+#include "esp_log.h"
 #include "esp_partition.h"
 #include "esp_image_format.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+static const char *TAG = "hw_info";
 
 #define QMI_ADDR     0x6B
 #define QMI_CTRL1    0x02
@@ -55,15 +58,43 @@ static esp_err_t i2c_rd(uint8_t reg, uint8_t *data, size_t n)
 
 esp_err_t sdgoods_hw_info_init(void)
 {
+    /* ⚠️ 两条硬约束（2026-09-19 改，都踩过）：
+     *
+     * ① **必须幂等**。现在有两个调用点会走到这里：
+     *    · 平台层的应用外壳 sdgoods_app_shell_init()（让**每个** app 自动拿到电池读数）；
+     *    · 部分固件自己的 app_main（启动器 launcher_main.c、app0 main.c 都显式调过）。
+     *    旧实现用 `ESP_ERROR_CHECK(adc_oneshot_new_unit(...))`，第二次调用会因
+     *    ESP_ERR_INVALID_STATE 直接 abort() ⇒ 开机即挂。所以先判 s_adc。
+     *
+     * ② **必须不致命**。ADC 起不来只影响「电压 / 电量百分比」这一项显示
+     *    （sdgoods_hw_bat_v() 会返回 0.f，UI 显示 `Voltage --V`）。
+     *    为一项装饰性读数把整机 abort 掉，代价完全不对等 —— 改成记日志 + 返回错误，
+     *    调用方可以忽略。 */
+    if (s_adc) {
+        return ESP_OK;   /* 已初始化过：幂等返回，不重复建 ADC 单元 */
+    }
+
     adc_oneshot_unit_init_cfg_t unit_cfg = {
         .unit_id = ADC_UNIT_1,
     };
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&unit_cfg, &s_adc));
+    esp_err_t err = adc_oneshot_new_unit(&unit_cfg, &s_adc);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "adc_oneshot_new_unit failed: %s (battery will read 0.00V)",
+                 esp_err_to_name(err));
+        s_adc = NULL;
+        return err;
+    }
     adc_oneshot_chan_cfg_t ch_cfg = {
         .atten = ADC_ATTEN_DB_12,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc, ADC_CHANNEL_7, &ch_cfg));
+    err = adc_oneshot_config_channel(s_adc, ADC_CHANNEL_7, &ch_cfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "adc config channel 7 (GPIO8) failed: %s", esp_err_to_name(err));
+        adc_oneshot_del_unit(s_adc);
+        s_adc = NULL;
+        return err;
+    }
 
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     adc_cali_curve_fitting_config_t cali = {
@@ -75,10 +106,13 @@ esp_err_t sdgoods_hw_info_init(void)
     s_cali_ok = (adc_cali_create_scheme_curve_fitting(&cali, &s_cali) == ESP_OK);
 #endif
 
+    /* IMU 走 I2C：失败只意味着「陀螺仪不可用」（sdgoods_hw_gyro 返回 false），
+     * 不报错也不阻断 —— 与电池一样属于「没它设备照样能用」的外设。 */
     s_imu_ok = (i2c_wr(QMI_CTRL1, 0x40) == ESP_OK)
                && (i2c_wr(QMI_CTRL2, 0x15) == ESP_OK)
                && (i2c_wr(QMI_CTRL3, 0x25) == ESP_OK)
                && (i2c_wr(QMI_CTRL7, 0x43) == ESP_OK);
+    ESP_LOGI(TAG, "hw_info ready: adc=ok cali=%d imu=%d", (int)s_cali_ok, (int)s_imu_ok);
     return ESP_OK;
 }
 

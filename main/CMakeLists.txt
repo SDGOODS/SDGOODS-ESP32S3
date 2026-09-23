@@ -8,34 +8,34 @@ idf_component_register(
     SRCS
         "main.c"
 
+        # --- 应用层小工具（不注册成「应用」，只被 main.c / 页面调用）---
+        # app_data_store：持久化数据的参考实现（appdata 优先，拿不到退 NVS）
+        "app_data_store.c"
+
         # --- 应用注册表（新增应用要在这里接线） ---
         "apps/apps_registry.c"
 
         # --- 导航页 / 工具页 ---
         "apps/ui_home.c"
-        "apps/ui_app_page.c"
-        "apps/ui_demo_page.c"
         "apps/ui_scan_page.c"
         "apps/ui_rec_page.c"
         "apps/ui_other_page.c"
-        "apps/ui_about.c"       # 「关于」：品牌 / 公司 / 版本 / 授权（入口在 DEMO 页）
 
         # --- 应用骨架（自己写的新应用加在这一段） ---
         # app_template.c 本身没有界面入口，它留在构建里的意义是「模板始终能编译」，
-        # tools/new_app.py 生成新应用时就是照抄它。删掉这个文件脚手架就废了。
+        # tools/new_app_project.py 派生新工程时会照抄它。删掉这个文件脚手架就废了。
         "apps/app_template.c"
-        # >>> new_app.py: 新应用源文件插到这里 >>>
 
         # --- 游戏 ---
         "apps/ui_flappy.c"
-        "apps/ui_plane.c"
-        "apps/plane_net.c"      # 飞机游戏的双人蓝牙联机
 
     INCLUDE_DIRS
         "apps"                  # 让 #include "ui_home.h" 直接可用
+        "."                     # 让 #include "app_data_store.h" 直接可用
 
     REQUIRES
         sdgoods_board
+        sdgoods_launcher
         bt
         driver
         esp_event

@@ -5,6 +5,7 @@ set(SRCS
     "src/sdgoods_lvgl.c"
     "src/sdgoods_input.c"
     "src/sdgoods_power.c"
+    "src/sdgoods_boot_skip.c"
 
     # --- 板载外设与服务 ---
     "src/sdgoods_audio.c"
@@ -16,6 +17,7 @@ set(SRCS
     # --- BSP 基础能力 / 串口控制台（始终编译：'?' 能力查询应答方） ---
     "src/sdgoods_caps.c"
     "src/sdgoods_console.c"
+    "src/sdgoods_nvs.c"      # NVS 保障：平台自己保证 NVS 可用，不假设 app 初始化过
 
     # --- 语言（默认英文，DEMO 页可切中文） ---
     "src/sdgoods_i18n.c"
@@ -25,8 +27,9 @@ set(SRCS
     # --- 应用框架与开机流程 ---
     "src/sdgoods_app_shell.c"
     "src/sdgoods_swipe_back.c"
-    "src/sdgoods_boot.c"
-    "src/sdgoods_boot_gif.c"
+    "src/sdgoods_swipe_up.c"
+    "src/sdgoods_tap.c"      # 设备级手势策略：PRESS_LOCK 所有权 + 点按位移守卫
+    "src/sdgoods_gesture.c"  # 应用级手势回调薄封装（组合复用上面三者，无新检测逻辑）
 
     # --- 中文字体子集（用 tools/gen_fonts.py 重新生成） ---
     "fonts/cn_font_14.c"
@@ -54,6 +57,7 @@ idf_component_register(
     REQUIRES
         lvgl
         bt
+        app_update
         driver
         esp_adc
         jpegenc

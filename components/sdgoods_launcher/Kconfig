@@ -1,0 +1,23 @@
+menu "SDGOODS Launcher (multi-app dynamic slots)"
+
+    config SDGOODS_APP_SLOTS
+        int "Number of app slots"
+        default 4
+        range 1 16
+        help
+          How many OTA app slots the launcher manages at runtime.
+          The partition table (partitions.csv) must contain at least this
+          many contiguous ota_N partitions; the launcher caps itself to the
+          smaller of this value and the actual number of ota partitions found.
+          See docs/MULTI_APP_DYNAMIC_SLOTS.md (decision #1: 4 slots x 3MB).
+
+    config SDGOODS_APP_SLOT_BYTES
+        int "App slot size in bytes"
+        default 3145728
+        range 65536 4194304
+        help
+          Must match the size of each ota_N partition in partitions.csv
+          (default 3MB). App images over 2.9MB are rejected at upload time
+          (decision #2); this value is used for sanity bounds only.
+
+endmenu

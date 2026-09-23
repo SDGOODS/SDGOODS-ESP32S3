@@ -17,11 +17,13 @@
 设计要点：
 - **纯标准库**（sys / json / os），无需 pip install，任何装了 Python3 的机器都能跑。
 - **stdio 传输**：遵循 MCP 协议（JSON-RPC 2.0 + Content-Length 分帧），由 AI 平台拉起。
-- **它是开放平台后端的「客户端」**：本身不开源的部分在平台服务端；本文件只调用
-  平台公开 REST API（与 tools/sdgoods_publish.py 同一套端点），**不含任何密钥**。
-- **凭据只在本机**：登录后的 refreshToken 缓存在 ~/.sdgoods/credentials.json（权限 600），
-  与 sdgoods_publish.py 共用，AI 不读取、不回显、不写进仓库。
-- 本文件复用 tools/sdgoods_publish.py 的 HTTP 与上传逻辑，避免重复实现 REST 契约。
+- **它是开放平台后端的「客户端」**：本身不开源的部分在平台服务端；本文件优先走
+  「开发者令牌（sdg_ 开头）经平台托管 MCP（/api/mcp）」通道（与 tools/sdgoods_publish.py
+  同一套实现），未配令牌时回退平台公开 REST API，**不含任何密钥**。
+- **凭据只在本机**：开发者令牌（api_token）或登录后的 refreshToken 缓存在
+  ~/.sdgoods/credentials.json（权限 600），与 sdgoods_publish.py 共用，
+  AI 不读取、不回显、不写进仓库。
+- 本文件复用 tools/sdgoods_publish.py 的 HTTP / MCP 客户端与上传逻辑，避免重复实现契约。
 
 安全红线（务必遵守）：
 - 绝不在本仓库提交 accessToken / refreshToken / 任何密钥。
@@ -129,9 +131,43 @@ def tool_list_categories(api_base=None):
     return _ok("\n".join(lines))
 
 
+def _read_project_version(file):
+    """从固件文件所在目录向上查找 version.txt，读到则返回其（strip 后）内容，否则 None。
+    用于 MCP 提交时 version 自动取工程最新版本号，无需用户手填。"""
+    d = os.path.dirname(os.path.abspath(file))
+    for _ in range(8):
+        cand = os.path.join(d, "version.txt")
+        if os.path.isfile(cand):
+            try:
+                with open(cand, "r", encoding="utf-8") as f:
+                    return f.read().strip()
+            except Exception:
+                return None
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return None
+
+
 def tool_upload_firmware(file, name, category, desc_zh=None, desc_en=None,
                          version=None, hardware=None, tags=None, shots=None,
-                         github=None, draft=False, api_base=None):
+                         github=None, firmware_id=None, api_base=None):
+    """提交（POST 新建）或重新发布（PATCH 更新已有记录，传 firmware_id）。
+
+    鉴权优先级（MCP 访问必须走令牌方式）：
+    1. 开发者令牌（SDGOODS_DEV_TOKEN / credentials.json 的 api_token，sdg_ 开头）
+       → 走平台托管 MCP（/api/mcp），status 默认 REVIEWING（提审中）；
+    2. 否则回退邮箱验证码 cookie 登录 + REST。
+
+    字段策略（用户约定，MCP 提交不再逐项询问）：
+    - version：不传则自动从工程 version.txt 读取最新值（找不到回退 v1.0.0）；
+    - hardware：默认 sdgoods，不询问；
+    - tags：不传则不填；
+    - shots：用第 1 步准备好的截图（真机首页图或 AI 图），不询问；
+    - status：默认 REVIEWING（提审中），不再用草稿 DRAFT；visible 不填（平台默认 true）。
+    重新发布（firmware_id）走 REST PATCH（需 cookie 登录），覆盖旧记录对应字段。
+    """
     if not file or not os.path.isfile(file):
         return _err("固件文件不存在：%s（file 参数需为本地 .bin 路径）" % file)
     if not name:
@@ -143,14 +179,39 @@ def tool_upload_firmware(file, name, category, desc_zh=None, desc_en=None,
     except RuntimeError as e:
         return _err(str(e))
 
-    try:
-        token = pub._refresh_access(base)
-    except SystemExit:
-        return _err("尚未登录。请先调用 login(email=...) 完成邮箱验证码登录。")
-
+    # 分类合法性（公开 REST，无需登录）先校验，省一次无效上传
     cats = pub._valid_categories(base)
     if cats is not None and category not in cats:
         return _err("分类 %r 不存在。先调 list_categories() 核对合法 slug。" % category)
+
+    # ① 开发者令牌通道（推荐）：走平台托管 MCP，status 默认 REVIEWING（提审中）
+    token = pub._load_token()
+    if token:
+        try:
+            fw = pub.mcp_upload_firmware(
+                base, token, file, name, category,
+                desc_zh=desc_zh, desc_en=desc_en,
+                version=version or _read_project_version(file),
+                hardware=hardware, tags=tags, shots=shots, github=github,
+                status="reviewing",
+            )
+        except RuntimeError as e:
+            return _err("MCP 令牌上传失败：%s" % e)
+        fid = fw.get("id") if isinstance(fw, dict) else None
+        return _ok(
+            "提交成功（令牌通道）！固件 id=%s，状态：REVIEWING（提审中，等待审核）。"
+            % (fid or "?")
+        )
+
+    # ② 回退：邮箱验证码 cookie 登录 + REST（无令牌时使用）
+    try:
+        token = pub._refresh_access(base)
+    except SystemExit:
+        return _err(
+            "未配置开发者令牌，也未登录。请二选一：\n"
+            "  • 令牌通道（推荐）：运行 set-token <sdg_xxx> 或在环境变量设 SDGOODS_DEV_TOKEN；\n"
+            "  • 或先调用 login(email=...) 完成邮箱验证码登录。"
+        )
 
     shot_urls = []
     for s in (shots or [])[:4]:
@@ -168,34 +229,78 @@ def tool_upload_firmware(file, name, category, desc_zh=None, desc_en=None,
     body = {
         "name": name,
         "category": category,
-        "version": version or "v1.0.0",
+        # version 自动取工程最新值；找不到才回退 v1.0.0
+        "version": version or _read_project_version(file) or "v1.0.0",
         "hardware": hardware or "sdgoods",
-        "status": "draft" if draft else "reviewing",
-        "visible": True,
+        "status": "reviewing",          # 默认提审中（REVIEWING），而非草稿
         "fileName": os.path.basename(file),
         "fileUrl": fw_url,
         "fileSha256": fw_sha,
         "sizeBytes": fw_size,
         "descZh": desc_zh or "",
         "descEn": desc_en or "",
-        "tags": tags or [],
         "shots": shot_urls,
     }
+    if tags:
+        body["tags"] = tags
     if github:
         body["githubUrl"] = github
 
-    st, payload, _ = pub._req("POST", base + "/firmwares", token=token, body=body)
+    if firmware_id:
+        st, payload, _ = pub._req("PATCH", base + "/firmwares/" + str(firmware_id),
+                                  token=token, body=body)
+        label = "更新（重新发布）"
+    else:
+        st, payload, _ = pub._req("POST", base + "/firmwares", token=token, body=body)
+        label = "提交"
     if st not in (200, 201):
-        return _err("提交固件失败（HTTP %s）：%s" % (st, pub._err_msg(payload)))
+        return _err("%s固件失败（HTTP %s）：%s" % (label, st, pub._err_msg(payload)))
     fw = (payload.get("firmware") if isinstance(payload, dict) else None) or payload
-    fid = (fw.get("id") if isinstance(fw, dict) else None) or "?"
+    fid = (fw.get("id") if isinstance(fw, dict) else None) or (firmware_id or "?")
     return _ok(
-        "提交成功！固件 id=%s（状态：%s）。\n可在「我的固件」里查看、补充信息或提交审核。"
-        % (fid, body["status"])
+        "%s成功！固件 id=%s，状态：REVIEWING（提审中）。" % (label, fid)
     )
 
 
-def tool_whoami(api_base=None):
+def tool_list_my_firmwares(api_base=None, q=None, page=None, page_size=None):
+    """列出「我的固件」（scope=mine），发布前用来判断是否已经发布过、拿到可复用的 id。"""
+    try:
+        base = _api_base(api_base)
+    except RuntimeError as e:
+        return _err(str(e))
+    token = pub._load_token()
+    if token:
+        try:
+            return _ok(pub.mcp_my_firmwares(base, token, q=q, page=page, page_size=page_size))
+        except RuntimeError as e:
+            return _err("MCP 查询失败：%s" % e)
+    # 回退：邮箱验证码 cookie 登录 + REST
+    try:
+        token = pub._refresh_access(base)
+    except SystemExit:
+        return _err("尚未登录且无开发者令牌。请 set-token 或 login(email=...)。")
+    from urllib.parse import quote_plus
+    qs = "scope=mine"
+    if q:
+        qs += "&q=" + quote_plus(q)
+    if page:
+        qs += "&page=%d" % int(page)
+    if page_size:
+        qs += "&pageSize=%d" % int(page_size)
+    st, payload, _ = pub._req("GET", base + "/firmwares?" + qs, token=token)
+    if st not in (200, 201) or not isinstance(payload, dict):
+        return _err("获取我的固件列表失败（HTTP %s）：%s" % (st, pub._err_msg(payload)))
+    items = payload.get("items") or []
+    return _ok(json.dumps({
+        "total": payload.get("total", len(items)),
+        "items": items,
+    }, ensure_ascii=False, indent=2))
+
+
+def tool_get_firmware(firmware_id, api_base=None):
+    """拉取单条固件记录（name/desc/category/shots/version 等），重新发布时作为草稿。"""
+    if not firmware_id:
+        return _err("缺少 firmware_id。")
     try:
         base = _api_base(api_base)
     except RuntimeError as e:
@@ -204,6 +309,29 @@ def tool_whoami(api_base=None):
         token = pub._refresh_access(base)
     except SystemExit:
         return _err("尚未登录。请先调用 login(email=...) 完成登录。")
+    st, payload, _ = pub._req("GET", base + "/firmwares/" + str(firmware_id), token=token)
+    if st not in (200, 201) or not isinstance(payload, dict):
+        return _err("获取固件失败（HTTP %s）：%s" % (st, pub._err_msg(payload)))
+    fw = payload.get("firmware") if isinstance(payload, dict) else None
+    return _ok(json.dumps(fw, ensure_ascii=False, indent=2))
+
+
+def tool_whoami(api_base=None):
+    try:
+        base = _api_base(api_base)
+    except RuntimeError as e:
+        return _err(str(e))
+    token = pub._load_token()
+    if token:
+        try:
+            return _ok(pub.mcp_whoami(base, token))
+        except RuntimeError as e:
+            return _err("MCP 查询失败：%s" % e)
+    # 回退：邮箱验证码 cookie 登录 + REST
+    try:
+        token = pub._refresh_access(base)
+    except SystemExit:
+        return _err("尚未登录且无开发者令牌。请 set-token 或 login(email=...)。")
     st, payload, _ = pub._req("GET", base + "/auth/me", token=token)
     if st not in (200, 201):
         return _err("获取当前用户失败（HTTP %s）：%s" % (st, pub._err_msg(payload)))
@@ -262,8 +390,10 @@ TOOLS = [
     {
         "name": "upload_firmware",
         "description": (
-            "把编译好的固件 .bin 与信息提交到谷仓 SDGOODS 开放平台（presign 直传 + 创建记录）。"
-            "登录态会自动用本机缓存的 refreshToken 续期。Upload a built firmware to the platform."
+            "把编译好的固件 .bin 与信息提交到谷仓 SDGOODS 开放平台。"
+            "鉴权默认走「开发者令牌（sdg_ 开头）经平台托管 MCP（/api/mcp）」通道，"
+            "提交状态默认 REVIEWING（提审中）；未配令牌时回退邮箱验证码 cookie + REST。"
+            "Upload a built firmware via the developer-token MCP channel (status defaults to reviewing)."
         ),
         "inputSchema": {
             "type": "object",
@@ -274,16 +404,18 @@ TOOLS = [
                              "description": "分类 slug，须为 list_categories() 返回值之一（必填）"},
                 "desc_zh": {"type": "string", "description": "中文简介，≤2000 字"},
                 "desc_en": {"type": "string", "description": "英文简介，≤2000 字"},
-                "version": {"type": "string", "description": "版本号，默认 v1.0.0，≤20 字"},
+                "version": {"type": "string",
+                            "description": "版本号，≤20 字；不传则自动读取工程 version.txt 最新值"},
                 "hardware": {"type": "string",
-                             "description": "适用硬件：sdgoods(默认)/cyb1/both"},
+                             "description": "适用硬件：sdgoods(默认)/cyb1/both，默认 sdgoods 不询问"},
                 "tags": {"type": "array", "items": {"type": "string"},
-                         "description": "标签，≤12 个，每项 ≤24 字"},
+                         "description": "标签，≤12 个，每项 ≤24 字；MCP 提交默认不填"},
                 "shots": {"type": "array", "items": {"type": "string"},
-                          "description": "截图本地路径，≤4 张"},
+                          "description": "截图本地路径，≤4 张；来自发布前第 1 步的准备（真机首页图或 AI 图）"},
                 "github": {"type": "string", "description": "GitHub 仓库地址（可选）"},
-                "draft": {"type": "boolean",
-                          "description": "true=存为草稿，false(默认)=提交审核"},
+                "firmware_id": {"type": "string",
+                                "description": "已存在固件 id：传了即走 PATCH 更新（重新发布），"
+                                              "不传则 POST 新建。重新发布时用 list_my_firmwares 拿到的 id。"},
                 "api_base": {"type": "string",
                              "description": "API 基地址，覆盖环境变量 SDGOODS_API_BASE"},
             },
@@ -291,9 +423,46 @@ TOOLS = [
         },
     },
     {
+        "name": "list_my_firmwares",
+        "description": (
+            "列出「我的固件」（scope=mine）。发布前应先用它判断是否已经发布过、拿到可复用的 "
+            "固件 id（重新发布时传给 upload_firmware 的 firmware_id 走 PATCH 更新）。"
+            "优先走开发者令牌 MCP 通道，未配令牌回退 cookie。Returns items with id/name/version/status."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "q": {"type": "string", "description": "按工程名/名称搜索关键词（如 project() 名）"},
+                "page": {"type": "integer", "description": "页码（默认 1）"},
+                "page_size": {"type": "integer", "description": "每页条数（默认 12，最大 60）"},
+                "api_base": {"type": "string",
+                             "description": "API 基地址，覆盖环境变量 SDGOODS_API_BASE"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_firmware",
+        "description": (
+            "拉取单条固件记录（name/descZh/descEn/category/tags/shots/version 等）。"
+            "重新发布前用它把已发布记录的字段取回来当草稿，再让用户确认是否修改。"
+            "Fetch one firmware record as a draft for re-publishing."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "firmware_id": {"type": "string", "description": "固件 id（来自 list_my_firmwares）"},
+                "api_base": {"type": "string",
+                             "description": "API 基地址，覆盖环境变量 SDGOODS_API_BASE"},
+            },
+            "required": ["firmware_id"],
+        },
+    },
+    {
         "name": "whoami",
         "description": (
-            "返回当前登录用户（需先 login）。Show the currently logged-in user."
+            "返回当前令牌/登录对应的用户（开发者令牌通道优先，未配令牌回退 cookie）。"
+            "Show the user for the current token or session."
         ),
         "inputSchema": {
             "type": "object",
@@ -333,8 +502,15 @@ def dispatch(name, arguments):
                 arguments.get("desc_zh"), arguments.get("desc_en"),
                 arguments.get("version"), arguments.get("hardware"),
                 arguments.get("tags"), arguments.get("shots"),
-                arguments.get("github"), bool(arguments.get("draft", False)),
-                arguments.get("api_base"))
+                arguments.get("github"),
+                arguments.get("firmware_id"), arguments.get("api_base"))
+        elif name == "list_my_firmwares":
+            text, is_err = tool_list_my_firmwares(
+                arguments.get("api_base"), arguments.get("q"),
+                arguments.get("page"), arguments.get("page_size"))
+        elif name == "get_firmware":
+            text, is_err = tool_get_firmware(
+                arguments.get("firmware_id"), arguments.get("api_base"))
         elif name == "whoami":
             text, is_err = tool_whoami(arguments.get("api_base"))
         elif name == "logout":

@@ -16,8 +16,7 @@
 
 #include <stdio.h>
 
-#include "board_pins.h"
-#include "driver/gpio.h"
+#include "app_data_store.h"   /* app_data_store_backend / _dir / _free_mb */
 #include "esp_timer.h"
 #include "sdgoods_hw_info.h"
 #include "lvgl.h"
@@ -37,7 +36,6 @@ static lv_obj_t *s_bat;
 static lv_obj_t *s_gx;
 static lv_obj_t *s_gy;
 static lv_obj_t *s_gz;
-static bool s_key_down;
 static int64_t s_bat_next_us;
 
 static lv_obj_t *make_row(lv_obj_t *parent, lv_coord_t y, const char *text)
@@ -92,7 +90,8 @@ static void set_gyro(void)
     set_num(s_gz, z);
 }
 
-static void close_page(void)
+/* 子页 → 应用主页（与左滑返回同一动作）。导出给电源键「一级返回」钩子调用。 */
+void ui_other_page_close(void)
 {
     if (!s_scr) {
         return;
@@ -107,6 +106,12 @@ static void close_page(void)
     lv_obj_del(gone);
 }
 
+/* 电源键「一级返回」钩子用：本子页当前是否处于打开状态。 */
+bool ui_other_page_is_open(void)
+{
+    return s_scr != NULL;
+}
+
 void ui_other_page_show(void)
 {
     if (s_scr) {
@@ -114,14 +119,13 @@ void ui_other_page_show(void)
     }
 
     const lv_color_t gray = lv_color_hex(0x808080);
-    s_key_down = false;
 
     s_scr = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(s_scr, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    sdgoods_swipe_back_bind(s_scr, close_page);   /* 空白处从左滑到右 = 返回主页 */
+    sdgoods_swipe_back_bind(s_scr, ui_other_page_close);   /* 空白处从左滑到右 = 返回主页 */
 
     lv_obj_t *title = lv_label_create(s_scr);
     lv_label_set_text(title, SDG_T("其他", "More"));
@@ -152,9 +156,17 @@ void ui_other_page_show(void)
     make_txt(gyro, "z");
     s_gz = make_gyro_num(gyro);
 
-    char buf[40];
-    snprintf(buf, sizeof(buf), SDG_T("可用空间: %.1f MB", "Free space: %.1f MB"),
-             sdgoods_hw_space_mb());
+    /* 存储行：显示**真实生效**的持久化后端（由 app_data_store 开机探测得来，不写死）。
+       appdata 可用时补上它的实测空闲容量；不可用时只显示后端名 —— 这正是「兜底生效」
+       的现场证据（详见 docs/APP_SDK.md「持久化数据」与 main/app_data_store.c）。 */
+    char buf[48];
+    if (app_data_store_dir()[0]) {
+        snprintf(buf, sizeof(buf), SDG_T("数据: %s %.1f MB", "Data: %s %.1f MB"),
+                 app_data_store_backend(), (double)app_data_store_free_mb());
+    } else {
+        snprintf(buf, sizeof(buf), SDG_T("数据: %s", "Data: %s"),
+                 app_data_store_backend());
+    }
     make_row(s_scr, 216, buf);
     snprintf(buf, sizeof(buf), SDG_T("屏幕亮度: %u%%", "Brightness: %u%%"),
              (unsigned)sdgoods_lcd_get_backlight());
@@ -183,9 +195,4 @@ void ui_other_page_poll(void)
         set_bat();
         s_bat_next_us = now + 1000000;
     }
-    const int down = (gpio_get_level(BOARD_KEY_GPIO) == BOARD_KEY_ACTIVE_LEVEL);
-    if (down && !s_key_down) {
-        close_page();
-    }
-    s_key_down = down;
 }

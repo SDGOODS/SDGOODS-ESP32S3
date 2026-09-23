@@ -135,6 +135,14 @@ esp_err_t sdgoods_lcd_draw_bitmap_safe(int x1, int y1, int x2, int y2, const voi
                  x1, y1, x2 - x1, y2 - y1, err,
                  (int)esp_ptr_external_ram(color_data),
                  (int)((size_t)(x2 - x1) * (size_t)(y2 - y1) * 2));
+        /* 诊断：弹跳缓冲分配失败时报告内部 DMA 堆的真实余量，用来确定
+         * LCD_SPI_MAX_TRANSFER_SIZE × LCD_SPI_TRANS_QUEUE_SZ 该压到多少。
+         * 判据：largest_free 必须大于分片字节数，否则每一片都必然失败
+         * （只降队列深度是没用的 —— 在途事务少不等于单块能拿到）。 */
+        ESP_LOGE(TAG, "  internal DMA largest_free=%u bytes free=%u bytes (chunk=%d x queue=%d)",
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
+                 (int)LCD_SPI_MAX_TRANSFER_SIZE, (int)LCD_SPI_TRANS_QUEUE_SZ);
     }
     xSemaphoreGive(s_panel_mutex);
     return err;

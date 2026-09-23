@@ -31,3 +31,8 @@ void ui_home_show(void);
  * 默认指向 ui_home_show（根页面）。 */
 extern void (*ui_nav_parent_show)(void);
 void ui_nav_back(void);
+
+/* 电源键短按钩子（注册给平台层 sdgoods_set_power_short_handler）：
+ * 子页/游戏在前台时回退一级到应用主页并返回 true（消费掉），已在主页时返回 false
+ * 交平台默认导航（多应用：回启动器；单应用/派生：浅睡）。实现在 ui_home.c。 */
+bool ui_app_power_short_handler(void);

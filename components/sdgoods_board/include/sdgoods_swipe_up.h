@@ -13,12 +13,10 @@
  */
 
 #pragma once
+#include "lvgl.h"
 
-/**
- * Play the SDGOODS boot animation, then create and show the home screen.
- *
- * This function blocks for about 2 seconds while the animation plays.
- * It turns on the backlight, creates the boot screen, runs the LVGL
- * timer loop, deletes the boot screen and finally loads the home screen.
- */
-void sdgoods_boot_show(void);
+/* 在页面屏幕底部挂一个透明“上滑返回捕获层”（底部 SWIPE_UP_ZONE 高）：
+ * 从底部往上滑（dy < -阈值且 |dy| > |dx|）→ 调用 on_up 返回上一级 / 主页。
+ * 捕获层置于其它控件之下，因此页面上的按钮 / 滑块仍可正常点按、拖动；
+ * 只有「从底部空白区起手」的上滑才触发（拖动滑块等不会误触）。 */
+void sdgoods_swipe_up_bind(lv_obj_t *scr, void (*on_up)(void));
