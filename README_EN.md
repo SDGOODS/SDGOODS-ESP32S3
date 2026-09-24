@@ -119,8 +119,6 @@ python3 tools/check_env.py     # checks Python / ESP-IDF / esptool; tells you wh
 bash sdgoods-ai/install.sh     # optional: install the AI toolkit so assistants auto-apply this repo's specs
 ```
 
-(China mirror: `git clone https://gitee.com/sdgoods/sdgoods-esp32s3`)
-
 Version requirements and manual installation: [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
 ---

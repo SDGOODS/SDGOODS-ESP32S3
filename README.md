@@ -101,7 +101,7 @@
 你需要的只有：一台电脑（macOS / Windows / Linux）、一根**带数据功能的 Type-C 线**（普通充电线可能只供电、不能传数据，挑能连电脑传文件的那种）、一个 AI 编程助手。把这句话发给 AI：
 
 ```
-请先克隆这个仓库：https://gitee.com/sdgoods/sdgoods-esp32s3
+请先克隆这个仓库：https://github.com/SDGOODS/SDGOODS-ESP32S3
 然后按里面 docs/ENVIRONMENT.md 的要求，
 检查并配置这台电脑的开发环境。缺什么装什么，每一步都告诉我在做什么；
 装完跑一次环境检查，把结果汇总给我。
@@ -112,9 +112,8 @@ AI 会自动检查并安装 Python、ESP-IDF 工具链与 USB 驱动，最后给
 **💻 开发者**
 
 ```bash
-git clone https://gitee.com/sdgoods/sdgoods-esp32s3     # 国内首选
-# 或：git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
-cd sdgoods-esp32s3
+git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
+cd SDGOODS-ESP32S3
 python3 tools/check_env.py     # 检查 Python / ESP-IDF / esptool，缺啥提示啥
 bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自动套用本仓库规范
 ```
@@ -130,7 +129,7 @@ bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自�
 **先跑通最小例子（推荐）**：把这句话发给 AI——
 
 ```
-请先克隆这个仓库：https://gitee.com/sdgoods/sdgoods-esp32s3
+请先克隆这个仓库：https://github.com/SDGOODS/SDGOODS-ESP32S3
 然后按里面的 README 与 AGENTS.md 规范，
 用 tools/new_app_project.py 生成一个叫 HelloApp 的独立应用工程，
 把屏幕问候语改成 Hello SDGOODS!，编译后烧进连着的谷仓电子徽章，烧完截屏给我看效果。
@@ -147,9 +146,8 @@ bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自�
 **💻 开发者**
 
 ```bash
-git clone https://gitee.com/sdgoods/sdgoods-esp32s3     # 国内首选
-# 或：git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
-cd sdgoods-esp32s3
+git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
+cd SDGOODS-ESP32S3
 python3 tools/new_app_project.py MyApp   # 一键派生独立应用工程，生成在本仓库的上一级目录 ../MYAPP/
 cd ../MYAPP                              # 进入新生成的工程（关键：编译要在新工程里跑，不是在仓库里）
 idf.py set-target esp32s3
