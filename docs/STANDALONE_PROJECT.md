@@ -63,7 +63,7 @@
 
 ## 2. 前置条件
 
-- 已按 [`docs/ENVIRONMENT.md`](../docs/ENVIRONMENT.md) 配好环境（ESP-IDF 5.5、Python、esptool）。
+- 已按 [`docs/ENVIRONMENT.md`](./ENVIRONMENT.md) 配好环境（ESP-IDF 5.5、Python、esptool）。
 - **先在原始仓库里完整跑通一次** `tools/build.sh` + `tools/flash_local.sh`，确认环境无误再派生。
   （环境坑都固化在 `tools/build.sh` 里了，直接用它，别手写 idf.py 命令。）
 
@@ -236,14 +236,14 @@ git add -A && git commit -m "standalone: rename to MY_PRODUCT, slim to single ap
 
 ### Step 8 — 发布到开放平台
 
-指 [`docs/PUBLISHING.md`](../docs/PUBLISHING.md) 两条对外通道（MCP 令牌直推 / 网页手动）；
+指 [`docs/PUBLISHING.md`](./PUBLISHING.md) 两条对外通道（MCP 令牌直推 / 网页手动）；
 **发布前务必先跑 `python3 tools/publish_wizard.py check` 确认 bin 是最新编译版本**，再按
 [发布向导流程](../../sdgoods-ai/skills/sdgoods-publish/SKILL.md) 走：
 先自动准备提交截图（**在选发布方式之前，全程不询问用户**）——有设备且截图功能开启则 `flash` 烧最新固件 + `shot` 截首页；
 无设备 / 截图功能未开则 AI 直接生成一张像素风封面、存进 `screenshot/cover.png`；然后再问「手动发布」还是「MCP 发布」——
 手动则 `publish_wizard.py release` 生成 `release/` 包自行上传；MCP 则每个字段先由 AI 生成草稿让用户确认、
 截图直接复用第 1 步备好的图。
-REST 端点、字段表、两条 MCP 通道的区别见 [`docs/MCP_CONTRACT.md`](../docs/MCP_CONTRACT.md)。
+REST 端点、字段表、两条 MCP 通道的区别见 [`docs/MCP_CONTRACT.md`](./MCP_CONTRACT.md)。
 - 当 **MULTI app 包**上架：`tools/pack_app.py` 产出 `dist/MY_PRODUCT_app.bin`，平台写 ota_N。
 - 当 **SINGLE 主机固件**：本地 `flash_local.sh` 直刷；平台上架整机包走官方引导层拼接。
 
@@ -320,7 +320,7 @@ void ui_myapp_poll(void) {            /* 每帧推进，非前台立刻 return�
 
 同一份代码，编译出的 `app.bin` 既能按 MULTI 上架，也能本地当 SINGLE 直刷——
 区别只在「写到 flash 哪个位置 / 是否擦 otadata」，不在代码本身。详见
-[`docs/SINGLE_APP_FIRMWARE.md`](../docs/SINGLE_APP_FIRMWARE.md) 与 [`docs/PUBLISHING.md`](../docs/PUBLISHING.md)。
+[`docs/SINGLE_APP_FIRMWARE.md`](./SINGLE_APP_FIRMWARE.md) 与 [`docs/PUBLISHING.md`](./PUBLISHING.md)。
 
 ---
 

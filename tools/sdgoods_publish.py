@@ -12,15 +12,17 @@
 """sdgoods_publish —— 把固件和固件信息提交到「谷仓 SDGOODS 开放平台」
 
 纯标准库实现（Python 3.8+，无需 pip install），既给人用，也方便 AI 助手直接调用。
-配合谷仓次元屏（SDGOODS-ESP32S3）固件开发使用：
+配合谷仓次元屏（SDGOODS-ESP32S3）固件开发使用。
 
-    # 1) 一次性登录（邮箱收 4 位验证码，refreshToken 会缓存在本机）
-    python3 tools/sdgoods_publish.py login you@example.com
+对外发布只有两条通道：MCP 开发者令牌（推荐）与网页手动。本工具的推荐用法是令牌通道：
 
-    # 2) 提交固件（截图可选，最多 4 张）
-    #    先导出并校验应用包（必须是「不带地址」的纯 app 镜像）：
+    # 1) 一次性保存开发者令牌（sdg_ 开头，平台「个人中心 → 开发者令牌」生成，明文只显示一次）
+    python3 tools/sdgoods_publish.py set-token "sdg_你的令牌"
+    # 或临时用环境变量：export SDGOODS_DEV_TOKEN="sdg_你的令牌"
+
+    # 2) 先导出并校验应用包（必须是「不带地址」的纯 app 镜像）：
     #    python3 tools/pack_app.py
-    python3 tools/sdgoods_publish.py publish \
+    python3 tools/sdgoods_publish.py mcp-upload \
         --file dist/SDGOODS_EBADGE_app.bin \
         --name "我的固件" \
         --desc-zh "一句话介绍这个固件" \
@@ -29,6 +31,14 @@
         --shots shot1.png shot2.png \
         --github https://github.com/you/your-fw
 
+其他令牌通道子命令：mcp-firmwares（列出自己提交的）、mcp-replace <旧id>（删旧重建）、
+mcp-unpublish（下架）、mcp-delete（删除）、mcp-download <id> --check-sha256 <本地sha256>（防砖校验）。
+全部见 `python3 tools/sdgoods_publish.py --help` 与 docs/PUBLISHING.md。
+
+> 附注：本工具还保留了邮箱验证码 REST 通道（login / publish / whoami / logout），
+> 仅用于平台联调/内部参考，**不是对外的发布通道**——生产环境默认没有邮箱登录态，
+> 对外发布一律走 sdg_ 开发者令牌（MCP）或网页手动。
+
 上传前本工具会校验应用包（与 tools/pack_app.py 同一套判据）：
 必须是纯 app 镜像 —— 带地址的合并镜像（merged.bin）会被直接拒绝，
 因为平台按它刷机会写到 0x0、覆盖 bootloader 与分区表。
@@ -36,9 +46,6 @@
 
 API 基地址：环境变量 SDGOODS_API_BASE（与网页端约定一致），或 --api 参数。
 例如生产环境：  export SDGOODS_API_BASE=https://sdgoods.ai/api
-
-想完全不用本工具、让 AI 直接调接口？见 docs/PUBLISHING.md 的 curl 示例，
-本文件就是那套 REST API 的忠实复刻（鉴权→presign→PUT→POST）。
 """
 
 import argparse

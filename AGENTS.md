@@ -31,7 +31,7 @@ python3 tools/check_env.py --json     # 结构化输出，方便你解析
   不要凭「应该能编译」继续。ESP-IDF 报「已安装但未激活」时，先 `source <IDF>/export.sh` 再编译。
 - `node/npm` 报 `!!`（缺失）时：如果用户**要改/增中文文案**，先 `npm i lv_font_conv`，
   否则字体生成会失败、烧出满屏方框；若本次不碰中文文案可忽略。
-- 完整工具清单、各系统安装步骤、串口驱动见 [`docs/ENVIRONMENT.md`](../docs/ENVIRONMENT.md)。
+- 完整工具清单、各系统安装步骤、串口驱动见 [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)。
 
 > 这一步是「开发的基础」：环境不对，后面所有编译 / 烧录 / 截屏自测都没法进行。
 
@@ -290,14 +290,14 @@ tools/build.sh -B build_fixNN       # 指定构建目录（换名字即可，不
 
 如果你要的不是「在本仓库加一个 app」，而是「**把仓库复制成你自己的独立固件工程**」
 （独立命名、开机直入你的 app、独立 git，但仍保留手势 / 控制中心 / 开发边界），
-**不要**按 §3 改——另行照 [`docs/STANDALONE_PROJECT.md`](../docs/STANDALONE_PROJECT.md) 走完整 Step 1–8。
+**不要**按 §3 改——另行照 [`docs/STANDALONE_PROJECT.md`](docs/STANDALONE_PROJECT.md) 走完整 Step 1–8。
 
 关键提醒（AI 常踩）：独立工程**自动拥有控制中心**，它来自 `components/sdgoods_launcher`
 （`sdgoods_cc.c`），只要你 `sdgoods_app_shell_bind(scr)` 且 `main/CMakeLists.txt` 的
 `REQUIRES` 里留着 `sdgoods_launcher`，顶部下滑就会弹出（音量 ± / 亮度 / 数据 / 电量 / 第 5 键 / 截屏），
 **无需自己实现**。删掉 `components/sdgoods_launcher` 才会丢控制中心。
 
-> 控制中心的**完整 API 与一级/二级页布局**见 [`docs/APP_SDK.md §3.2`](../docs/APP_SDK.md)。
+> 控制中心的**完整 API 与一级/二级页布局**见 [`docs/APP_SDK.md §3.2`](docs/APP_SDK.md)。
 > **SINGLE（单应用）模式下，控制中心第 5 个键是 `Power`（关机）；MULTI（被启动器管理）模式下才是 `Exit`（返回启动器）**——
 > 这是平台按本固件是否「被启动器管理」自动切换的，app 不用管。想感知「控制中心是否盖在我上面」（如游戏暂停），
 > 复用外壳的 `set_pause_cb` / `set_resume_cb` 即可。

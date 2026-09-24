@@ -125,7 +125,23 @@ bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自�
 
 **👤 普通用户**
 
-把这句话发给 AI（换成你想要的应用）：
+**先跑通最小例子（推荐）**：把这句话发给 AI——
+
+```
+请按 https://github.com/SDGOODS/SDGOODS-ESP32S3 的 README 与 AGENTS.md 规范，
+用 tools/new_app_project.py 生成一个叫 HelloApp 的独立应用工程，
+编译后烧进连着的谷仓电子徽章，烧完截屏给我看效果。
+```
+
+生成的是一个**最小应用**：整块圆屏中央显示 **`Hello SDGOODS!`**。烧进去真机效果：
+
+| 第一个应用 · 真机实拍 |
+|---|
+| ![第一个应用 Hello SDGOODS!](screenshot/first-app-hello.jpg) |
+
+看到这个画面，说明你已经跑通了「生成 → 编译 → 烧录 → 真机验证」整条链路（全程 10 分钟内）。
+
+**然后换成你自己的应用**：把这句话发给 AI（换成你想要的）——
 
 ```
 请基于 https://github.com/SDGOODS/SDGOODS-ESP32S3 生成一个叫 MyApp 的独立应用工程，
@@ -142,11 +158,13 @@ bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自�
 ```bash
 git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
 cd SDGOODS-ESP32S3
-python3 tools/new_app_project.py MyApp   # 一键派生独立应用工程（独立命名、开机直入你的 app）
+python3 tools/new_app_project.py MyApp   # 一键派生独立应用工程，生成在本仓库的上一级目录 ../MYAPP/
+cd ../MYAPP                              # 进入新生成的工程（关键：编译要在新工程里跑，不是在仓库里）
+idf.py set-target esp32s3
 idf.py -B build build                    # 编译
 ```
 
-派生出来的 `MyApp/` 是一个**完整可编译、开机直入你的应用**的独立工程：没有主页、没有启动台、没有 demo，一上电就进你的界面。
+派生出来的 `MYAPP/`（与本仓库同级）是一个**完整可编译、开机直入你的应用**的独立工程：没有主页、没有启动台、没有 demo，一上电就进你的界面。
 
 > ★ 本 README 只讲产品与流程。**AI 开始改代码前必须先读 `AGENTS.md`**——那里是编译方式、两层边界、字体流程与几条「不遵守就出 bug」的硬约束。
 
@@ -182,15 +200,24 @@ idf.py -B build build                    # 编译
 
 **👤 普通用户**
 
-想改什么，用大白话告诉 AI 就行：「把标题改成 XX」「点屏幕的时候加个音效」「加一个按钮，按一下换颜色」。AI 会自己找到对应文件（界面都在 `main/ui_<名字>.c` 里）改好并重新编译。
+**第一个修改，从改一句话开始**：把这句话发给 AI——
 
-设备连着电脑的话，再加一句「**烧到徽章里截屏给我看**」，不用碰设备就能在电脑上看到改后的真机画面。
+```
+把 HelloApp 主页的 "Hello SDGOODS!" 改成 "你好，世界！"（英文 "Hello, World!"），
+重新编译烧进设备，截屏给我看。
+```
+
+改完屏幕上的字就换了——这就是改应用的全部体验：**用大白话说需求，AI 改代码、编译、烧录、截屏给你看**。
+
+之后想改什么都可以照这样说：「把标题改成 XX」「点屏幕的时候加个音效」「加一个按钮，按一下换颜色」。AI 会自己找到对应文件（界面都在 `main/apps/ui_<名字>.c` 里）改好并重新编译。
+
+设备连着电脑的话，每句改动都可以带上「**烧到徽章里截屏给我看**」，不用碰设备就能在电脑上看到改后的真机画面。
 
 对生成的代码好奇？直接问 AI「带我看看这个应用的代码，教我怎么改」，它会一段一段讲给你听。
 
 **💻 开发者**
 
-- 界面与逻辑都在派生工程的 `main/ui_<name>.c`：`ui_<name>_start` 建界面、`ui_<name>_poll` 每帧推进，触摸走平台回调（`sdgoods_app_on_tap` / `sdgoods_app_on_gesture`）。
+- 界面与逻辑都在派生工程的 `main/apps/ui_<name>.c`：`ui_<name>_start` 建界面、`ui_<name>_poll` 每帧推进，触摸走平台回调（`sdgoods_app_on_tap` / `sdgoods_app_on_gesture`）。
 - 平台能力（触摸原语 / 音效 / 双语文案 / 掉电持久化）的 API 说明见 [docs/APP_SDK.md](docs/APP_SDK.md)。
 - 编译 / 烧录 / 串口截屏命令见 [docs/BUILD.md](docs/BUILD.md)。
 - ⚠️ 新增了中文文案，记得重跑上面的字体子集工具，否则新字在屏上是方框。
@@ -280,6 +307,8 @@ LICENSING.md  TRADEMARK.md  NOTICE  LICENSE
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 分层设计、钩子机制、联机同步、调试链路 |
 | [`docs/APP_SDK.md`](docs/APP_SDK.md) | app 侧 SDK 与多/单应用模式检测 |
 | [`docs/SINGLE_APP_FIRMWARE.md`](docs/SINGLE_APP_FIRMWARE.md) | 把应用当主机固件直启（单应用模式） |
+| [`docs/STANDALONE_PROJECT.md`](docs/STANDALONE_PROJECT.md) | 独立工程完整改造流程（不派生、手工裁剪时用） |
+| [`docs/MULTI_APP_DYNAMIC_SLOTS.md`](docs/MULTI_APP_DYNAMIC_SLOTS.md) | 多应用插槽与槽地址/封面块布局 |
 | [`docs/PUBLISHING.md`](docs/PUBLISHING.md) | 提交固件到开放平台（网页 / CLI / MCP） |
 | [`docs/MCP_CONTRACT.md`](docs/MCP_CONTRACT.md) | MCP / 平台发布的字段契约（本地 stdio server 与平台托管 MCP） |
 | [`LICENSING.md`](LICENSING.md) | 授权范围 / 商业授权申请 / FAQ |

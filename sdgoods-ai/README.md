@@ -82,8 +82,8 @@ bash sdgoods-ai/install.sh --dry-run
 | Claude Code | `mcp/claude-mcp.example.json` | `.mcp.json`（项目）或 `claude mcp add`（全局） |
 | Cursor | `mcp/cursor-mcp.example.json` | `.cursor/mcp.json`（项目）或 `~/.cursor/mcp.json`（全局） |
 
-- 连上 MCP 后，`sdgoods-publish` 会优先调用 `mcp__sdgoods__upload_firmware`，登录走邮箱验证码/OAuth 交互。
-- 未连 MCP 时，回退到 `tools/sdgoods_publish.py`（同样邮箱验证码登录，凭据只存本机 `~/.sdgoods/credentials.json`，600）。
+- 连上 MCP 后，`sdgoods-publish` 会优先调用 `mcp__sdgoods__upload_firmware`，凭据走 `sdg_` 开发者令牌（平台「个人中心 → 开发者令牌」生成，明文只显示一次）。
+- 未连 MCP 时，回退到 `tools/sdgoods_publish.py` 的 `set-token` + `mcp-upload`（同一套 `sdg_` 令牌通道），令牌只存本机。
 
 ### ⚠️ 安全红线（务必遵守）
 - **绝不在本仓库提交 / 回显任何 API 密钥、accessToken、refreshToken。**
