@@ -74,34 +74,68 @@
 
 ---
 
-## 🚀 5 分钟：生成你的第一个应用
+## 🚀 从零到上架：四步走
 
-你**不需要**先懂 C 或 ESP-IDF。三步把需求交给 AI 即可：
+下面四步，每一步都给两种做法，**结果完全一样，选一条跟着走即可**：
+
+- **👤 普通用户**：不碰命令行。你只需要一个 AI 编程助手（WorkBuddy / Claude Code / Cursor 任一），把话说给它，它替你完成。
+- **💻 开发者**：熟悉终端，直接敲命令。
+
+---
+
+## 第 1 步 · 配置环境
+
+**👤 普通用户**
+
+你需要的只有：一台电脑（macOS / Windows / Linux）、一根 USB-C 数据线、一个 AI 编程助手。把这句话发给 AI：
+
+```
+请按 https://github.com/SDGOODS/SDGOODS-ESP32S3 中 docs/ENVIRONMENT.md 的要求，
+检查并配置这台电脑的开发环境。缺什么装什么，每一步都告诉我在做什么；
+装完跑一次环境检查，把结果汇总给我。
+```
+
+AI 会自动检查并安装 Python、ESP-IDF 工具链与 USB 驱动，最后给你一份环境检查报告。过程中弹出的「是否允许」确认即可。
+
+**💻 开发者**
 
 ```bash
-# 1) 克隆本仓库
 git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
 cd SDGOODS-ESP32S3
-
-# 2) （推荐）安装 AI 开发工具包：让 WorkBuddy / Claude Code / Cursor 在涉及本设备时自动套用本仓库规范
-bash sdgoods-ai/install.sh
-
-# 3) 一键派生一个属于你自己的独立应用工程（独立命名、开机直入你的 app）
-python3 tools/new_app_project.py MyApp
+python3 tools/check_env.py     # 检查 Python / ESP-IDF / esptool，缺啥提示啥
+bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自动套用本仓库规范
 ```
 
-派生出来的 `MyApp/` 是一个**完整可编译、开机直入你的应用**的独立工程：没有主页、没有启动台、没有 demo，一上电就进你的界面。
+版本要求与手动安装步骤见 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)。
 
-然后把需求直接交给你的 AI 助手（中英文皆可）：
+---
+
+## 第 2 步 · 生成第一个应用
+
+**👤 普通用户**
+
+把这句话发给 AI（换成你想要的应用）：
 
 ```
-读取 https://github.com/SDGOODS/SDGOODS-ESP32S3 的代码与文档，
-基于 MyApp 工程，为谷仓电子徽章做一个 <你的应用>。
+请基于 https://github.com/SDGOODS/SDGOODS-ESP32S3 生成一个叫 MyApp 的独立应用工程，
+为谷仓电子徽章做一个 <你的应用>。
 需求：<用大白话描述你想做什么、点按/手势做什么、要不要存数据>。
-界面文案用中英双语。请遵守 AGENTS.md 与 docs/ 规范，完成可运行实现。
+界面文案用中英双语。请遵守 AGENTS.md 与 docs/ 规范，完成后编译，
+告诉我固件文件在哪里、怎么烧进设备。
 ```
 
 需求越具体越容易一次做对（用户流程、按键/手势做什么、是否掉电保存、验收标准）。细节没给全时，AI 会用保守默认值并列出假设。
+
+**💻 开发者**
+
+```bash
+git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
+cd SDGOODS-ESP32S3
+python3 tools/new_app_project.py MyApp   # 一键派生独立应用工程（独立命名、开机直入你的 app）
+idf.py -B build build                    # 编译
+```
+
+派生出来的 `MyApp/` 是一个**完整可编译、开机直入你的应用**的独立工程：没有主页、没有启动台、没有 demo，一上电就进你的界面。
 
 > ★ 本 README 只讲产品与流程。**AI 开始改代码前必须先读 `AGENTS.md`**——那里是编译方式、两层边界、字体流程与几条「不遵守就出 bug」的硬约束。
 
@@ -133,11 +167,35 @@ python3 tools/new_app_project.py MyApp
 
 ---
 
-## 把第一个应用发布到平台
+## 第 3 步 · 修改第一个应用
 
-开发完成、本地烧录验证后，有两条官方发布路径（推荐顺序：MCP → 网页）：
+**👤 普通用户**
 
-### 方式 1 · MCP 开发者令牌（推荐，AI / CI 直推）
+想改什么，用大白话告诉 AI 就行：「把标题改成 XX」「点屏幕的时候加个音效」「加一个按钮，按一下换颜色」。AI 会自己找到对应文件（界面都在 `main/ui_<名字>.c` 里）改好并重新编译。
+
+设备连着电脑的话，再加一句「**烧到徽章里截屏给我看**」，不用碰设备就能在电脑上看到改后的真机画面。
+
+对生成的代码好奇？直接问 AI「带我看看这个应用的代码，教我怎么改」，它会一段一段讲给你听。
+
+**💻 开发者**
+
+- 界面与逻辑都在派生工程的 `main/ui_<name>.c`：`ui_<name>_start` 建界面、`ui_<name>_poll` 每帧推进，触摸走平台回调（`sdgoods_app_on_tap` / `sdgoods_app_on_gesture`）。
+- 平台能力（触摸原语 / 音效 / 双语文案 / 掉电持久化）的 API 说明见 [docs/APP_SDK.md](docs/APP_SDK.md)。
+- 编译 / 烧录 / 串口截屏命令见 [docs/BUILD.md](docs/BUILD.md)。
+- ⚠️ 新增了中文文案，记得重跑上面的字体子集工具，否则新字在屏上是方框。
+
+---
+
+## 第 4 步 · 提交发布第一个应用
+
+开发完成、真机验证通过就可以发布。两条官方路径**结果一样，选一条即可**。
+
+**👤 普通用户**
+
+- **让 AI 帮你发**：跟 AI 说「帮我把这个应用发布到谷仓开放平台」。AI 会引导你到平台开发者设置生成一个 `sdg_` 开头的开发者令牌（粘贴给 AI 一次即可），然后自动完成打包 → 上传 → 填名称 / 简介 / 截图 → 提交审核，过审即上架。
+- **自己在网页发**：打开 [sdgoods.ai](https://sdgoods.ai) → 上传编译好的 `dist/<名字>_app.bin` → 填名称 / 简介 / 分类 → 上传截图（可点「从设备截图」连真机抓图）→ 提交审核。
+
+**💻 开发者（MCP 令牌直推，适合 AI / CI）**
 
 1. 在谷仓开放平台开发者设置里生成一个 `sdg_` 开头的开发者令牌。
 2. 先打包出纯应用镜像（平台会自动拼引导层）：
@@ -158,16 +216,7 @@ python3 tools/new_app_project.py MyApp
    ```
    提交后进入审核，过审即上架。重新发布时先 `mcp-replace <旧id>` 删旧再上传。
 
-### 方式 2 · 网页手动（最简人工路径）
-
-打开 [sdgoods.ai](https://sdgoods.ai) → 上传 `dist/<name>_app.bin` → 填名称 / 简介 / 分类 → 上传截图（可点「从设备截图」连真机抓图）→ 提交审核。
-
-### 其他 CLI 子命令（令牌通道）
-
-`tools/sdgoods_publish.py` 还提供查询与维护子命令：`mcp-firmwares`（列出自己提交的固件）、
-`mcp-unpublish`（下架）、`mcp-delete`（删除草稿/被拒记录）、
-`mcp-download <id> --check-sha256 <本地sha256>`（拉平台刷机清单做防砖校验）。
-全部子命令见 `python3 tools/sdgoods_publish.py --help` 与 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
+其他令牌通道子命令：`mcp-firmwares`（列出自己提交的固件）、`mcp-unpublish`（下架）、`mcp-delete`（删除草稿/被拒记录）、`mcp-download <id> --check-sha256 <本地sha256>`（拉平台刷机清单做防砖校验）。全部见 `python3 tools/sdgoods_publish.py --help` 与 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
 
 > 网页「从设备截图」会先发 `?` 探测固件能力（`SDGOODS-CAPS:SHOT`）；**无截屏能力的固件会提示你先在 BSP 启用 `CONFIG_SDGOODS_SCREENSHOT` 再重烧**，而不是盲抓出颜色错乱的图。
 
