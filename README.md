@@ -3,7 +3,6 @@
 # 谷仓次元屏 · SDGOODS-ESP32S3
 
 [![Build](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml/badge.svg)](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml)
-[![Gitee](https://gitee.com/sdgoods/sdgoods-esp32s3/widgets/widget_card.svg?colors=393222,ebdfc1,fffae5,d8ca9f,fbebc9,fa907c)](https://gitee.com/sdgoods/sdgoods-esp32s3)
 [![平台层: Apache-2.0](https://img.shields.io/badge/platform-Apache--2.0-blue.svg)](LICENSE)
 [![应用层: Apache-2.0](https://img.shields.io/badge/apps-Apache--2.0-blue.svg)](LICENSING.md)
 
@@ -102,7 +101,8 @@
 你需要的只有：一台电脑（macOS / Windows / Linux）、一根**带数据功能的 Type-C 线**（普通充电线可能只供电、不能传数据，挑能连电脑传文件的那种）、一个 AI 编程助手。把这句话发给 AI：
 
 ```
-请按本仓库（Gitee 或 GitHub 均可）中 docs/ENVIRONMENT.md 的要求，
+请先克隆这个仓库：https://gitee.com/sdgoods/sdgoods-esp32s3
+然后按里面 docs/ENVIRONMENT.md 的要求，
 检查并配置这台电脑的开发环境。缺什么装什么，每一步都告诉我在做什么；
 装完跑一次环境检查，把结果汇总给我。
 ```
@@ -130,7 +130,8 @@ bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自�
 **先跑通最小例子（推荐）**：把这句话发给 AI——
 
 ```
-请按本仓库（Gitee 或 GitHub 均可）的 README 与 AGENTS.md 规范，
+请先克隆这个仓库：https://gitee.com/sdgoods/sdgoods-esp32s3
+然后按里面的 README 与 AGENTS.md 规范，
 用 tools/new_app_project.py 生成一个叫 HelloApp 的独立应用工程，
 把屏幕问候语改成 Hello SDGOODS!，编译后烧进连着的谷仓电子徽章，烧完截屏给我看效果。
 ```
