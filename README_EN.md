@@ -3,6 +3,7 @@
 # SDGOODS Electronic Badge · SDGOODS-ESP32S3
 
 [![Build](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml/badge.svg)](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml)
+[![Gitee](https://gitee.com/sdgoods/sdgoods-esp32s3/widgets/widget_card.svg?colors=393222,ebdfc1,fffae5,d8ca9f,fbebc9,fa907c)](https://gitee.com/sdgoods/sdgoods-esp32s3)
 [![Platform layer: Apache-2.0](https://img.shields.io/badge/platform-Apache--2.0-blue.svg)](LICENSE)
 [![App layer: Apache-2.0](https://img.shields.io/badge/apps-Apache--2.0-blue.svg)](LICENSING.md)
 
@@ -101,7 +102,7 @@ Each of the four steps below offers two routes — **the results are identical; 
 All you need: a computer (macOS / Windows / Linux), a **data-capable Type-C cable** (a plain charging cable may only supply power, not transfer data — pick one that can transfer files to a PC), and an AI coding assistant. Send this to the AI:
 
 ```
-Follow docs/ENVIRONMENT.md in https://github.com/SDGOODS/SDGOODS-ESP32S3
+Follow docs/ENVIRONMENT.md in this repository (Gitee or GitHub)
 to check and set up the development environment on this computer.
 Install whatever is missing, tell me what you're doing at each step,
 then run an environment check and summarize the results.
@@ -112,8 +113,9 @@ The AI will check and install Python, the ESP-IDF toolchain and USB drivers, the
 **💻 Developer**
 
 ```bash
-git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
-cd SDGOODS-ESP32S3
+git clone https://gitee.com/sdgoods/sdgoods-esp32s3     # preferred in China
+# or: git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
+cd sdgoods-esp32s3
 python3 tools/check_env.py     # checks Python / ESP-IDF / esptool; tells you what's missing
 bash sdgoods-ai/install.sh     # optional: install the AI toolkit so assistants auto-apply this repo's specs
 ```
@@ -129,7 +131,7 @@ Version requirements and manual installation: [docs/ENVIRONMENT.md](docs/ENVIRON
 **Run the minimal example first (recommended)** — send this to the AI:
 
 ```
-Follow the README and AGENTS.md specs at https://github.com/SDGOODS/SDGOODS-ESP32S3.
+Follow the README and AGENTS.md specs in this repository (Gitee or GitHub).
 Use tools/new_app_project.py to generate a standalone app project named HelloApp,
 change the on-screen greeting to Hello SDGOODS!, build it, flash it to the connected
 SDGOODS Electronic Badge, and screenshot the device for me.
@@ -146,8 +148,9 @@ Seeing the left screen means you have completed the whole chain — **generate �
 **💻 Developer**
 
 ```bash
-git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
-cd SDGOODS-ESP32S3
+git clone https://gitee.com/sdgoods/sdgoods-esp32s3     # preferred in China
+# or: git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
+cd sdgoods-esp32s3
 python3 tools/new_app_project.py MyApp   # derive a standalone app project, created one level up at ../MYAPP/
 cd ../MYAPP                              # enter the new project (critical: build inside it, not in the repo)
 idf.py set-target esp32s3
