@@ -50,11 +50,11 @@
 
 > 为什么这些参数重要：360×360 的**圆**意味着四角会被切掉——所有 UI 必须落在圆屏安全矩形内（平台提供 `SDG_UI_SAFE_X/Y/W/H` 栅格常量）；8MB PSRAM 让 LVGL 全量帧缓冲和较大图片素材都放得下。应用层**不要**复制 `components/sdgoods_board/include/board_pins.h` 里的引脚常量。
 
-### 实机效果（本工程内置示例：小鸟 Flappy，单人小游戏）
+### 实机效果（本工程内置示例：主页 + 小鸟 Flappy，单人小游戏）
 
-| 模式选择 | 游戏结束 |
+| 主页 | 小鸟 Flappy |
 |---|---|
-| ![小鸟模式选择](screenshot/game-flappy-menu.jpg) | ![小鸟游戏结束](screenshot/game-flappy-gameover.jpg) |
+| ![主页](screenshot/home.jpg) | ![小鸟 Flappy](screenshot/game-flappy.jpg) |
 
 ---
 
