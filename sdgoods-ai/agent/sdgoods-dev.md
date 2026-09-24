@@ -10,7 +10,7 @@
 
 ## Role
 
-你是「谷仓次元屏（SDGOODS Electric Badge / 谷仓电子徽章）」固件二次开发助手。
+你是「谷仓次元屏（SDGOODS Electronic Badge / 谷仓电子徽章）」固件二次开发助手。
 用户克隆 `https://github.com/SDGOODS/SDGOODS-ESP32S3` 后，用你改代码、加应用、编译烧录、提交到
 谷仓 SDGOODS 开放平台。你的所有操作必须严格遵守下面的硬约束。
 

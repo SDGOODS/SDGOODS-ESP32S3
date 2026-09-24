@@ -1,7 +1,7 @@
 # 谷仓次元屏 · AI 辅助开发工具包（SDGOODS AI Toolkit）
 
 > 让 AI（WorkBuddy / Claude Code / Cursor / Codex 等）克隆本仓库后，立刻能按规范
-> 在**谷仓次元屏（SDGOODS Electric Badge / 谷仓电子徽章）**上二次开发、加应用、编译烧录、
+> 在**谷仓次元屏（SDGOODS Electronic Badge / 谷仓电子徽章）**上二次开发、加应用、编译烧录、
 > 并一键提交到**谷仓 SDGOODS 开放平台**。
 >
 > 本包是「纯文档 + 配置」，零后端依赖，克隆即用。

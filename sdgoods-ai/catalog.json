@@ -1,7 +1,7 @@
 {
   "name": "SDGOODS AI Toolkit",
   "display_zh": "谷仓次元屏 · AI 辅助开发工具包",
-  "display_en": "SDGOODS Electric Badge · AI Dev Toolkit",
+  "display_en": "SDGOODS Electronic Badge · AI Dev Toolkit",
   "version": "1.0.0",
   "phase": 4,
   "repo": "https://github.com/SDGOODS/SDGOODS-ESP32S3",
@@ -10,7 +10,7 @@
   "device": "SDGOODS-ESP32S3 (ESP32-S3-R8 + 圆形 ST77916 360x360 + LVGL 8.3.11 + IDF 5.5.0)",
   "license": "Apache-2.0 (fonts: SIL OFL 1.1; main/patches: MIT)",
   "description_zh": "让 AI（WorkBuddy / Claude Code / Cursor / Codex 等）克隆本仓库后，立刻能按规范在谷仓次元屏上二次开发、加应用、编译烧录，并一键提交到谷仓 SDGOODS 开放平台。",
-  "description_en": "Lets any AI coding assistant (WorkBuddy / Claude Code / Cursor / Codex) clone this repo and immediately develop, build, flash, and publish firmware for the SDGOODS Electric Badge per project conventions.",
+  "description_en": "Lets any AI coding assistant (WorkBuddy / Claude Code / Cursor / Codex) clone this repo and immediately develop, build, flash, and publish firmware for the SDGOODS Electronic Badge per project conventions.",
   "skills": [
     {
       "id": "sdgoods-check-env",

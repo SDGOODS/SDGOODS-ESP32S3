@@ -1,14 +1,14 @@
 [![中文](https://img.shields.io/badge/lang-中文-red)](README.md) [![English](https://img.shields.io/badge/lang-English-blue)](README_EN.md)
 
-# Barn Dimension Screen · SDGOODS-ESP32S3
+# SDGOODS Electronic Badge · SDGOODS-ESP32S3
 
 [![Build](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml/badge.svg)](https://github.com/SDGOODS/SDGOODS-ESP32S3/actions/workflows/build.yml)
 [![Platform layer: Apache-2.0](https://img.shields.io/badge/platform-Apache--2.0-blue.svg)](LICENSE)
 [![App layer: Apache-2.0](https://img.shields.io/badge/apps-Apache--2.0-blue.svg)](LICENSING.md)
 
 > [!IMPORTANT]
-> This repository is the base project for second development on the **Barn Dimension Screen** (Barn Electronic Badge) device.
-> Copyright and related rights belong to **Shenzhen Xide Innovation Network Co., Ltd. (SDGOODS)**.
+> This repository is the base project for second development on the **SDGOODS Electronic Badge** device.
+> Copyright and related rights belong to **Shenzhen Seed Innovation Network Co., Ltd. (SDGOODS)**.
 > The code is freely usable under this repository's license, but the **project name, product name, and SDGOODS marks are NOT covered by the code license** (see [TRADEMARK.md](TRADEMARK.md)).
 > Website [https://sdgoods.ai](https://sdgoods.ai) · Email `zhangzuoliang321@126.com`.
 
@@ -16,19 +16,19 @@
 
 ## Project Goal
 
-> **Enable anyone — through the AI coding assistant they already use — to go from cloning this repo on GitHub → deriving their own app → developing it → publishing it to the Barn Open Platform, all within 5 minutes, without first becoming an embedded expert.**
+> **Enable anyone — through the AI coding assistant they already use — to go from cloning this repo on GitHub → deriving their own app → developing it → publishing it to the SDGOODS Open Platform, all within 5 minutes, without first becoming an embedded expert.**
 
 This repository is designed to be "**AI-readable, AI-editable, AI-publishable**":
 
 - **AI can read it**: `AGENTS.md` is the must-read spec before an AI touches the code; `docs/` contains complete layered-architecture, build, publishing, and SDK documentation; `sdgoods-ai/` is a one-command-installable AI development toolkit (Skills + Agent + local MCP server).
 - **AI can edit it**: the repo ships a hand-written UI framework and several samples (Flappy game / home launcher / scan & recognize demo pages) — both a showcase of what the board can do and ready-made templates for AI to modify.
-- **AI can ship it**: the bundled publishing pipeline closes the loop "develop → package → upload to the Barn Open Platform" into one command / one MCP call.
+- **AI can ship it**: the bundled publishing pipeline closes the loop "develop → package → upload to the SDGOODS Open Platform" into one command / one MCP call.
 
 Just hand your requirement to your AI assistant in plain language; it will build the app following this repo's specs and help you publish it.
 
 ---
 
-## Barn Electronic Badge (Hardware)
+## SDGOODS Electronic Badge (Hardware)
 
 An **ESP32-S3 + 360×360 round touch screen** wearable badge that can be worn as a name tag / pendant. On-board hardware:
 
@@ -58,9 +58,9 @@ An **ESP32-S3 + 360×360 round touch screen** wearable badge that can be worn as
 
 ---
 
-## What Is the Barn Open Platform?
+## What Is the SDGOODS Open Platform?
 
-The [Barn Open Platform](https://sdgoods.ai) is the **app market / plaza** for this badge:
+The [SDGOODS Open Platform](https://sdgoods.ai) is the **app market / plaza** for this badge:
 
 - **For developers**: upload your compiled app firmware (a single `.bin`), fill in name / description / category / screenshots, submit for **review**, and once approved it goes **live** — other users can find it and install it on their badges.
 - **For end users** (badge owners): browse apps, one-click download, and flash to their badge via Web Serial or platform tools; one badge supports **multiple app slots** with free switching.
@@ -84,7 +84,7 @@ Each of the four steps below offers two routes — **the results are identical; 
 ---
 
 > [!IMPORTANT]
-> **First step before any development: connect the "Barn Electronic Badge" to your computer with a *data-capable* Type-C cable.**
+> **First step before any development: connect the "SDGOODS Electronic Badge" to your computer with a *data-capable* Type-C cable.**
 > Do this *before* writing any code or asking the AI to start — only with the device connected can the AI flash firmware, capture serial screenshots, and verify on real hardware for you.
 > Once connected, just follow the AI through the four steps below.
 
@@ -124,7 +124,7 @@ Send this to the AI (swap in the app you want):
 
 ```
 Based on https://github.com/SDGOODS/SDGOODS-ESP32S3, generate a standalone app project
-named MyApp and build <your app> for the Barn Electronic Badge.
+named MyApp and build <your app> for the SDGOODS Electronic Badge.
 Requirements: <describe in plain words what it should do, what taps/gestures do, whether data is saved>.
 Use bilingual (Chinese/English) UI strings. Follow AGENTS.md and docs/ specs;
 compile when done and tell me where the firmware file is and how to flash it.
@@ -198,12 +198,12 @@ Once development is done and verified on hardware, you're ready to publish. Two 
 
 **👤 Non-developer**
 
-- **Let the AI publish for you**: tell the AI "publish this app to the Barn Open Platform". It will guide you to generate a `sdg_` developer token in the platform's developer settings (paste it to the AI once), then automatically package → upload → fill in name / description / screenshots → submit for review. Once approved, it's live.
+- **Let the AI publish for you**: tell the AI "publish this app to the SDGOODS Open Platform". It will guide you to generate a `sdg_` developer token in the platform's developer settings (paste it to the AI once), then automatically package → upload → fill in name / description / screenshots → submit for review. Once approved, it's live.
 - **Publish on the web yourself**: open [sdgoods.ai](https://sdgoods.ai) → upload the compiled `dist/<name>_app.bin` → fill in name / description / category → upload screenshots (or click "Capture from device" to grab a real-device shot) → submit for review.
 
 **💻 Developer (MCP token push, ideal for AI / CI)**
 
-1. Generate a `sdg_` developer token in the developer settings of the Barn Open Platform.
+1. Generate a `sdg_` developer token in the developer settings of the SDGOODS Open Platform.
 2. Package the pure app image (the platform auto-prepends the bootloader):
    ```bash
    idf.py -B build build
