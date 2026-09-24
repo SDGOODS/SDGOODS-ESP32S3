@@ -48,6 +48,12 @@
 
 **外观与佩戴**：圆形机身，直径 **58mm**、厚度 **9mm**；背面带**磁吸**，可吸附在金属表面；另设**挂绳孔**与**别针**（badge pin）两种佩戴方式。
 
+| 正面 · 1.85 寸圆屏 | 侧面 · 9mm 轻薄机身（含挂绳孔） |
+|---|---|
+| ![正面 1.85 寸圆屏](docs/hardware/device-front.png) | ![侧面 9mm 机身](docs/hardware/device-side.png) |
+| **双核主控 · 蓝牙 + WiFi** | **内部结构（爆炸图）** |
+| ![屏幕 双核+蓝牙+WiFi](docs/hardware/device-dualcore.png) | ![内部结构爆炸图](docs/hardware/device-exploded.png) |
+
 > 为什么这些参数重要：360×360 的**圆**意味着四角会被切掉——所有 UI 必须落在圆屏安全矩形内（平台提供 `SDG_UI_SAFE_X/Y/W/H` 栅格常量）；8MB PSRAM 让 LVGL 全量帧缓冲和较大图片素材都放得下。应用层**不要**复制 `components/sdgoods_board/include/board_pins.h` 里的引脚常量。
 
 ### 实机效果（本工程内置示例：主页 + 小鸟 Flappy，单人小游戏）

@@ -48,6 +48,12 @@ An **ESP32-S3 + 360×360 round touch screen** wearable badge that can be worn as
 
 **Appearance & wearing**: round body, **58mm** diameter, **9mm** thick; **magnet** on the back for metal surfaces; plus a **lanyard hole** and a **badge pin**.
 
+| Front · 1.85-inch round screen | Side · 9mm slim body (with lanyard hole) |
+|---|---|
+| ![Front 1.85-inch round screen](docs/hardware/device-front.png) | ![Side 9mm body](docs/hardware/device-side.png) |
+| **Dual-core · Bluetooth + WiFi** | **Internal structure (exploded view)** |
+| ![Screen: dual-core + Bluetooth + WiFi](docs/hardware/device-dualcore.png) | ![Exploded view](docs/hardware/device-exploded.png) |
+
 > Why these specs matter: the 360×360 **circle** clips the corners — all UI must fit inside the round-screen safe rectangle (the platform provides `SDG_UI_SAFE_X/Y/W/H` grid constants); 8MB PSRAM fits full LVGL frame buffers and fairly large image assets. The app layer must **not** copy pin constants from `components/sdgoods_board/include/board_pins.h`.
 
 ### On-device preview (samples shipped in this repo: Home + Flappy bird, single-player)
