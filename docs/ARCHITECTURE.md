@@ -29,7 +29,7 @@ app_main()                                     main/main.c
 
 **所有 LVGL API 必须在 `sdgoods_lvgl_loop()` 这个线程里调用。**
 其它任务（BLE 回调、音频、串口）只能改标志位，由 `lv_timer` 或页面 `*_poll()` 消费。
-`ui_plane.c` 里的 `plane_tick` 就是挂在 `lv_timer` 上的游戏主循环。
+游戏 demo（例如 `ui_flappy.c`）的每帧推进逻辑就挂在 `lv_timer` 上作为游戏主循环。
 
 ---
 
@@ -101,7 +101,7 @@ sdgoods_ui_set_nav(&nav);
 ```c
 static const sdgoods_app_t s_apps[] = {
     { "小鸟", ui_flappy_start, ui_flappy_poll },   /* 按钮文字, 进入, 每帧推进 */
-    { "飞机", ui_plane_start,  ui_plane_poll  },
+    /* …其余应用（主页 / 扫描 / 识别 / 其他）照此注册… */
 };
 ```
 
@@ -151,92 +151,7 @@ sdgoods_app_shell_set_resume_cb(on_resume);
 
 ---
 
-## 4. 飞机游戏 `ui_plane.c`
-
-状态机：`ST_READY → ST_PLAY → ST_OVER`（联机时先死的一方进入观战）。
-
-**道具**（掉落由共享 PRNG 决定，见 §6）：
-
-| 道具 | 效果 |
-|---|---|
-| 火 | 火力等级 +1（上限 3），列数 = `1 + 等级`，即 1/2/3/4 列直射，横向偏移由 `power_col_off()` 算 |
-| ♥ | 生命 +1（上限 3），HUD 顶部红心 |
-| 弹 | 全屏清敌机 |
-
-- **档位只增不减**：吃一个「火」等级 +1，持续时长 `POWER_TICKS`（约 6s）到点后
-  「暂停生效」但**不清零**，下次再吃到只刷新时长。否则按掉落节奏玩家永远叠不到 4 列。
-- HUD 两态：生效中＝琥珀 + 秒数倒计时；已攒下未生效＝暗色、无秒数。
-- **受击**：扣一条命 + `INV_TICKS` 无敌闪烁，**不销毁撞到的敌机**（原因见 §6 ④）。
-
-## 5. 双人蓝牙联机 `plane_net.c`
-
-两台设备跑同一套代码，靠 MAC 大小自动分工：
-
-- MAC 小的一方做 **GATT Client**（主动连），大的一方做 **Server**；
-- 随机种子 `seed = addr_to_u32(own) ^ addr_to_u32(peer)` —— 两边算出来一样；
-- 敌机生成走 xorshift32，**同一个种子 + 同一串调用 = 同一串敌机**；
-- 每帧广播状态包 `plane_peer_state_t`（位置、生命、火力等级、开火序号、炸弹序号…）。
-
-> 状态包大小一定要用 `sizeof()`，别写死数字，否则握手字节被截断。
-
-**退出应用必须主动断开链路**（`plane_net_stop()` 里按角色 `esp_ble_gattc_close()` /
-`esp_ble_gatts_close()`）。只停广播/扫描不够：链路还挂在协议栈上，再进应用时
-Server 侧不再触发 `GATTS_CONNECT_EVT`、Client 侧 `esp_ble_gattc_open()` 因「已连接」
-失败 —— 表现就是「退出再进就搜不到对端，只能重启设备」。
-`CONNECT_EVT` 里加 `if (!s_active)` 守卫，丢弃退出瞬间到达的连接。
-
----
-
-## 6. 联机同步的「四条铁律」
-
-游戏的同步模型是**状态同步 + 确定性模拟**：两台设备各自跑同一套逻辑，
-只要「输入一致 + 随机数一致」，世界就会一致。任何破坏确定性的改动都会让敌机分叉。
-改玩法（道具 / 技能 / 新子弹）前先读这四条：
-
-### ① 世界生成必须走共享 PRNG，且**消费次数固定**
-
-新元素（敌机、道具）的种类/位置/时机一律用 `my_rand()`，并且**无论条件是否满足都要
-消费掉同样的次数**再去找空槽（槽满就丢参数，但 PRNG 已经推进）。
-生成调用点要放在「世界推进」里，`ST_OVER` 状态也要跑（先死的一方在观战）。
-
-### ② 本地私有行为不能喂共享 PRNG；改了子弹模式必须扩协议字段
-
-玩家自己的操作（触摸、道具拾取）不能影响随机序列。
-如果改变了子弹数量，必须在状态包里加字段（如 `power`），让对端用**完全相同的偏移和
-速度公式**复制同样多发子弹 —— 一次开火只让 `fire_seq + 1`。
-
-### ③ 会改变敌机集的瞬时事件必须广播
-
-例如炸弹清屏：本机执行 + 计分，同时 `bomb_seq++`；对端检测到序号变化就做同样的事，
-但**不计分**。事件序号用单调计数器，**不要**在 `reset_game()` 里清零。
-
-### ④ 玩家受击**不能**改变敌机集
-
-玩家和敌机/敌弹碰撞时**不要 despawn 那个敌机/敌弹** —— 对端仍在模拟它，
-一删就分叉。正确做法：扣命 + 短暂无敌闪烁，让玩家自己飞离。
-
-### ⚠️ 同一 tick 的语句顺序（踩过两次的坑）
-
-下面这些语句，只要本帧会改变「对端要复制的行为参数」（`power` 等），
-就必须排在**自动开火 / 广播之前**：
-
-```
-道具拾取(update_items) → 火力倒计时/到期 → 自动开火 → …… → 广播状态包
-```
-
-反例（都真实发生过）：
-1. 火力到期清零排在开火之后 → 该帧按旧档位打了 4 列，广播出去的 `power` 已是 0，对端只复制 1 列；
-2. 道具拾取排在开火之后 → 该帧用旧档位开火却广播新档位，对端多复制几列。
-
-### 附：子弹槽位要按最大档位留足
-
-4 列火力在飞约 13~14 发。槽满时 `spawn_*_at()` 返回 false **静默丢发** ——
-本机和「对端模拟」的槽位数不一致就会打破一致性，所以
-`MAX_PBUL == MAX_PEER_BUL`（当前 24）。
-
----
-
-## 7. 显示链路
+## 4. 显示链路
 
 - **面板**：`components/sdgoods_board/lcd/` —— ST77916，QSPI，360×360。
   引脚集中在 `include/board_pins.h`，换板子只改这一个文件。
@@ -247,7 +162,7 @@ Server 侧不再触发 `GATTS_CONNECT_EVT`、Client 侧 `esp_ble_gattc_open()` �
 - **LVGL 组件**：`managed_components/lvgl__lvgl`（8.3.11，组件管理器下载，不入库），
   其中 GIF 解码器被本项目打了补丁 —— 见 [`../main/patches/README.md`](../main/patches/README.md)。
 
-## 8. 字体与资源
+## 5. 字体与资源
 
 - 中文用**子集字体**（只含源码里扫到的字符）：
   - `cn_font_14/16.c` —— 全量集（约 970 字），职责是兜底；
@@ -282,7 +197,7 @@ Server 侧不再触发 `GATTS_CONNECT_EVT`、Client 侧 `esp_ble_gattc_open()` �
 - 开机动画：`src/sdgoods_boot_gif.c` 是一段 GIF 的字节数组（不是解码器），
   由 LVGL 内置 GIF 解码器播放，canvas 在 PSRAM。
 
-## 9. 串口截屏
+## 6. 串口截屏
 
 `components/sdgoods_board/src/sdgoods_screenshot.c` 用 LVGL 的 `lv_snapshot` 抓当前屏幕 →
 在板端用 vendored 的 `jpegenc` 组件把 RGB565 **直接编码成 JPEG**（典型 20~50KB）→ 以
@@ -325,7 +240,7 @@ python3 tools/screenshot_recv.py -p /dev/cu.usbmodemXXXX -o shot.png -n 1 -t
 这样电脑端发 `1` 切页、发 `s` 抓图，节奏完全受控（不受定时漂移影响）。
 ⚠️ **探针是诊断代码，验证完必须删干净**（临时改动不要提交）。
 
-## 10. 界面语言（中 / 英）
+## 7. 界面语言（中 / 英）
 
 `components/sdgoods_board/src/sdgoods_i18n.c` + `include/sdgoods_i18n.h`。
 
@@ -379,5 +294,5 @@ static void on_demo_btn(lv_event_t *e) {
 }
 ```
 
-启动台的像素图标同理：`sdgoods_app_t` 里的 `icon` 字段（`"bird"` / `"plane"`）是键，
+启动台的像素图标同理：`sdgoods_app_t` 里的 `icon` 字段（`"bird"` / `"scan"`）是键，
 `label_zh` / `label_en` 是显示文字 —— 两者不要混用。

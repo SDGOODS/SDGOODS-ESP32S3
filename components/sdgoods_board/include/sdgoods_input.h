@@ -28,6 +28,6 @@ lv_indev_state_t sdgoods_touch_get_state(void);  /* 最近一次触摸读取的�
 void sdgoods_touch_get_point(lv_point_t *p);     /* 最近一次触摸读取的坐标 */
 void sdgoods_touch_synth_report(lv_indev_state_t st, lv_coord_t x, lv_coord_t y);
 /* 合成触摸（sdgoods_tap.c）同步更新上面的轮询缓存。为什么要暴露：轮询型 app
- * （如飞机大战 READY 界面的 ready_tap_poll）读的是这里缓存的真实触摸状态，
+ * （如小鸟游戏 READY 界面的 ready_tap_poll）读的是这里缓存的真实触摸状态，
  * 不经过 LVGL indev —— 合成点按若不同步写缓存，对这类 app 完全不可见，
  * 串口调试键 '1'..'5' 的「任何 app 都能验证手势」承诺就落空了。 */

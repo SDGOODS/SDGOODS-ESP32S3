@@ -50,11 +50,11 @@ An **ESP32-S3 + 360×360 round touch screen** wearable badge that can be worn as
 
 > Why these specs matter: the 360×360 **circle** clips the corners — all UI must fit inside the round-screen safe rectangle (the platform provides `SDG_UI_SAFE_X/Y/W/H` grid constants); 8MB PSRAM fits full LVGL frame buffers and fairly large image assets. The app layer must **not** copy pin constants from `components/sdgoods_board/include/board_pins.h`.
 
-### On-device preview (an app built on this base project: Plane shooter, solo / 2-player Bluetooth)
+### On-device preview (a sample app shipped in this repo: Flappy bird, single-player)
 
 | Mode select | Game over |
 |---|---|
-| ![Plane mode select](screenshot/game-plane-menu.jpg) | ![Plane game over](screenshot/game-plane-gameover.jpg) |
+| ![Flappy mode select](screenshot/game-flappy-menu.jpg) | ![Flappy game over](screenshot/game-flappy-gameover.jpg) |
 
 ---
 
