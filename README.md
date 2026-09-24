@@ -235,7 +235,7 @@ idf.py -B build build                    # 编译
 
 ## 🤖 AI 怎么读这个仓库
 
-除了 `AGENTS.md`（AI 必读规范），仓库附带一套 **AI 开发工具包** [`sdgoods-ai/`](sdgoods-ai/README.md)：7 个跨平台 Skill（环境检查 / 新建应用 / 编译烧录 / 截屏 / 字体 / 配置 / 发布，支持 WorkBuddy / Claude Code / Cursor）+ 一个领域 Agent 定义 + 一个**本地 MCP server 实现**（纯标准库，把「提交固件」闭合成「AI 开发 → 一键上传到开放平台」）+ 各平台 MCP 配置样例。
+除了 `AGENTS.md`（AI 必读规范），仓库附带一套 **AI 开发工具包** [`sdgoods-ai/`](sdgoods-ai/README.md)：8 个跨平台 Skill（环境检查 / 新建应用 / 编译烧录 / 截屏 / 字体 / 配置 / 崩溃内存排查 / 发布，支持 WorkBuddy / Claude Code / Cursor）+ 一个领域 Agent 定义 + 一个**本地 MCP server 实现**（纯标准库，把「提交固件」闭合成「AI 开发 → 一键上传到开放平台」）+ 各平台 MCP 配置样例。
 
 - **装上即用**：`bash sdgoods-ai/install.sh` 把 Skill 装到 WorkBuddy，AI 在涉及本设备开发时自动调用。
 - **安全**：开放平台不开源，本仓库只含客户端配置样例与协议说明，**不含 server 代码与任何密钥**。

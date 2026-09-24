@@ -95,14 +95,26 @@
       "platforms": ["workbuddy", "claude", "cursor", "generic"],
       "trigger_zh": "publish / 提交 / upload 固件到开放平台",
       "trigger_en": "publish / upload firmware to the SDGOODS open platform"
+    },
+    {
+      "id": "sdgoods-crash-triage",
+      "title_zh": "崩溃 / 内存排查",
+      "title_en": "Crash & memory triage",
+      "summary_zh": "定位间歇性崩溃/内存被写坏/刷完不启动：addr2line 定代码行 → 只读探针 → N 轮复现率二分 → 控制组排除无辜模块 → 改一处再测。含 LVGL 定时器链表探针、串口复现率骨架、读到 ROM banner 后彻底静默的分层排除法。",
+      "summary_en": "Root-cause intermittent crashes / corrupted memory / no-boot-after-flash: addr2line to the code line → read-only probe → N-round reproduction-rate bisection → control-group isolation → fix one thing and re-measure. Includes an LVGL timer-list probe, a serial reproduction harness, and layered isolation for full silence right after the ROM banner.",
+      "file": "sdgoods-ai/skills/sdgoods-crash-triage/SKILL.md",
+      "wraps": ["sdgoods-ai/skills/sdgoods-crash-triage/scripts/crash_triage_harness.py"],
+      "platforms": ["workbuddy", "claude", "cursor", "generic"],
+      "trigger_zh": "崩溃 / 重启 / Guru Meditation / 看门狗 / 内存被写坏 / 刷完起不来 / 串口无输出 / 偶发失效",
+      "trigger_en": "crash / reboot / Guru Meditation / watchdog / corrupted memory / no-boot-after-flash / no serial output / intermittent failure"
     }
   ],
   "agent": {
     "id": "sdgoods-dev",
     "title_zh": "二次开发领域 Agent",
     "title_en": "Dev domain agent",
-    "summary_zh": "把项目硬约束（两层边界、许可、联机铁律）与 7 个 Skill 固化成一个可复用角色。WorkBuddy 可作 Expert 包；Claude/Cursor 作 subagent 加载。",
-    "summary_en": "Bakes project hard rules (two-layer boundary, license, networking invariants) and the 7 Skills into a reusable role. Load as Expert pack in WorkBuddy, or subagent in Claude/Cursor.",
+    "summary_zh": "把项目硬约束（两层边界、许可、联机铁律）与 8 个 Skill 固化成一个可复用角色。WorkBuddy 可作 Expert 包；Claude/Cursor 作 subagent 加载。",
+    "summary_en": "Bakes project hard rules (two-layer boundary, license, networking invariants) and the 8 Skills into a reusable role. Load as Expert pack in WorkBuddy, or subagent in Claude/Cursor.",
     "file": "sdgoods-ai/agent/sdgoods-dev.md",
     "binds": [
       "sdgoods-check-env",
@@ -111,7 +123,8 @@
       "sdgoods-screenshot",
       "sdgoods-fonts",
       "sdgoods-config",
-      "sdgoods-publish"
+      "sdgoods-publish",
+      "sdgoods-crash-triage"
     ],
     "platforms": ["workbuddy", "claude", "cursor", "generic"]
   },

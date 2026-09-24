@@ -236,7 +236,7 @@ Other token-channel subcommands: `mcp-firmwares` (list your own submissions), `m
 
 ## 🤖 How AI Should Read This Repo
 
-Besides `AGENTS.md` (the must-read spec), the repo ships an **AI development toolkit** [`sdgoods-ai/`](sdgoods-ai/README.md): 7 cross-platform Skills (env check / new app / build & flash / screenshot / fonts / config / publishing, supporting WorkBuddy / Claude Code / Cursor) + one domain Agent definition + a **local MCP server implementation** (pure standard library; closes the loop "AI develops → one-click upload to the open platform") + MCP config samples for each platform.
+Besides `AGENTS.md` (the must-read spec), the repo ships an **AI development toolkit** [`sdgoods-ai/`](sdgoods-ai/README.md): 8 cross-platform Skills (env check / new app / build & flash / screenshot / fonts / config / crash & memory triage / publishing, supporting WorkBuddy / Claude Code / Cursor) + one domain Agent definition + a **local MCP server implementation** (pure standard library; closes the loop "AI develops → one-click upload to the open platform") + MCP config samples for each platform.
 
 - **Install and go**: `bash sdgoods-ai/install.sh` installs the Skills into WorkBuddy; the AI invokes them automatically whenever this device is involved.
 - **Safe by design**: the open platform itself is not open source; this repo contains only client-side config samples and protocol docs — **no server code and no secrets**.

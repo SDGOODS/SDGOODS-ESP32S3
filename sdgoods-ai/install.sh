@@ -104,7 +104,7 @@ gen_cursor_rule() {
     printf '4. 界面文案一律 `SDG_T("中文","English")`。\n'
     printf '5. 不要 `rm -rf build_xxx`，换新 build 目录名。\n'
     printf '\n'
-    printf '工具包（sdgoods-ai/skills/）：check-env / new-app / build-flash / screenshot / fonts / config / publish。需要时用 Read 读取对应 SKILL.md 按其步骤执行。\n'
+    printf '工具包（sdgoods-ai/skills/）：check-env / new-app / build-flash / screenshot / fonts / config / publish / crash-triage。需要时用 Read 读取对应 SKILL.md 按其步骤执行。\n'
   } > "$out"
   echo "  ✓ rule  -> $out"
 }
@@ -164,7 +164,7 @@ install_workbuddy() {
   local dst="$HOME/.workbuddy/skills"
   for d in "$SKILLS_SRC"/*/; do [ -d "$d" ] && install_skill "$d" "$dst"; done
   [ "$WITH_MCP" -eq 1 ] && install_mcp workbuddy
-  echo "  → 重启 WorkBuddy 后，7 个 Skill 即可被 AI 调用；领域 Agent 可作为 Expert 包加载 $AGENT_SRC"
+  echo "  → 重启 WorkBuddy 后，8 个 Skill 即可被 AI 调用；领域 Agent 可作为 Expert 包加载 $AGENT_SRC"
 }
 
 install_claude() {

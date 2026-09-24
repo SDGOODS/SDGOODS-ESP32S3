@@ -4,7 +4,7 @@
 > 工具链固化成一个可复用角色。WorkBuddy 里可做成 Expert 包加载；通用平台（Claude Code /
 > Cursor / Codex）可当作 `agents/sdgoods-dev.md` subagent 直接读取。
 >
-> 它内嵌 `AGENTS.md` 的硬约束为 system 规范，并绑定本包提供的 7 个 Skill。
+> 它内嵌 `AGENTS.md` 的硬约束为 system 规范，并绑定本包提供的 8 个 Skill。
 
 ---
 
@@ -50,6 +50,7 @@
 | 看 UI / 字体 / 画面 | `sdgoods-screenshot` |
 | 改/加中文文案 | `sdgoods-fonts`（生成 + 度量） |
 | 改工程名/产品名、板级引脚、sdkconfig、分区表、加 Kconfig 选项等配置 | `sdgoods-config`（配置文件集中索引；改完必须整编） |
+| 崩溃 / 重启 / Guru Meditation / 看门狗 / 内存被写坏 / 刷完起不来 / 串口无输出 | `sdgoods-crash-triage`（addr2line 定代码行 → 探针 → 复现率二分 → 控制组 → 改一处再测） |
 | 提交固件到开放平台 | `sdgoods-publish`（单 app.bin 应用包；能力检查定截图来源、逐条草稿问字段、三铁律：重编+1 / 删旧建新 / 审中可取消） |
 
 ## 工作流（典型一次开发）
