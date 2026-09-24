@@ -83,11 +83,16 @@ Each of the four steps below offers two routes — **the results are identical; 
 
 ---
 
+> [!IMPORTANT]
+> **First step before any development: connect the "Barn Electronic Badge" to your computer with a *data-capable* Type-C cable.**
+> Do this *before* writing any code or asking the AI to start — only with the device connected can the AI flash firmware, capture serial screenshots, and verify on real hardware for you.
+> Once connected, just follow the AI through the four steps below.
+
 ## Step 1 · Set Up the Environment
 
 **👤 Non-developer**
 
-All you need: a computer (macOS / Windows / Linux), a USB-C data cable, and an AI coding assistant. Send this to the AI:
+All you need: a computer (macOS / Windows / Linux), a **data-capable Type-C cable** (a plain charging cable may only supply power, not transfer data — pick one that can transfer files to a PC), and an AI coding assistant. Send this to the AI:
 
 ```
 Follow docs/ENVIRONMENT.md in https://github.com/SDGOODS/SDGOODS-ESP32S3
