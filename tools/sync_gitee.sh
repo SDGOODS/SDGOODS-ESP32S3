@@ -45,11 +45,11 @@ PUSH_URL="https://sdgoods:${TOKEN}@${GITEE_REPO_PATH}.git"
 echo "→ 生成 Gitee 版 README ..."
 python3 tools/_rewrite_readme_remote.py gitee
 
-# 2. 提交并推送到 Gitee
+# 2. 提交并推送到 Gitee（--force：Gitee 是镜像，历史以本地/权威源为准）
 echo "→ 提交临时替换并推送到 Gitee ..."
 git add README.md README_EN.md
 git commit -q -m "docs: gitee mirror README (仓库地址改为 Gitee)"
-git push "$PUSH_URL" "$BRANCH"
+git push --force "$PUSH_URL" "$BRANCH"
 
 # 3. 回退临时提交，恢复 GitHub 版
 echo "→ 恢复 GitHub 版 README ..."
