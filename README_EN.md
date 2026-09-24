@@ -142,18 +142,6 @@ What you get is a **minimal app**: `Hello SDGOODS!` in the center of the round s
 
 Seeing this screen means you have completed the whole chain — **generate → build → flash → verify on hardware** (well under 10 minutes).
 
-**Then make it yours** — send this to the AI (swap in the app you want):
-
-```
-Based on https://github.com/SDGOODS/SDGOODS-ESP32S3, generate a standalone app project
-named MyApp and build <your app> for the SDGOODS Electronic Badge.
-Requirements: <describe in plain words what it should do, what taps/gestures do, whether data is saved>.
-Use bilingual (Chinese/English) UI strings. Follow AGENTS.md and docs/ specs;
-compile when done and tell me where the firmware file is and how to flash it.
-```
-
-The more specific the requirement (user flow, key/gesture behavior, persistence, acceptance criteria), the more likely it is right the first time. If details are missing, the AI will use conservative defaults and list its assumptions.
-
 **💻 Developer**
 
 ```bash
@@ -210,9 +198,15 @@ rebuild, flash to the device, and screenshot it for me.
 
 The text on screen changes — that's the whole experience of modifying an app: **say what you want in plain words; the AI edits the code, builds, flashes, and shows you a screenshot**.
 
-After that, request any change the same way: "change the title to XX", "play a sound when I tap the screen", "add a button that switches color when pressed". The AI finds the right file (all UI lives in `main/apps/ui_<name>.c`), edits it and rebuilds.
+**Then turn it into the app you want** — still just send the requirement to the AI:
 
-If the badge is connected to the computer, add "**flash it and take a screenshot so I can see**" to every change — you'll see the real device result on your screen without touching the badge.
+```
+Please turn HelloApp into <your app, e.g. a countdown timer / step counter / mini game>.
+Requirements: <describe in plain words what it should do, what taps/gestures do, whether data is saved>.
+Use bilingual (Chinese/English) UI strings. Build, flash to the device, and screenshot it for me.
+```
+
+The more specific the requirement, the more likely it is right the first time. The AI finds the right files (all UI lives in `main/apps/ui_<name>.c`), edits and rebuilds; add "**flash it and take a screenshot so I can see**" to every change and you'll watch the real device update on your screen.
 
 Curious about the generated code? Ask the AI "walk me through this app's code and teach me how to change it" — it will explain piece by piece.
 
