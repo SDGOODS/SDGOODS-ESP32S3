@@ -14,6 +14,9 @@
 > ```
 >
 > 退出码 `0` = 可编译；`1` = 有必需项缺失。
+>
+> 🇨🇳 **国内用户**：直接跳到 **[§6 国内用户一条龙](#6-国内用户一条龙从零到编译通过)**，
+> 那里是从零到编译通过的完整顺序（走国内镜像 + LVGL 离线包，全程不必直连 GitHub）。
 
 ---
 
@@ -166,13 +169,14 @@ npm i lv_font_conv
 首次编译由组件管理器从 `components.espressif.com`（乐鑫自有域名，**不走 GitHub**）拉取
 `lvgl/lvgl 8.3.11`。想完全离线，任选其一：
 
-**① 离线包解压（最简单）** — 在一台已编译通过的机器上打包：
+**① 离线包解压（最简单）** — 直接用现成的包，或自己打包：
 
-```bash
-python3 tools/pack_lvgl_offline.py      # 产出 dist/lvgl__lvgl_8.3.11.tar.gz
-```
+- **现成的**：<https://gitee.com/sdgoods/sdgoods-esp32s3/releases/download/deps-lvgl-8.3.11/lvgl__lvgl_8.3.11.tar.gz>
+  （24 MB，SHA256 `a73174a9…831baf`，无需登录即可下载）
+- **自己打**：在一台已编译通过的机器上跑
+  `python3 tools/pack_lvgl_offline.py` → `dist/lvgl__lvgl_8.3.11.tar.gz`
 
-把这个包放到自己的网站/内网，国内用户下载后解压到**工程根目录**即可：
+也可以把这个包放到自己的网站/内网。国内用户下载后解压到**工程根目录**即可：
 
 ```bash
 tar xzf lvgl__lvgl_8.3.11.tar.gz -C <工程目录>
@@ -255,3 +259,57 @@ python3 tools/check_env.py
 
 完整开发约定（两层边界、字体流程、联机铁律、提交清单）见 [`AGENTS.md`](../AGENTS.md)。
 把固件提交到谷仓 SDGOODS 开放平台见 [`PUBLISHING.md`](PUBLISHING.md)。
+
+---
+
+## 6. 国内用户一条龙：从零到编译通过
+
+下面每一步都实测过（ESP-IDF v5.5.0 / macOS；Linux、Windows 思路相同）。按顺序做，
+全程不必直连 GitHub。
+
+### ① 装 ESP-IDF —— 走国内镜像（见「方式 C」）
+
+```bash
+git clone https://gitee.com/EspressifSystems/esp-gitee-tools.git ~/esp/esp-gitee-tools
+cd ~/esp/esp-gitee-tools && ./jihu-mirror.sh set
+git clone -b v5.5 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+cd ~/esp/esp-idf && ~/esp/esp-gitee-tools/install.sh esp32s3
+```
+
+### ② 拿 LVGL 离线包 —— 省掉 98 MB 那次下载
+
+```bash
+curl -LO https://gitee.com/sdgoods/sdgoods-esp32s3/releases/download/deps-lvgl-8.3.11/lvgl__lvgl_8.3.11.tar.gz
+tar xzf lvgl__lvgl_8.3.11.tar.gz -C SDGOODS-ESP32S3
+```
+
+离线包托管在 Gitee Release（国内直连最快，无需登录；GitHub 用户同样可直接下载）。
+想自己打包见 §2.5 ⑦。
+
+> 不做这步也能编，只是首次编译会联网拉 98 MB。
+> 实测：解压后 configure **8 秒**通过、完整编译 **49 秒**通过，产物与发布版固件
+> 同为 **1,683,856 字节**（`cmp` 只差 80 字节，全是编译时间 / 日期 / ELF SHA256）。
+
+### ③ 激活环境
+
+```bash
+PYENV=$HOME/.espressif/python_env/idf5.5_py3.13_env
+export IDF_PATH=$HOME/esp/esp-idf
+eval "$("$PYENV/bin/python" "$IDF_PATH/tools/idf_tools.py" export --format=key-value)"
+```
+
+> ⚠️ 如果你的 esp-idf 是**解包版（目录里没有 `.git`）**，`source export.sh` 会静默失效——
+> 表现为 `idf.py` / `cmake` 都不在 PATH、报 `"cmake" must be available on the PATH`。
+> 这时必须用上面的 `idf_tools.py export`（它会给出 xtensa / riscv / ulp / openocd 全套 PATH）。
+> `git clone` 来的仓库用 `source $IDF_PATH/export.sh` 即可。
+
+### ④ 编译
+
+```bash
+cd SDGOODS-ESP32S3
+python3 tools/check_env.py                                   # 先确认环境齐了
+"$PYENV/bin/python" "$IDF_PATH/tools/idf.py" -B build build
+```
+
+产物 `build/SDGOODS_EBADGE.bin`（约 1.68 MB）。构建中出现
+`ESP_ROM_ELF_DIR … not defined` 只是 gdbinit 生成的告警，不影响编译。
