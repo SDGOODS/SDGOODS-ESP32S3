@@ -52,10 +52,17 @@ MIT 代码追加限制）。
 ```
 main/CMakeLists.txt
   └─ configure 阶段 execute_process → main/patches/apply_lvgl_patches.py
-        └─ 若 managed_components/**/gifdec.c 里找不到标记 "MALLOC_CAP_SPIRAM"
-              → 用本目录的 gifdec.c / gifdec.h 覆盖过去
-              否则跳过（幂等）
+        └─ 对本目录 3 个文件与目标文件做**逐字节比对**（filecmp shallow=False）
+              · 相同  → 跳过（幂等）
+              · 不同  → 覆盖，写完再逐字节复查一次
+              · 目标不存在（组件还没下载下来）→ 只警告，返回 0，下次 configure 补上
+              · 写完仍不一致 → 返回非 0，configure 直接 FATAL_ERROR
 ```
+
+> ⚠️ **判断「是否已打补丁」必须逐字节比较，不能用「标记串是否出现」。**
+> 上游文件里可能恰好包含该字符串（我们最初的 `MALLOC_CAP_SPIRAM` 标记就在
+> `gifdec.h` 上误命中过一次），串匹配会误判成「已是最新」而跳过整个文件，
+> 最终表现为编译错误且很难定位。
 
 脚本幂等，可以反复 configure；如果「该打补丁却打不上」，脚本以非零码退出，**构建会直接失败**
 （宁可在编译期报错，也不要产出一个开机动画崩掉的固件）。

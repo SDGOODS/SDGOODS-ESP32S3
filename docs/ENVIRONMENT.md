@@ -26,7 +26,7 @@
 | **esptool** | 随 ESP-IDF 自带 | 必需（烧录） | 烧写 / 合并固件 | `esptool.py --version` | 编出来也烧不到板子 |
 | **git** | 任意较新 | 推荐 | 克隆 / 提交代码 | `git --version` | 不影响编译；只是拿不到/交不了代码 |
 | **Node.js + npm** | ≥ 16 | 改中文文案时才需 | 跑 `lv_font_conv` 生成子集字体 | `node --version` / `npm --version` | 只能编译、不能改/增中文文案（否则烧出满屏方框） |
-| **网络** | — | 必需（首次编译） | 组件管理器拉取 LVGL 8.3.11 | — | 首次 `idf.py build` 会失败 |
+| **网络** | — | 必需（首次编译） | 组件管理器拉取 LVGL 8.3.11 | — | 首次 `idf.py build` 会失败（国内用户先看 [2.5 节](#25-国内网络加速国内用户强烈建议先做这一步)） |
 
 **级别说明**
 - **必需**：缺了就编译不了 / 烧不了，必须先补齐。
@@ -64,6 +64,83 @@ source $IDF_PATH/export.sh
 
 激活后 `idf.py --version` 应显示 **v5.5.x**；若显示更早版本，请升级：
 `cd $IDF_PATH && git fetch && git checkout v5.5.0 && git submodule update --recursive`。
+
+### 2.5 国内网络加速（国内用户强烈建议先做这一步）
+
+装 ESP-IDF 要下约 **1.2 GB**：SDK 源码 ~491 MB + 工具链 ~495 MB + Python 包 ~212 MB。
+其中**工具链的绝大部分走 GitHub Releases**（`github.com/espressif/*/releases/download/...`），
+国内直连常常几 KB/s 甚至断流，是本环境最耗时的一环。下面的加速手段**已逐条实测**。
+
+**① 工具链：把 GitHub Releases 改走乐鑫国内站（效果最大）**
+
+```bash
+export IDF_GITHUB_ASSETS=dl.espressif.cn/github_assets   # 注意：不能带 https://
+cd $IDF_PATH && ./install.sh esp32s3
+```
+
+这个变量会把 `https://github.com/...` 整体替换成 `https://dl.espressif.cn/github_assets/...`。
+已实测该路径返回 **200**（xtensa-esp-elf、xtensa-esp-elf-gdb 均可下载）。
+
+> ⚠️ **两个坑**
+> - 值里**不能**出现 `://`，否则 `idf_tools.py` 会直接 `fatal` 退出。
+> - **不要**用 `IDF_MIRROR_PREFIX_MAP` 把 `dl.espressif.com` 映射到 `dl.espressif.cn`——
+>   实测国内站上没有 `/dl/...` 这份目录（cmake、xtensa 包都返回 404），改完反而全部下不来。
+>   国内站只镜像 `github_assets`。
+
+**② 只装 ESP32-S3 需要的工具（省 285 MB）**
+
+`./install.sh` 后面带 target 参数即可，跳过用不到的 RISC-V 工具链：
+
+```bash
+./install.sh esp32s3        # 而不是 ./install.sh all
+```
+
+**③ Python 包走清华源**
+
+```bash
+export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+**④ Node / npm 走 npmmirror**（只有改中文文案才需要）
+
+```bash
+npm config set registry https://registry.npmmirror.com
+npm i lv_font_conv
+```
+
+**⑤ 工具链离线预置（完全不联网的做法）**
+
+`idf_tools.py` 在下载前会先看 `~/.espressif/dist/` 里有没有**同名压缩包**：有且校验通过就打印
+`already downloaded` 直接跳过下载。所以可以把工具链放到自己的网站/内网，让用户下载后丢进这个目录：
+
+```
+~/.espressif/dist/
+├── xtensa-esp-elf-14.2.0_20241119-aarch64-apple-darwin.tar.xz
+├── xtensa-esp-elf-gdb-16.2_20250324-aarch64-apple-darwin21.1.tar.gz
+├── esp32ulp-elf-2.38_20240113-macos-arm64.tar.gz
+├── openocd-esp32-macos-arm64-0.12.0-esp32-20250422.tar.gz
+└── esp-rom-elfs-20241011.tar.gz
+```
+
+文件名必须与平台匹配（macOS / Linux / Windows 各一套），照抄自己机器上 `~/.espressif/dist/`
+里的现有文件名最保险。
+
+**⑥ ESP-IDF 源码怎么拿更快**
+
+官方仓库在 GitHub，Gitee 上**没有官方镜像**（第三方搬运仓库不可靠）。可选：
+
+- 用 `--depth 1` 浅克隆 + 浅子模块，体积可从 491 MB 降到约 200 MB；
+- 或先在一台网络好的机器上 `git clone --recursive` 完整拉下来，打成 tar 包放到自己的
+  网站/内网，让国内用户直接下载解压，然后 `export IDF_PATH=<解压路径>`。
+
+**⑦ LVGL 组件（98 MB）**
+
+首次编译时由组件管理器从 `components.espressif.com` 拉取。想完全离线，可以把
+`managed_components/lvgl__lvgl/` 整个目录打个包，让用户解压到工程根目录——组件管理器
+检测到已存在且 `dependencies.lock` 的 hash 匹配就不会重新下载。
+
+> 本工程对 LVGL 的 GIF 解码器有本地补丁，补丁放在 `main/patches/` 随源码提交，
+> 每次 CMake configure 自动覆盖到 `managed_components/`，所以离线拷贝组件也不会丢补丁。
 
 ---
 

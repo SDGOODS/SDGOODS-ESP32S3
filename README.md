@@ -104,10 +104,15 @@
 请先克隆这个仓库：https://github.com/SDGOODS/SDGOODS-ESP32S3
 然后按里面 docs/ENVIRONMENT.md 的要求，
 检查并配置这台电脑的开发环境。缺什么装什么，每一步都告诉我在做什么；
+如果我在国内，先按 docs/ENVIRONMENT.md 第 2.5 节配好国内镜像再装，
+别直接走 GitHub 下工具链（会很慢或断流）。
 装完跑一次环境检查，把结果汇总给我。
 ```
 
 AI 会自动检查并安装 Python、ESP-IDF 工具链与 USB 驱动，最后给你一份环境检查报告。过程中弹出的「是否允许」确认即可。
+
+> **国内用户**：装环境要下约 1.2 GB，工具链默认走 GitHub Releases，国内常常几 KB/s。
+> 让 AI 先读 `docs/ENVIRONMENT.md` 第 2.5 节配好国内镜像，能省下大把等待时间。
 
 **💻 开发者**
 
@@ -118,7 +123,7 @@ python3 tools/check_env.py     # 检查 Python / ESP-IDF / esptool，缺啥提�
 bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自动套用本仓库规范
 ```
 
-版本要求与手动安装步骤见 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)。
+版本要求与手动安装步骤见 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)；国内网络加速（镜像、离线包）见其中的第 2.5 节。
 
 ---
 
