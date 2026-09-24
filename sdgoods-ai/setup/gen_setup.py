@@ -5,7 +5,7 @@
 # 读 sdgoods-ai/catalog.json，生成 sdgoods-ai/setup/index.html：
 #   - 平台选择 + MCP 配置预览 + 「复制 MCP 配置」按钮（剪贴板）
 #   - 安装一行命令
-#   - 可浏览的「Agent 市场」卡片（6 Skill + 领域 Agent + MCP server）
+#   - 可浏览的「Agent 市场」卡片（7 Skill + 领域 Agent + MCP server）
 #
 # 生成的 index.html 是**自包含、离线可用**的（file:// 直接打开），同时作为
 # 谷仓 SDGOODS 开放平台网页端「复制 MCP 配置」按钮 / Agent 市场的客户端参考实现。

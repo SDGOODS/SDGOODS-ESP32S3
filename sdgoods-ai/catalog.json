@@ -73,6 +73,18 @@
       "trigger_en": "Chinese text / fonts / tofu / missing glyph"
     },
     {
+      "id": "sdgoods-config",
+      "title_zh": "固件配置索引",
+      "title_en": "Firmware config index",
+      "summary_zh": "集中索引固件配置文件：各配置项在哪个文件、各控制什么、哪些能改/不能改，以及常见改法（改工程名/产品名、开关截屏能力、改 GPIO 引脚、改 Flash/PSRAM/槽位数、加 Kconfig 选项）。改完必须整编。",
+      "summary_en": "Central index of firmware config files: which option lives in which file, what each controls, what is safe to edit, and common recipes (rename project, toggle screenshot, change GPIO, change flash/PSRAM/slots, add a Kconfig option). Rebuild after any change.",
+      "file": "sdgoods-ai/skills/sdgoods-config/SKILL.md",
+      "wraps": ["sdkconfig.defaults", "CMakeLists.txt", "components/sdgoods_board/include/board_pins.h", "components/sdgoods_board/Kconfig", "components/sdgoods_launcher/Kconfig"],
+      "platforms": ["workbuddy", "claude", "cursor", "generic"],
+      "trigger_zh": "配置 / 改引脚 / 改工程名 / 开截屏 / sdkconfig / CMakeLists / 分区表 / 哪里配置",
+      "trigger_en": "config / board pins / project name / enable screenshot / sdkconfig / CMakeLists / partition table / where is X configured"
+    },
+    {
       "id": "sdgoods-publish",
       "title_zh": "提交固件到开放平台",
       "title_en": "Publish firmware to open platform",
@@ -89,8 +101,8 @@
     "id": "sdgoods-dev",
     "title_zh": "二次开发领域 Agent",
     "title_en": "Dev domain agent",
-    "summary_zh": "把项目硬约束（两层边界、许可、联机铁律）与 6 个 Skill 固化成一个可复用角色。WorkBuddy 可作 Expert 包；Claude/Cursor 作 subagent 加载。",
-    "summary_en": "Bakes project hard rules (two-layer boundary, license, networking invariants) and the 6 Skills into a reusable role. Load as Expert pack in WorkBuddy, or subagent in Claude/Cursor.",
+    "summary_zh": "把项目硬约束（两层边界、许可、联机铁律）与 7 个 Skill 固化成一个可复用角色。WorkBuddy 可作 Expert 包；Claude/Cursor 作 subagent 加载。",
+    "summary_en": "Bakes project hard rules (two-layer boundary, license, networking invariants) and the 7 Skills into a reusable role. Load as Expert pack in WorkBuddy, or subagent in Claude/Cursor.",
     "file": "sdgoods-ai/agent/sdgoods-dev.md",
     "binds": [
       "sdgoods-check-env",
@@ -98,6 +110,7 @@
       "sdgoods-build-flash",
       "sdgoods-screenshot",
       "sdgoods-fonts",
+      "sdgoods-config",
       "sdgoods-publish"
     ],
     "platforms": ["workbuddy", "claude", "cursor", "generic"]

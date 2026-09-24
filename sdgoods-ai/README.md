@@ -10,12 +10,12 @@
 
 | 目录 | 内容 |
 |---|---|
-| `skills/` | 6 个**跨平台** Skill，封装 `tools/` 脚本与项目坑位 |
-| `agent/sdgoods-dev.md` | 领域 Agent 定义（内嵌 `AGENTS.md` 硬约束 + 绑定 6 个 Skill） |
+| `skills/` | 7 个**跨平台** Skill，封装 `tools/` 脚本与项目坑位 |
+| `agent/sdgoods-dev.md` | 领域 Agent 定义（内嵌 `AGENTS.md` 硬约束 + 绑定 7 个 Skill） |
 | `mcp/` | 连接开放平台 MCP 的**本地 server 实现**（`sdgoods-mcp-server/`，纯标准库客户端）+ 各平台配置样例（**不含任何密钥**） |
 | `install.sh` | 一键装到 WorkBuddy / Claude Code / Cursor（多平台） |
 
-## 6 个 Skill（跨平台通用）
+## 7 个 Skill（跨平台通用）
 
 | Skill | 封装的动作 | 关键回退 |
 |---|---|---|
@@ -24,6 +24,7 @@
 | `sdgoods-build-flash` | `tools/build.sh`（封装 env 坑）一键构建/烧录/监视 | 底层仍是 `idf.py build`+`flash`，但 env 坑（unset 三变量、保留 SESSION_ID、不 rm -rf build）已固化进脚本，AI/开发者一行即可 |
 | `sdgoods-screenshot` | 串口一键截屏 + 自动打开 PNG 给 AI「看图」 | 单张约 2~25s，UI 改动必做 |
 | `sdgoods-fonts` | 改中文后重跑 `gen_fonts.py` + `font_metrics.py` | 漏字=方框，圆屏弦宽校验 |
+| `sdgoods-config` | 固件配置文件集中索引（工程名/产品名、`board_pins.h`、`sdkconfig.defaults`、各 `Kconfig`、分区表边界、改后整编铁律） | 一张表说清「配置项在哪、能不能改」，避免改错文件 |
 | `sdgoods-publish` | 提交固件到开放平台 | 单 app.bin 应用包（平台自动补引导层）；能力检查定截图来源、逐条草稿问字段、三铁律（重编+1 / 删旧建新 / 审中可取消） |
 
 Skill 正文是平台无关的 Markdown，仅在安装时按目标平台落到不同位置、并生成对应形态的
@@ -92,7 +93,7 @@ bash sdgoods-ai/install.sh --dry-run
 
 | 文件 | 作用 |
 |---|---|
-| `catalog.json` | 工具包**机器可读清单**：6 Skill + Agent + MCP server（5 工具）+ 3 平台的落点 / 安装命令 / MCP 配置模板。开放平台「Agent 市场」与「复制 MCP 配置」按钮的**单一数据源**。 |
+| `catalog.json` | 工具包**机器可读清单**：7 Skill + Agent + MCP server（5 工具）+ 3 平台的落点 / 安装命令 / MCP 配置模板。开放平台「Agent 市场」与「复制 MCP 配置」按钮的**单一数据源**。 |
 | `setup/index.html` | 自包含离线页（`file://` 直接打开）：平台选择 + MCP 配置预览 + **「复制 MCP 配置」按钮**（剪贴板）+ 安装一行命令 + 可浏览的 Agent 市场卡片。同时是开放平台网页端的**客户端参考实现**。 |
 | `setup/gen_setup.py` | 从 `catalog.json` 重新生成 `setup/index.html`（改了清单后跑一次，勿手改 index.html）。 |
 | `setup/gen_config.py` | CLI：按平台输出 MCP 配置 JSON 与安装命令（`--platform=claude --json`）。开放平台后端可直接调用，拿到与前端一致的配置。 |

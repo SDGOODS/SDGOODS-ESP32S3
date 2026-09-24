@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# SDGOODS AI Toolkit · 多平台安装器 (Phase 2)
+# SDGOODS AI Toolkit · 多平台安装器 (Phase 4)
 # ----------------------------------------------------------------------------
 # 把 sdgoods-ai/skills/* 与各平台适配件装到用户本机，让各类 AI 编码助手
 # （WorkBuddy / Claude Code / Cursor）克隆本仓库后能立刻按规范开发谷仓次元屏。
@@ -104,7 +104,7 @@ gen_cursor_rule() {
     printf '4. 界面文案一律 `SDG_T("中文","English")`。\n'
     printf '5. 不要 `rm -rf build_xxx`，换新 build 目录名。\n'
     printf '\n'
-    printf '工具包（sdgoods-ai/skills/）：check-env / new-app / build-flash / screenshot / fonts / publish。需要时用 Read 读取对应 SKILL.md 按其步骤执行。\n'
+    printf '工具包（sdgoods-ai/skills/）：check-env / new-app / build-flash / screenshot / fonts / config / publish。需要时用 Read 读取对应 SKILL.md 按其步骤执行。\n'
   } > "$out"
   echo "  ✓ rule  -> $out"
 }
@@ -164,7 +164,7 @@ install_workbuddy() {
   local dst="$HOME/.workbuddy/skills"
   for d in "$SKILLS_SRC"/*/; do [ -d "$d" ] && install_skill "$d" "$dst"; done
   [ "$WITH_MCP" -eq 1 ] && install_mcp workbuddy
-  echo "  → 重启 WorkBuddy 后，6 个 Skill 即可被 AI 调用；领域 Agent 可作为 Expert 包加载 $AGENT_SRC"
+  echo "  → 重启 WorkBuddy 后，7 个 Skill 即可被 AI 调用；领域 Agent 可作为 Expert 包加载 $AGENT_SRC"
 }
 
 install_claude() {
