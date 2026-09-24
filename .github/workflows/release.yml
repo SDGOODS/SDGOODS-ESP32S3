@@ -24,7 +24,10 @@ jobs:
           path: '.'
 
       - name: Pack pure app image (platform auto-prepends bootloader)
-        run: python3 tools/pack_app.py -b build
+        # SDGOODS_EBADGE is the official seed project's own identity, so
+        # --allow-template-name is required to pass the "did you forget to
+        # rename project()?" guard (third parties must NOT use this flag).
+        run: python3 tools/pack_app.py --allow-template-name -b build
 
       - name: Generate checksums and flash manifest
         run: |
