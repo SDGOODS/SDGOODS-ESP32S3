@@ -51,9 +51,8 @@ git add README.md README_EN.md
 git commit -q -m "docs: gitee mirror README (仓库地址改为 Gitee)"
 git push --force "$PUSH_URL" "$BRANCH"
 
-# 3. 回退临时提交，恢复 GitHub 版
+# 3. 回退临时提交，恢复 GitHub 版（--hard：彻底丢弃替换，工作区+暂存区都还原）
 echo "→ 恢复 GitHub 版 README ..."
-git reset --soft HEAD~1
-git checkout -- README.md README_EN.md
+git reset --hard HEAD~1
 
 echo "✅ 已同步到 Gitee（https://${GITEE_REPO_PATH}），本地与 origin(GitHub) 仍为 GitHub 版 README。"
