@@ -63,7 +63,35 @@ source $IDF_PATH/export.sh
 ```
 
 激活后 `idf.py --version` 应显示 **v5.5.x**；若显示更早版本，请升级：
-`cd $IDF_PATH && git fetch && git checkout v5.5.0 && git submodule update --recursive`。
+`cd $IDF_PATH && git fetch && git checkout v5.5 && git submodule update --recursive`。
+
+### 方式 C：走国内镜像（国内用户推荐）
+
+乐鑫官方维护了 `esp-gitee-tools`，其中的 **jihu-mirror** 会把 GitHub 地址自动改写到极狐
+（`jihulab.com/esp-mirror`）镜像。设置完之后**照常 clone GitHub 地址**即可，主仓和 23 个
+子模块全部走国内：
+
+```bash
+# ① 拿官方工具
+git clone https://gitee.com/EspressifSystems/esp-gitee-tools.git ~/esp/esp-gitee-tools
+cd ~/esp/esp-gitee-tools && ./jihu-mirror.sh set        # 想恢复：./jihu-mirror.sh unset
+
+# ② 照常 clone GitHub 地址（URL 已被 git 自动替换成国内镜像）
+git clone -b v5.5 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+
+# ③ 用官方工具里的 install.sh 装工具链（不要用 IDF 自带的那个）
+cd ~/esp/esp-idf
+export EGT_PATH=~/esp/esp-gitee-tools
+$EGT_PATH/install.sh esp32s3
+```
+
+> ⚠️ **版本号别写 `v5.5.0`**：ESP-IDF v5.5 的首个标签就叫 **`v5.5`**（不存在 v5.5.0），
+> 之后才是 v5.5.1、v5.5.2……。`idf.py --version` 显示 `v5.5.0` 是正常的内部版本号。
+
+> ℹ️ **为什么官方镜像在极狐而不是 Gitee**：`esp-gitee-tools` 文档原话是
+> 「没有镜像到 gitee 的原因为 gitee 非企业账户不支持占用空间大的仓库」。
+> Gitee 社区版单仓库上限 **500 MB**、单文件 **50 MB**，而 ESP-IDF 加子模块远超这个量级。
+> 这也是本项目**不建议自建 Gitee 镜像**的原因——官方已经踩过同一个坑。
 
 ### 2.5 国内网络加速（国内用户强烈建议先做这一步）
 
@@ -127,20 +155,47 @@ npm i lv_font_conv
 
 **⑥ ESP-IDF 源码怎么拿更快**
 
-官方仓库在 GitHub，Gitee 上**没有官方镜像**（第三方搬运仓库不可靠）。可选：
+首选上面的 **方式 C（jihu-mirror）**，主仓 + 子模块一次搞定。此外可选：
 
-- 用 `--depth 1` 浅克隆 + 浅子模块，体积可从 491 MB 降到约 200 MB；
-- 或先在一台网络好的机器上 `git clone --recursive` 完整拉下来，打成 tar 包放到自己的
-  网站/内网，让国内用户直接下载解压，然后 `export IDF_PATH=<解压路径>`。
+- 用 `--depth 1` 浅克隆，体积可从 491 MB 降到约 200 MB；
+- 或先在一台网络好的机器上完整拉下来打成 tar 包放到自己的网站/内网，让国内用户下载解压，
+  然后 `export IDF_PATH=<解压路径>`。
 
-**⑦ LVGL 组件（98 MB）**
+**⑦ LVGL 组件（98 MB）的三种离线兜底**
 
-首次编译时由组件管理器从 `components.espressif.com` 拉取。想完全离线，可以把
-`managed_components/lvgl__lvgl/` 整个目录打个包，让用户解压到工程根目录——组件管理器
-检测到已存在且 `dependencies.lock` 的 hash 匹配就不会重新下载。
+首次编译由组件管理器从 `components.espressif.com`（乐鑫自有域名，**不走 GitHub**）拉取
+`lvgl/lvgl 8.3.11`。想完全离线，任选其一：
+
+**① 离线包解压（最简单）** — 在一台已编译通过的机器上打包：
+
+```bash
+python3 tools/pack_lvgl_offline.py      # 产出 dist/lvgl__lvgl_8.3.11.tar.gz
+```
+
+把这个包放到自己的网站/内网，国内用户下载后解压到**工程根目录**即可：
+
+```bash
+tar xzf lvgl__lvgl_8.3.11.tar.gz -C <工程目录>
+```
+
+组件管理器会比对 `dependencies.lock` 里的 `component_hash`（本工程锁定
+`948bff87…98015`），一致就跳过下载。
+
+**② 自建组件源** — 把打好的包放到自己的 HTTP 服务上，然后：
+
+```bash
+export IDF_COMPONENT_STORAGE_URL=https://你的域名/
+```
+
+组件管理器支持多源，用逗号分隔即可把自建源排在官方源前面。
+
+**③ 直接入库 `components/`** — 把 `lvgl__lvgl/` 复制到 `components/lvgl/`，并删掉
+`main/idf_component.yml` 里的 `lvgl/lvgl` 依赖。代价是仓库永久大 98 MB，且升级 LVGL
+要手动替换，一般不推荐。
 
 > 本工程对 LVGL 的 GIF 解码器有本地补丁，补丁放在 `main/patches/` 随源码提交，
-> 每次 CMake configure 自动覆盖到 `managed_components/`，所以离线拷贝组件也不会丢补丁。
+> 每次 CMake configure 自动覆盖到 `managed_components/`，所以上面三种方式都不会丢补丁。
+> 注意 `managed_components/` 已被 `.gitignore` 忽略，离线包**不进仓库**。
 
 ---
 
