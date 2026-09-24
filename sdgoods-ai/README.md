@@ -113,5 +113,5 @@ python3 sdgoods-ai/setup/gen_config.py --platform=claude --json
 ## 配套文档
 - 开发硬约束：根目录 [`AGENTS.md`](../../AGENTS.md)
 - 架构：`docs/ARCHITECTURE.md`
-- 发布：三种方式 `docs/PUBLISHING.md`
+- 发布：两条对外通道（MCP 令牌 / 网页手动）`docs/PUBLISHING.md`
 - 发布契约（REST / 字段表 / 两条 MCP 通道）：`docs/MCP_CONTRACT.md`

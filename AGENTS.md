@@ -457,12 +457,11 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
 [`docs/PUBLISHING.md`](docs/PUBLISHING.md)，REST 端点 / 字段表 / 两条 MCP 通道的区别见
 [`docs/MCP_CONTRACT.md`](docs/MCP_CONTRACT.md)，这里给 AI 最短路径。
 
-> ⚠️ **先定通道（两条鉴权互斥，别混用）**：
+> ⚠️ **先定通道（两条，鉴权互斥，别混用）**：
 > - **MCP 开发者令牌（`sdg_` 开头）—— 生产默认、AI 直推首选**。令牌在平台「个人中心 → 开发者令牌」生成。
 > - **网页手动** —— 人类自己上 [sdgoods.ai](https://sdgoods.ai) 传包填表，AI 不代推。
-> - **邮箱验证码 REST 登录（`login` + `publish`）—— 仅本地调试/可选**，生产环境**不要假设可登录**。
-> - 两条鉴权**不能混**：网站登录态 JWT 打 MCP 会 `-32001「仅接受开发者令牌」`，`sdg_` 令牌打 REST 会 `401`。
-> - 令牌失效时**向用户重新索取 `sdg_` 令牌**，绝不用邮箱 REST 绕过。
+> - **生产环境默认没有邮箱登录态**，`login`/`publish`（邮箱验证码 REST）只是内部联调参考，**不是对外发布通道**。
+> - 令牌失效时（`-32001`）**向用户重新索取 `sdg_` 令牌**，绝不用邮箱 REST 绕过。
 
 ### 推荐：MCP 令牌直推（`sdg_`，AI / CI 一键）
 
@@ -483,18 +482,5 @@ python3 tools/sdgoods_publish.py mcp-upload \
 列出自己的 `mcp-firmwares`、防砖校验 `mcp-download <id> --check-sha256 <本地sha256>`。
 全部子命令见 `python3 tools/sdgoods_publish.py --help`。
 
-### 可选：邮箱验证码 REST 登录（本地调试用）
-
-```bash
-export SDGOODS_API_BASE=https://sdgoods.ai/api
-python3 tools/sdgoods_publish.py login 你的邮箱@example.com   # 收 4 位码，refreshToken 缓存 ~/.sdgoods/credentials.json (600)
-python3 tools/sdgoods_publish.py publish --file dist/<项目名>_app.bin --name "..." --desc-zh "..." --desc-en "..." --category game --shots a.png
-```
-
-> ⚠️ 生产环境**默认没有登录态**，发布流程一律以 **MCP 令牌通道为默认**；REST 登录态仅本地栈可选，禁止假设生产可登录。
-
-不想要这个工具、直接调接口也行：`tools/sdgoods_publish.py` 就是「鉴权 →
-`POST /api/uploads/presign` 直传 → `POST /api/firmwares`」的纯标准库复刻，`docs/PUBLISHING.md`
-里有逐字段的 curl 示例。**注意**：服务端字段名是 `descZh` / `descEn`（不是 `desc`），
-`category` 必须是平台已有分类 slug（先 `GET /api/categories` 核对）。
+> 直接调接口的**内部参考**（邮箱验证码 `login` → presign 直传 → `POST /api/firmwares`）见 `docs/PUBLISHING.md` 文末「附」，仅供平台联调 / 自定义客户端，**不用于对外发布**。服务端字段名是 `descZh` / `descEn`（不是 `desc`），`category` 必须是平台已有分类 slug（先 `GET /api/categories` 核对）。
 

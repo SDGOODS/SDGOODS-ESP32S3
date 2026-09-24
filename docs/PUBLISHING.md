@@ -2,11 +2,11 @@
 
 你在这块谷仓次元屏（谷仓电子徽章）上做出来的固件，可以提交到
 **谷仓 SDGOODS 开放平台**（官网 **https://sdgoods.ai**）——开发者上传固件、其他用户浏览/下载/烧录的广场。
-本文给你三种提交方式，从「点网页」到「让 AI 一条命令帮你交」。
+本文给你**两条对外发布通道**（MCP 令牌直推 / 网页手动），文末附邮箱 REST 接口的**内部参考实现**。
 
 ## AI 发布流程（权威，照 `skills/sdgoods-publish/SKILL.md` 走）
 
-不想记下面三种方式？直接让 AI 助手按
+不想记下面两条通道？直接让 AI 助手按
 [`sdgoods-ai/skills/sdgoods-publish/SKILL.md`](../sdgoods-ai/skills/sdgoods-publish/SKILL.md)
 （v5.1 流程，本仓库发布唯一权威）走，全程自动：
 
@@ -99,47 +99,40 @@
 
 ---
 
-## 方式二：用命令行工具（AI 友好，推荐给开发者）
+## 方式二：MCP 开发者令牌直推（AI / CI 首选）
 
-仓库自带一个**纯标准库 Python** 小工具 `tools/sdgoods_publish.py`，无需 `pip install`。
-它完整复刻了网页端的提交链路，AI 助手也能直接调用它。
+> ⚠️ **对外发布只有两条通道：① MCP 开发者令牌（本节）② 网页手动（方式一）**。
+> 生产环境**默认没有邮箱登录态**，请勿用网站账号登录的 REST 接口发布（那套仅内部联调参考，见文末）。
 
-### 一次性登录
+用 `sdg_` 开发者令牌走平台托管 MCP，一条命令把固件直推上架。令牌在平台「个人中心 → 开发者令牌」生成（明文只显示一次）。
+
+### 保存令牌（只需一次）
 
 ```bash
-# 设置 API 基地址（和网页端同一个变量；生产环境见下方）
-export SDGOODS_API_BASE=https://sdgoods.ai/api
-
-python3 tools/sdgoods_publish.py login 你的邮箱@example.com
-# → 邮箱收到 4 位验证码，输入后即登录
-# → refreshToken 缓存在 ~/.sdgoods/credentials.json（权限 600）
+python3 tools/sdgoods_publish.py set-token "sdg_你的令牌"
+# 或临时用环境变量：export SDGOODS_DEV_TOKEN="sdg_你的令牌"
 ```
 
-登录只需一次。之后提交时工具会用缓存的 refreshToken 自动换新 accessToken，**无需再验证码**。
+### 打包 + 直推
 
-### 提交固件
-
-先校验并导出应用包（**不带地址**），再提交：
+先校验并导出应用包（**不带地址**），再上传：
 
 ```bash
 python3 tools/pack_app.py                    # → dist/SDGOODS_EBADGE_app.bin
 
-python3 tools/sdgoods_publish.py publish \
+python3 tools/sdgoods_publish.py mcp-upload \
   --file dist/SDGOODS_EBADGE_app.bin \
   --name "我的固件" \
   --desc-zh "一句话介绍这个固件能玩什么" \
   --desc-en "One-line intro of what this firmware does" \
   --category game \
-  --version v1.0.0 \
-  --hardware sdgoods \
-  --tags 飞机 联机 \
-  --shots shot1.png shot2.png \
-  --github https://github.com/you/your-fw
+  --shots shot1.png shot2.png
 ```
+
+提交后进入审核，过审即上架。**重新发布**先 `mcp-replace <旧id>`（下架→删除）再 `mcp-upload`，平台上同一 app 始终只有一条。
 
 > 工具会在**上传前**校验应用包（与 `pack_app.py` 同一套判据）：带地址的合并镜像
 > `merged.bin`、bootloader、别的芯片的固件、超过槽大小的固件，都会被直接拒绝。
-> 确实要跳过校验（**不推荐**）加 `--no-verify`。
 
 | 参数 | 说明 | 约束 |
 |---|---|---|
@@ -158,6 +151,12 @@ python3 tools/sdgoods_publish.py publish \
 
 > 📝 **标签（tags）默认不传**：v5.1 发布流程已把 `tags` 从用户字段清单移除，AI 提交时不询问、默认不传。CLI 仍支持 `--tags`，仅在你明确要打标签时手动加。
 
+### 令牌通道其它子命令
+
+`mcp-firmwares`（列出自己提交的固件）、`mcp-unpublish`（下架）、`mcp-delete`（删除草稿/被拒记录）、
+`mcp-download <id> --check-sha256 <本地sha256>`（拉平台刷机清单做防砖校验）、`mcp-whoami`（看令牌对应账号）。
+全部见 `python3 tools/sdgoods_publish.py --help`。
+
 分类 slug 取平台运行时的分类表，先查一下有哪些：
 
 ```bash
@@ -165,14 +164,13 @@ curl -s https://你的平台域名/api/categories
 # → {"categories":[{"slug":"game","nameZh":"游戏","nameEn":"Game"}, ...]}
 ```
 
-其他子命令：`whoami`（看当前登录用户）、`logout`（清本机凭据）。
-
 ---
 
-## 方式三：让 AI 直接调 REST API（无需任何工具）
+## 附：邮箱验证码 REST 接口（内部参考，非对外发布通道）
 
-如果你（或你的 AI 助手）不想装工具，直接照下面三步用 `curl`/任意 HTTP 客户端即可。
-`tools/sdgoods_publish.py` 就是这套流程的 Python 实现，可作为参考实现。
+> ⚠️ 下面这套 `login`/`publish`（邮箱验证码登录 + `POST /api/firmwares`）是**平台内部联调 / 自定义客户端的参考实现**，
+> **不是给最终用户/第三方开发者的发布通道**。对外发布请用上方的 **MCP 令牌** 或 **网页手动**。
+> `tools/sdgoods_publish.py` 仍保留这套命令，但仅用于本地栈联调。
 
 ### 第 1 步：登录拿 token
 
@@ -297,6 +295,7 @@ PC 端可用 `tools/screenshot_recv.py --caps` 直接验证设备能力：
 ## 给 AI 助手的速查
 
 - 开发固件：先读根目录 [`AGENTS.md`](AGENTS.md)（编译、两层边界、硬约束）和 [`README.md`](README.md)。
-- 提交固件：本文件三种方式任选；最快是 `tools/sdgoods_publish.py`（login 一次，publish 即可）。
+- 提交固件：**对外发布只有两条通道**——① MCP 令牌直推（`set-token "sdg_…"` + `mcp-upload`，推荐）② 网页手动。**生产默认无邮箱登录态，不要用 `login`/`publish` 的邮箱 REST 发布**（那套仅内部联调参考）。
+- 令牌失效（`-32001`）时向用户重新索取 `sdg_` 令牌，绝不用邮箱 REST 绕过。
 - 不要假设平台 API 基地址，从 `SDGOODS_API_BASE` 环境变量或用户处获取。
 - 分类 slug 必须真实存在，先 `GET /api/categories` 核对。

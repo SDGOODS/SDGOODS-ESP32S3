@@ -4,7 +4,7 @@
 > 集中写在一处，随仓库维护。平台后端不开源没关系——本仓库是**客户端**，只调用公开 REST API，
 > 不实现服务端逻辑、不含任何密钥。
 >
-> 配套：[`docs/PUBLISHING.md`](../docs/PUBLISHING.md)（三种提交方式 + curl 逐字段示例）、
+> 配套：[`docs/PUBLISHING.md`](../docs/PUBLISHING.md)（两条对外发布通道 + 邮箱 REST 内部参考 + curl 逐字段示例）、
 > [`tools/sdgoods_publish.py`](../tools/sdgoods_publish.py)（REST 客户端，唯一事实来源）、
 > [`sdgoods-ai/mcp/sdgoods-mcp-server/server.py`](../sdgoods-ai/mcp/sdgoods-mcp-server/server.py)
 > （本地 MCP server，包装上面的脚本）。

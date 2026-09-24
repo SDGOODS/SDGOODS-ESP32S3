@@ -236,7 +236,7 @@ git add -A && git commit -m "standalone: rename to MY_PRODUCT, slim to single ap
 
 ### Step 8 — 发布到开放平台
 
-指 [`docs/PUBLISHING.md`](../docs/PUBLISHING.md) 三种方式（网页 / CLI `sdgoods_publish.py` / MCP）；
+指 [`docs/PUBLISHING.md`](../docs/PUBLISHING.md) 两条对外通道（MCP 令牌直推 / 网页手动）；
 **发布前务必先跑 `python3 tools/publish_wizard.py check` 确认 bin 是最新编译版本**，再按
 [发布向导流程](../../sdgoods-ai/skills/sdgoods-publish/SKILL.md) 走：
 先自动准备提交截图（**在选发布方式之前，全程不询问用户**）——有设备且截图功能开启则 `flash` 烧最新固件 + `shot` 截首页；
