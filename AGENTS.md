@@ -455,35 +455,43 @@ python3 tools/screenshot_recv.py -p <串口> -o /tmp/shot.png -n 1 -t
 
 开发完、本地截屏自测通过后，把固件交到 **谷仓 SDGOODS 开放平台**（广场）。完整说明在
 [`docs/PUBLISHING.md`](docs/PUBLISHING.md)，REST 端点 / 字段表 / 两条 MCP 通道的区别见
-[`docs/MCP_CONTRACT.md`](docs/MCP_CONTRACT.md)，这里给 AI 最短路径：
+[`docs/MCP_CONTRACT.md`](docs/MCP_CONTRACT.md)，这里给 AI 最短路径。
 
-1. **一次性登录**（邮箱收 4 位码，refreshToken 缓存在 `~/.sdgoods/credentials.json`）：
+> ⚠️ **先定通道（两条鉴权互斥，别混用）**：
+> - **MCP 开发者令牌（`sdg_` 开头）—— 生产默认、AI 直推首选**。令牌在平台「个人中心 → 开发者令牌」生成。
+> - **网页手动** —— 人类自己上 [sdgoods.ai](https://sdgoods.ai) 传包填表，AI 不代推。
+> - **邮箱验证码 REST 登录（`login` + `publish`）—— 仅本地调试/可选**，生产环境**不要假设可登录**。
+> - 两条鉴权**不能混**：网站登录态 JWT 打 MCP 会 `-32001「仅接受开发者令牌」`，`sdg_` 令牌打 REST 会 `401`。
+> - 令牌失效时**向用户重新索取 `sdg_` 令牌**，绝不用邮箱 REST 绕过。
 
-   ```bash
-   export SDGOODS_API_BASE=https://sdgoods.ai/api
-   python3 tools/sdgoods_publish.py login 你的邮箱@example.com
-   ```
+### 推荐：MCP 令牌直推（`sdg_`，AI / CI 一键）
 
-2. **校验并导出应用包**（**必做**）。平台收的是**不带地址**的纯应用镜像 ——
-   地址由设备上的分区表决定，包不携带地址：
+```bash
+# 1) 保存开发者令牌（只需一次；或临时 export SDGOODS_DEV_TOKEN="sdg_..."）
+python3 tools/sdgoods_publish.py set-token "sdg_你的令牌"
 
-   ```bash
-   python3 tools/pack_app.py      # → dist/SDGOODS_EBADGE_app.bin（附 .json 元数据）
-   ```
+# 2) 校验并导出「不带地址」的应用包（必做，本地先挡掉 merged.bin/bootloader/分区表）
+python3 tools/pack_app.py      # → dist/<项目名>_app.bin（附 .json 元数据）
 
-   它会拦下：`merged.bin`（带地址的合并镜像，会把用户设备写砖）、bootloader、
-   分区表、别的芯片的固件、超过槽上限的固件。
+# 3) 直推（status 默认提审中，过审即上架）
+python3 tools/sdgoods_publish.py mcp-upload \
+  --file dist/<项目名>_app.bin --name "我的固件" --category game \
+  --desc-zh "中文简介" --desc-en "English intro" --shots shot1.png shot2.png
+```
 
-3. **提交**（自动用缓存的 refreshToken 换新 accessToken，无需再验证码）：
+重新发布先 `mcp-replace <旧id>`（下架→删除）再 `mcp-upload`；下架 `mcp-unpublish`、删除 `mcp-delete`、
+列出自己的 `mcp-firmwares`、防砖校验 `mcp-download <id> --check-sha256 <本地sha256>`。
+全部子命令见 `python3 tools/sdgoods_publish.py --help`。
 
-   ```bash
-   python3 tools/sdgoods_publish.py publish \
-     --file dist/SDGOODS_EBADGE_app.bin --name "我的固件" \
-     --desc-zh "中文简介" --desc-en "English intro" \
-     --category game --shots shot1.png shot2.png
-   ```
+### 可选：邮箱验证码 REST 登录（本地调试用）
 
-   `publish` 会上传前再校验一次同一个文件（判据与 `pack_app.py` 一致）。
+```bash
+export SDGOODS_API_BASE=https://sdgoods.ai/api
+python3 tools/sdgoods_publish.py login 你的邮箱@example.com   # 收 4 位码，refreshToken 缓存 ~/.sdgoods/credentials.json (600)
+python3 tools/sdgoods_publish.py publish --file dist/<项目名>_app.bin --name "..." --desc-zh "..." --desc-en "..." --category game --shots a.png
+```
+
+> ⚠️ 生产环境**默认没有登录态**，发布流程一律以 **MCP 令牌通道为默认**；REST 登录态仅本地栈可选，禁止假设生产可登录。
 
 不想要这个工具、直接调接口也行：`tools/sdgoods_publish.py` 就是「鉴权 →
 `POST /api/uploads/presign` 直传 → `POST /api/firmwares`」的纯标准库复刻，`docs/PUBLISHING.md`

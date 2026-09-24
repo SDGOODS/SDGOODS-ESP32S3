@@ -29,10 +29,11 @@
 
 > 🛠 **工具分工**：`tools/sdgoods_publish.py` 是提交/删除/替换的 CLI（`login` / `publish` / `publish --replace` / `delete` / `set-token <sdg_>` / `firmwares` / `whoami`）；`tools/pack_app.py` 导出单应用包 `dist/<项目>_app.bin`；真机烧录用 `esptool`、截屏用 `tools/screenshot_recv.py`。`tools/publish_wizard.py` 是**旧版可选助手**，已不推荐作为主流程。
 
-> **版本号（自动）**：本工程编译时 `components/sdgoods_launcher/tools/gen_app_info.py`
-> 会读 `version.txt`、末位 +1 并写回，同时生成 `sdgoods_app_info.h`（`SDGOODS_APP_VERSION` +
-> 编译时间 `__DATE__ __TIME__`），控制中心「关于」页即显示。**每次 `idf.py build` 后版本号必然已 +1**，
-> 发布时版本号一律取最新编译产物（`version.txt` / 二进制内 `esp_app_desc.version`），**由流程自动填入、不询问用户、不沿用旧记录版本**；编译时间随构建自动更新。
+> **版本号（手动改，不自动 +1）**：本工程编译时 `components/sdgoods_launcher/tools/gen_app_info.py`
+> 会读根目录 `version.txt`，**透传**（不做末位 +1）为 `SDGOODS_APP_VERSION`，与二进制里的
+> `esp_app_desc.version`（ESP-IDF `project()` 时读同一份 `version.txt` 注入）**同源、永远一致**。
+> 所以**发新版本时由开发者手动改 `version.txt` 再重新编译**（发布铁律①：改码必重编 + 版本号 +1）。
+> 发布时版本号一律取 `version.txt` / 二进制内 `esp_app_desc.version` 的当前值，**不询问用户、不沿用旧记录版本**；编译时间随构建自动更新。
 
 > 🔌 **AI / MCP 字段契约**：REST 端点、鉴权、字段表、两条 MCP 通道的区别，集中在
 > [`docs/MCP_CONTRACT.md`](docs/MCP_CONTRACT.md)（随仓库维护，平台后端不开源也能对齐）。
@@ -43,8 +44,7 @@
 > 这两条没接好，提交会被打回。本文只讲「怎么把固件交到平台」，端侧代码怎么写看 `APP_SDK.md`。
 
 > 本文里的 **API 基地址**统一记作 `https://你的平台域名/api`，
-> 对应网页端的环境变量 `SDGOODS_API_BASE`。生产环境即 `https://sdgoods.ai/api`；
-> 本地起后端调试时换成 `http://localhost:3000/api`。
+> 对应网页端的环境变量 `SDGOODS_API_BASE`。生产环境即 `https://sdgoods.ai/api`。
 
 > 📦 **交上去的是什么**：一份**不带地址**的纯应用镜像 —— 构建目录里的
 > `build/SDGOODS_EBADGE.bin`（此处 `SDGOODS_EBADGE` 是官方模板默认名；你的工程名 =

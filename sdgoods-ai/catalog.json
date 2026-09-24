@@ -128,7 +128,9 @@
     "tools": [
       { "id": "login", "sig": "login(email, code?)", "summary_zh": "邮箱验证码登录（两步）；凭据缓存本机 ~/.sdgoods/credentials.json (600)。", "summary_en": "Email-code login (two steps); creds cached locally at ~/.sdgoods/credentials.json (600)." },
       { "id": "list_categories", "sig": "list_categories()", "summary_zh": "列出平台合法分类 slug（提交前核对）。", "summary_en": "List valid category slugs (verify before publish)." },
-      { "id": "upload_firmware", "sig": "upload_firmware(file, name, category, desc_zh?, desc_en?, version?, hardware?, tags?, shots?, github?, draft?)", "summary_zh": "presign 直传 + 创建固件记录，返回固件 id。", "summary_en": "Presign upload + create firmware record, returns firmware id." },
+      { "id": "upload_firmware", "sig": "upload_firmware(file, name, category, desc_zh?, desc_en?, version?, hardware?, tags?, shots?, github?, draft?, firmware_id?)", "summary_zh": "presign 直传 + 创建固件记录（返回固件 id）；传 firmware_id 则走 PATCH 重新发布（覆盖旧记录，需令牌）。", "summary_en": "Presign upload + create firmware record (returns firmware id); pass firmware_id to PATCH-republish (overwrite old record, token required)." },
+      { "id": "list_my_firmwares", "sig": "list_my_firmwares()", "summary_zh": "列出自己提交的固件记录（重新发布前拿旧 id 当草稿）。", "summary_en": "List my own firmware records (fetch old id as draft before republishing)." },
+      { "id": "get_firmware", "sig": "get_firmware(firmware_id)", "summary_zh": "取单条固件记录（作重新发布的草稿）。", "summary_en": "Fetch one firmware record (as a draft for re-publishing)." },
       { "id": "whoami", "sig": "whoami()", "summary_zh": "当前登录用户。", "summary_en": "Current logged-in user." },
       { "id": "logout", "sig": "logout()", "summary_zh": "清除本机凭据。", "summary_en": "Clear local credentials." }
     ],

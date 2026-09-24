@@ -31,7 +31,8 @@
 | 2 | `0x0` 首字节 == `0xE9` | ESP 镜像魔数（bootloader 也是 `0xE9`，所以还要看第 3 项） |
 | 3 | `0x20` == `0xABCD5432` | app 描述结构 `esp_app_desc_t`，只有应用镜像才有 |
 | 4 | `0x0C` chip_id == `0x0009` | ESP32-S3（防止把别的芯片的固件传上来） |
-| 5 | 体积 ≤ 槽上限（默认 3 MB） | 超了会写穿到相邻槽，把别的应用弄坏 |
+| 5 | 体积 ≤ 槽上限（默认 2.9 MB，槽物理 3 MB 留余量） | 超了会写穿到相邻槽，把别的应用弄坏 |
+| 6 | 应用身份不是模板默认名（`SDGOODS_EBADGE` 等） | 否则 app_id 撞车、数据目录互串（急着跳过加 `--allow-template-name`，第三方不该用） |
 
 退出码：`0` 通过；`1` 校验失败；`2` 用法/文件错误。
 """
@@ -353,7 +354,7 @@ def build_parser():
     p.add_argument("-o", "--outdir", default="dist", help="导出目录（默认 dist/，相对仓库根）")
     p.add_argument("--name", help="导出文件名（默认 <项目名>_app.bin）")
     p.add_argument("--max-size", type=int, default=DEFAULT_SLOT_BYTES,
-                   help="槽上限字节数（默认 3145728 = 3 MB）")
+                   help="槽上限字节数（默认 2.9MB，与平台侧 SLOT_APP_MAX_BYTES 一致；槽物理 3MB 需留余量）")
     p.add_argument("--no-emit", action="store_true", help="只校验，不导出")
     p.add_argument("--allow-template-name", action="store_true",
                    help="允许 app 身份仍是模板默认名（第三方不该用；官方发布 demo 时才需要）")
