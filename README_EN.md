@@ -131,16 +131,17 @@ Version requirements and manual installation: [docs/ENVIRONMENT.md](docs/ENVIRON
 ```
 Follow the README and AGENTS.md specs at https://github.com/SDGOODS/SDGOODS-ESP32S3.
 Use tools/new_app_project.py to generate a standalone app project named HelloApp,
-build it, flash it to the connected SDGOODS Electronic Badge, and screenshot the device for me.
+change the on-screen greeting to Hello SDGOODS!, build it, flash it to the connected
+SDGOODS Electronic Badge, and screenshot the device for me.
 ```
 
 What you get is a **minimal app**: `Hello SDGOODS!` in the center of the round screen. On-device result:
 
-| First app · real device |
-|---|
-| ![First app: Hello SDGOODS!](screenshot/first-app-hello.jpg) |
+| First app · real device | Pull down from the top · control center (built into the template, zero code) |
+|---|---|
+| ![First app: Hello SDGOODS!](screenshot/first-app-hello.jpg) | ![Control center](screenshot/first-app-cc.jpg) |
 
-Seeing this screen means you have completed the whole chain — **generate → build → flash → verify on hardware** (well under 10 minutes).
+Seeing the left screen means you have completed the whole chain — **generate → build → flash → verify on hardware** (well under 10 minutes). The control center on the right ships with the platform template — volume, brightness, screenshot, and the About page all work out of the box; your app gets them for free.
 
 **💻 Developer**
 
@@ -225,8 +226,19 @@ Once development is done and verified on hardware, you're ready to publish. Two 
 
 **👤 Non-developer**
 
-- **Let the AI publish for you**: tell the AI "publish this app to the SDGOODS Open Platform". It will guide you to generate a `sdg_` developer token in the platform's developer settings (paste it to the AI once), then automatically package → upload → fill in name / description / screenshots → submit for review. Once approved, it's live.
-- **Publish on the web yourself**: open [sdgoods.ai](https://sdgoods.ai) → upload the compiled `dist/<name>_app.bin` → fill in name / description / category → upload screenshots (or click "Capture from device" to grab a real-device shot) → submit for review.
+**Let the AI publish for you (recommended)** — send this to the AI:
+
+```
+Please publish HelloApp to the SDGOODS Open Platform for me.
+I'll generate a developer token starting with sdg_ in the platform's developer
+settings and paste it to you; you take care of packaging the firmware, filling in
+the name / description / category, attaching screenshots, and submitting it for
+review. Report the result back to me when done.
+```
+
+The AI will first guide you to generate a `sdg_` developer token in the platform's developer settings (paste it to the AI once), then automatically package → upload → fill in name / description / screenshots → submit for review. Once approved, it's live.
+
+**Publish on the web yourself**: first tell the AI "package HelloApp into an uploadable app.bin for me", then open [sdgoods.ai](https://sdgoods.ai) → upload the packaged `dist/<name>_app.bin` → fill in name / description / category → upload screenshots (or click "Capture from device" to grab a real-device shot) → submit for review.
 
 **💻 Developer (MCP token push, ideal for AI / CI)**
 
