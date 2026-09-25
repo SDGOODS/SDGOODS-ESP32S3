@@ -74,8 +74,20 @@ def _ver_tuple(s):
     return tuple(int(x) if x is not None else 0 for x in m.groups())
 
 
-def _ok(text):
-    return "\033[32m[OK]\033[0m  " if sys.stdout.isatty() else "[OK]  " + text
+# 分步进度的标记（status -> 图标/文字）
+_MARK = {"OK": "[OK] ", "FAIL": "[XX] ", "WARN": "[!!] ", "INFO": "[ii] "}
+
+
+def _progress(stream, idx, total, name, status=None, detail=None):
+    """往 stream 打一行进度。status 为空 = 开始；否则 = 该项结果。"""
+    if stream is None:
+        return
+    if status is None:
+        print("[%d/%d] %s ..." % (idx, total, name), file=stream, flush=True)
+    else:
+        first = (detail or "").split("\n")[0]
+        print("%s[%d/%d] %-22s %s" % (_MARK.get(status, "[??]"), idx, total, name, first),
+              file=stream, flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -113,8 +125,13 @@ def check_idf():
     rc, out = _run([sys.executable, idf_py, "--version"])
     if rc != 0 or not out:
         # 能找到 idf.py 但跑不起来，多半是没 source 环境
+        base = hint or "ESP-IDF 已存在但当前 shell 未初始化；请 `source <ESP-IDF>/export.sh` 后重试。"
+        # 解包安装的 ESP-IDF（目录里没有 .git）用 export.sh 会静默失效，
+        # 实测有效的替代是把 idf_tools.py export 的输出 eval 进当前 shell。
         return "FAIL", "已安装但未激活", \
-            (hint or "ESP-IDF 已存在但当前 shell 未初始化；请 `source <ESP-IDF>/export.sh` 后重试。")
+            base + "\n若 export.sh 无效（解包版 ESP-IDF 无 .git，会静默失败）：\n" \
+            "    eval \"$(python3 $IDF_PATH/tools/idf_tools.py export --format=key-value)\"\n" \
+            "    export IDF_PATH=$HOME/esp/esp-idf   # 未设置时补上"
     m = re.search(r"ESP-IDF\s+v?(\d+\.\d+\.\d+)", out)
     ver = m.group(1) if m else "?"
     vt = _ver_tuple(ver)
@@ -193,21 +210,34 @@ def check_serial_driver():
 def main():
     ap = argparse.ArgumentParser(description="检查 SDGOODS-ESP32S3 固件开发环境")
     ap.add_argument("--json", action="store_true", help="输出 JSON（供 AI/CI 解析）")
+    ap.add_argument("--no-progress", action="store_true",
+                    help="关闭分步进度输出（只给最终结论）")
     args = ap.parse_args()
 
-    checks = [
-        ("python3", "MUST", check_python()),
-        ("ESP-IDF", "MUST", check_idf()),
-        ("esptool", "MUST", check_esptool()),
-        ("git",     "WARN", check_git()),
-        ("node/npm（字体工具链）", "WARN", check_node_npm()),
-        ("编译产物", "INFO", check_build_artifact()),
-        ("烧录串口", "INFO", check_serial_driver()),
+    # 注意：这里存的是函数本身，不是调用结果 —— 延迟执行才能边跑边报进度。
+    plan = [
+        ("python3", "MUST", check_python),
+        ("ESP-IDF", "MUST", check_idf),
+        ("esptool", "MUST", check_esptool),
+        ("git",     "WARN", check_git),
+        ("node/npm（字体工具链）", "WARN", check_node_npm),
+        ("编译产物", "INFO", check_build_artifact),
+        ("烧录串口", "INFO", check_serial_driver),
     ]
+    total = len(plan)
+    # --json 时 stdout 必须只有 JSON，进度走 stderr；人类模式进度就在 stdout。
+    out = None if args.no_progress else (sys.stderr if args.json else sys.stdout)
+
+    if out is not None:
+        print("SDGOODS-ESP32S3 开发环境检查：共 %d 项，通常 3-10 秒 "
+              "（idf.py / esptool 首次冷启动各可能到 20 秒上限）" % total, file=out, flush=True)
 
     results = []
     n_fail = 0
-    for name, level, (status, detail, hint, *_rest) in checks:
+    for idx, (name, level, fn) in enumerate(plan, 1):
+        _progress(out, idx, total, name)
+        status, detail, hint, *_rest = fn()
+        _progress(out, idx, total, name, status, detail)
         results.append({"name": name, "level": level, "status": status,
                         "detail": detail, "hint": hint})
         if status == "FAIL":
@@ -217,16 +247,18 @@ def main():
         print(json.dumps({"fail": n_fail, "checks": results}, ensure_ascii=False, indent=2))
         return 1 if n_fail else 0
 
-    # 人类可读表格
-    print("SDGOODS-ESP32S3 开发环境检查")
-    print("=" * 56)
-    tag = {"OK": "OK ", "FAIL": "XX ", "WARN": "!! ", "INFO": "ii "}
-    for r in results:
-        print("  [%s] %-22s %s" % (tag.get(r["status"], "? "), r["name"], r["detail"]))
-        if r["hint"]:
-            for line in r["hint"].split("\n"):
-                print("        %s" % line)
-    print("=" * 56)
+    # 人类可读：上面已逐行报过结果，这里只补 hint 与结论，避免重复刷屏
+    if out is not None:
+        pending = [r for r in results if r["hint"] and r["status"] != "OK"]
+        if pending:
+            print("-" * 56)
+            print("待处理 / 提示：")
+            for r in pending:
+                print("  %s %s：%s" % (_MARK.get(r["status"], "").strip() or "[  ]",
+                                       r["name"], r["detail"]))
+                for line in r["hint"].split("\n"):
+                    print("      %s" % line)
+        print("-" * 56)
     if n_fail:
         print("✗ 有 %d 项 MUST 缺失，无法编译/烧录。先按上面提示补齐。" % n_fail)
         print("  详见 docs/ENVIRONMENT.md")
