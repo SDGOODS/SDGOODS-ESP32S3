@@ -260,8 +260,9 @@ python3 tools/screenshot_recv.py -p /dev/cu.usbmodemXXXX -o shot.png -n 1 -t
 - 例外说明：主页顶部的产品名写成 `SDG_T("谷仓次元屏", "SDGOODS E-BADGE")` ——
   这**不是翻译**，而是产品在英文语境下的**官方名称**（E-BADGE = Electronic Badge）。
   品牌标识类文案要改，先看 `TRADEMARK.md`。
-- 联系方式（`SDGOODS_CONTACT_EMAIL`）在关于页与开机串口横幅里各显示一次：
-  只拿到一颗烧好的芯片也能找到源头。宏定义在 `main/gen_build_version.cmake`，
+- 联系方式（`SDGOODS_CONTACT_EMAIL`）**只在开机串口横幅里打印一次**：
+  只拿到一颗烧好的芯片也能找到源头。**关于页不展示邮箱**——按产品口径那里只显示
+  官网 `SDGOODS_HOMEPAGE`。宏定义在 `main/gen_build_version.cmake`，
   不要在别处另写邮箱字面量。
 
 ### 切换语言后界面怎么更新
