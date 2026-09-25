@@ -9,9 +9,13 @@
 > **最快确认方式**：直接跑本仓库自带的检查脚本，它会逐项告诉你缺什么、怎么装：
 >
 > ```bash
-> python3 tools/check_env.py            # 人类可读表格
-> python3 tools/check_env.py --json     # 给 AI / CI 解析的结构化输出
+> python3 tools/check_env.py            # 人类可读 + 分步进度（推荐）
+> python3 tools/check_env.py --json     # 给 AI / CI 解析的结构化输出（进度走 stderr）
+> python3 tools/check_env.py --no-progress   # 只给结论
 > ```
+>
+> 脚本共 7 项，通常 3–10 秒；运行过程中会逐条打印
+> `[k/7] python3 ...` → `[OK] [k/7] python3  python3 3.13.12`，不会长时间无回显。
 >
 > 退出码 `0` = 可编译；`1` = 有必需项缺失。
 >
