@@ -46,13 +46,39 @@ echo "→ 生成 Gitee 版 README ..."
 python3 tools/_rewrite_readme_remote.py gitee
 
 # 2. 提交并推送到 Gitee（--force：Gitee 是镜像，历史以本地/权威源为准）
+#
+# ⚠️ 关键：末尾「回退临时提交」必须无条件执行。若任由 `set -e` 在 push 失败时直接退出，
+#    本地 main 会停在临时提交上，README 变 Gitee 版 —— 权威源就被污染了（踩过一次：
+#    网络 Recv failure 时 push 失败 → 脚本退出 → 本地停在 gitee mirror 提交）。
+#    所以这里用 if 包住 push 使其失败不上抛，走到第 3 步统一还原后再决定是否报错退出。
+#
+# ⚠️ 另一个坑：第 3 步是 reset --hard，会**丢掉所有未提交的工作区改动**（包括对本脚本
+#    的编辑自己）。改本脚本后务必先 commit 再运行，否则改动会被自己抹掉。
 echo "→ 提交临时替换并推送到 Gitee ..."
 git add README.md README_EN.md
 git commit -q -m "docs: gitee mirror README (仓库地址改为 Gitee)"
-git push --force "$PUSH_URL" "$BRANCH"
+
+PUSHED=0
+for attempt in 1 2 3; do
+  if git push --force "$PUSH_URL" "$BRANCH"; then
+    PUSHED=1
+    break
+  fi
+  if [ "$attempt" -lt 3 ]; then
+    echo "  第 ${attempt} 次推送失败，10 秒后重试 ..."
+    sleep 10
+  else
+    echo "  第 ${attempt} 次推送失败"
+  fi
+done
 
 # 3. 回退临时提交，恢复 GitHub 版（--hard：彻底丢弃替换，工作区+暂存区都还原）
 echo "→ 恢复 GitHub 版 README ..."
 git reset --hard HEAD~1
+
+if [ "$PUSHED" -ne 1 ]; then
+  echo "✗ 推送 Gitee 失败：本地已还原为 GitHub 版，历史干净，稍后重跑本脚本即可。" >&2
+  exit 1
+fi
 
 echo "✅ 已同步到 Gitee（https://${GITEE_REPO_PATH}），本地与 origin(GitHub) 仍为 GitHub 版 README。"
