@@ -10,7 +10,7 @@
 > 均归**深圳希德创新网络有限公司（SDGOODS）**所有。
 > 改代码时**不要删掉文件头的版权 / Required Notice 声明** —— 那是许可生效条件（见第 8 节清单）。
 >
-> **联系**：官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `zhangzuoliang321@126.com`（商业授权 / 报 bug / 合作统一走这个邮箱）。
+> **联系**：官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `karl@sdgoods.ai`（商业授权 / 报 bug / 合作统一走这个邮箱）。
 > 固件里带着它们（开机串口横幅打印官网与邮箱；**关于页显示官网、不展示邮箱**，按产品口径），
 > 宏是 `SDGOODS_HOMEPAGE` / `SDGOODS_CONTACT_EMAIL`，定义在 `main/gen_build_version.cmake`
 > —— 不要在别处另写字面量。

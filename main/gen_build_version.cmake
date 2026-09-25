@@ -28,7 +28,7 @@ file(WRITE "${_out}"
 "/* 联系邮箱：对外统一入口（商业授权、报 bug、合作）。\n"
 "   关于页会显示它 —— 只拿到一颗烧好的芯片也能找到源头。\n"
 "   改这里就全改，不要在源码里另写别的邮箱字面量。 */\n"
-"#define SDGOODS_CONTACT_EMAIL \"zhangzuoliang321@126.com\"\n"
+"#define SDGOODS_CONTACT_EMAIL \"karl@sdgoods.ai\"\n"
 "#define SDGOODS_LICENSE_TAG  \"个人免费 · 商用需授权\"\n"
 "/* 英文界面的许可标签（品牌名与公司名不翻译，见 sdgoods_i18n.h 的说明）。
    注意长度：这句单行要 327px，而圆屏在它所在的高度只剩约 291px 宽，

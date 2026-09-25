@@ -10,7 +10,7 @@
 > This repository is the base project for second development on the **SDGOODS Electronic Badge** device.
 > Copyright and related rights belong to **Shenzhen Seed Innovation Network Co., Ltd. (SDGOODS)**.
 > The code is freely usable under this repository's license, but the **project name, product name, and SDGOODS marks are NOT covered by the code license** (see [TRADEMARK.md](TRADEMARK.md)).
-> Website [https://sdgoods.ai](https://sdgoods.ai) · Email `zhangzuoliang321@126.com`.
+> Website [https://sdgoods.ai](https://sdgoods.ai) · Email `karl@sdgoods.ai`.
 
 ---
 
@@ -343,7 +343,7 @@ This project (platform layer and app layer) is released under **Apache-2.0**: fr
 ## Contact
 
 - **Website / Open Platform**: [https://sdgoods.ai](https://sdgoods.ai)
-- **Email**: `zhangzuoliang321@126.com` — commercial licensing, bug reports, partnerships
+- **Email**: `karl@sdgoods.ai` — commercial licensing, bug reports, partnerships
 
 ---
 

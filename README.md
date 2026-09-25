@@ -10,7 +10,7 @@
 > 本工程是谷仓次元屏（谷仓电子徽章）设备的二次开发基础工程，
 > 著作权及相关权利归 **深圳希德创新网络有限公司（SDGOODS）** 所有。
 > 代码按本仓库许可自由使用，但 **项目名、产品名与 SDGOODS 标识不在代码许可授权范围内**（见 [TRADEMARK.md](TRADEMARK.md)）。
-> 官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `zhangzuoliang321@126.com`。
+> 官网 [https://sdgoods.ai](https://sdgoods.ai) · 邮箱 `karl@sdgoods.ai`。
 
 ---
 
@@ -346,7 +346,7 @@ LICENSING.md  TRADEMARK.md  NOTICE  LICENSE
 ## 联系
 
 - **官网 / 开放平台**：[https://sdgoods.ai](https://sdgoods.ai)
-- **邮箱**：`zhangzuoliang321@126.com` —— 商业授权、报 bug、合作都走这个邮箱
+- **邮箱**：`karl@sdgoods.ai` —— 商业授权、报 bug、合作都走这个邮箱
 
 ---
 

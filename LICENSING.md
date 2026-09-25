@@ -70,7 +70,7 @@
 
 ## 联系
 
-有授权或商标方面的疑问，发邮件：**zhangzuoliang321@126.com**
+有授权或商标方面的疑问，发邮件：**karl@sdgoods.ai**
 
 官网：[https://sdgoods.ai](https://sdgoods.ai)
 
