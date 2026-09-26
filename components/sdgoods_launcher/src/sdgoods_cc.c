@@ -75,9 +75,21 @@ typedef enum {
     CC_ICON_BAT,   /* 电量（电池电压） */
     CC_ICON_INFO,  /* 关于 */
     CC_ICON_HOME,  /* 返回主页（小鸟游戏上下文下的第 5 键） */
+    CC_ICON_SET,   /* 设置（二级设置页入口，把声音/亮度/数据/电池收进去） */
 } cc_icon_t;
 
-static lv_color32_t s_cc_icon_buf[6][CC_ICON_SZ * CC_ICON_SZ];
+/* 图标缓冲槽位数：一级控制中心最多 3 个图标（设置/关于/电源）+ 设置二级页最多 4 个
+ * （声音/亮度/数据/电池），留 1 个余量。缓冲区是静态池、不动态分配 ⇒ 没有失败路径，
+ * 但也意味着**同屏图标总数不能超过 8**（按钮创建处按同一个 8 收口）。 */
+static lv_color32_t s_cc_icon_buf[8][CC_ICON_SZ * CC_ICON_SZ];
+
+/* 图标缓冲槽的「页基线」：sdgoods_cc_open() 建一级页时把 s_cc_icon_n 归零并记下本基数，
+ * 一级页的 N 个按钮就从 [base, base+N) 各占一个槽；设置二级页固定从 base+N 开始。
+ * 🔴 绝不允许在打开二级页 / 返回时把 s_cc_icon_n 归零：一级页的按钮**不会被销毁**，
+ * 它们的画布仍指向自己那个静态槽 —— 一归零，二级页的图标就会原地覆盖一级页的，
+ * 「进设置 → 返回」之后一级页三个按钮的图标全变成二级页的（实测 bug，2026-09-27 修）。
+ * 正确做法像现在这样：每页各占各的槽，二级页每次重建都从 base+N 重新分配（永不回落）。 */
+static int s_cc_icon_base = 0;
 static int s_cc_icon_n = 0;
 
 /* 控制中心的应用上下文：由应用层在进入 / 离开某 app 时设置（如小鸟游戏隐藏部分按钮、
@@ -257,6 +269,27 @@ static void cc_icon_draw(lv_obj_t *canvas, cc_icon_t kind)
         lv_canvas_draw_rect(canvas, 20, 30, 8, 9, &door);
         break;
     }
+
+    case CC_ICON_SET: {
+        /* 齿轮：空心外圈 + 中心方孔 + 8 个外齿（「设置」图标） */
+        lv_draw_arc_dsc_t ring;
+        lv_draw_arc_dsc_init(&ring);
+        ring.color = lv_color_white();
+        ring.width = 4;
+        ring.opa = LV_OPA_COVER;
+        lv_canvas_draw_arc(canvas, 24, 24, 18, 0, 360, &ring);   /* 外圈（r=18） */
+        lv_canvas_draw_rect(canvas, 20, 20, 8, 8, &fill);        /* 中心方孔 */
+        for (int i = 0; i < 8; i++) {
+            int32_t a = i * 45;
+            int32_t s = lv_trigo_sin(a);
+            int32_t c = lv_trigo_cos(a);
+            /* 同上：±32767 必须 >> LV_TRIGO_SHIFT(15) 归一化，否则齿会飞出画布。 */
+            lv_coord_t cx = (lv_coord_t)(24 + ((21 * c) >> LV_TRIGO_SHIFT));
+            lv_coord_t cy = (lv_coord_t)(24 + ((21 * s) >> LV_TRIGO_SHIFT));
+            lv_canvas_draw_rect(canvas, cx - 3, cy - 3, 6, 6, &fill);
+        }
+        break;
+    }
     default:
         break;
     }
@@ -274,6 +307,7 @@ static const char *s_slider_title = "?";
 static lv_obj_t *s_data = NULL;   /* 数据二级页（与滑块页平级，可同时存在） */
 static lv_obj_t *s_volt = NULL;   /* 电量二级页（同上） */
 static lv_obj_t *s_about = NULL;  /* 关于二级页 */
+static lv_obj_t *s_set = NULL;    /* 设置二级页（声音/亮度/数据/电池的收口页，与上面三者平级） */
 
 /* 滑块页的当前应用到回调与数值标签（同一时刻仅一个滑块页，用静态量足够） */
 static void (*s_apply)(int) = NULL;
@@ -284,7 +318,11 @@ void sdgoods_cc_close(void);
 
 /* 点按守卫上下文池：每个按钮一份（静态存储，不做动态分配 ⇒ 没有失败路径）。
  * 每次重建控制中心时把 s_btn_ctx_n 归零重新分配。 */
-#define CC_BTN_MAX 6
+/* 8 = 一级控制中心最多 3 个（设置/关于/电源）+ 设置二级页最多 4 个（声音/亮度/数据/电池）
+ * + 1 个余量。⚠️ 两个页面**共用**这张静态池：一级页的守卫上下文在 set_back 之后仍然有效
+ * （还有用），所以打开设置页时**不能**把 s_btn_ctx_n 归零 —— 那会覆盖一级页已绑定的槽位，
+ * 导致「回控制中心后点按钮触发错动作」。池子够大 ⇒ 各占各的，互不踩。 */
+#define CC_BTN_MAX 8
 static sdgoods_tap_ctx_t s_btn_ctx[CC_BTN_MAX];
 static int               s_btn_ctx_n = 0;
 
@@ -308,7 +346,7 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, int cx, int cy, int d,
 
     if (icon != CC_ICON_NONE) {
         int slot = s_cc_icon_n;
-        if (slot >= 6) slot = 5;   /* 最多 6 个图标缓冲槽（VOL/BRI/DATA/BAT/PWR/INFO） */
+        if (slot >= 8) slot = 7;   /* 图标缓冲槽上限 8（见 s_cc_icon_buf 的容量说明） */
         s_cc_icon_n++;
         lv_obj_t *cv = lv_canvas_create(btn);
         lv_canvas_set_buffer(cv, s_cc_icon_buf[slot], CC_ICON_SZ, CC_ICON_SZ,
@@ -340,7 +378,7 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, int cx, int cy, int d,
         /* 走点按守卫：只有「按下期间位移 ≤ 24px」才真的触发动作。
          * 这样「按在按钮上滑走再松手」（无论滑到别的按钮还是页面空白）都不会误触。 */
         int slot = (s_btn_ctx_n < CC_BTN_MAX) ? s_btn_ctx_n : (CC_BTN_MAX - 1);
-        s_btn_ctx_n++;
+        s_btn_ctx_n++;      /* 池子扩到 8 → 一级 3 + 设置页 4 各占各的，不会互相覆盖 */
         sdgoods_tap_bind(btn, &s_btn_ctx[slot], cb, ud);
     }
     return btn;
@@ -379,19 +417,21 @@ static void make_bottom_hint(lv_obj_t *parent)
  * 默认 60（用户要求：派生应用 / 控制中心默认亮度 60%）。 */
 static uint8_t s_bri_user = 60;
 
-/* 持久化亮度的下限（滑块本身仍是 0~100 全范围，只是**不把 0~4 记成偏好**）。
+/* 🔴 **亮度滑块的最小可调值 = 1%，拖不到 0（用户 2026-09-27 要求）**。
  *
- * 为什么必须有个下限：数值上 0 与「临时熄灭」完全一样（开机动画期 / 息屏 / 关机前），
- * 而**用户拖滑块经过最左端**也是 0 —— 那一刻若防抖定时器正好落盘，0 就进了 NVS。
- * 下次开机 restore 把背光按成 0 ⇒ 用户看到**黑屏**，并且**在屏上无法自救**
- * （连亮度滑块都看不见，只能靠重新烧写/清 NVS）。这是不可恢复的坏状态，
- * 所以宁可牺牲「把亮度存成 0」这个没人真正需要的偏好。
+ * 为什么不能留 0：0% 与「临时熄灭」在数值上完全无法区分（开机动画期 / 息屏 / 关机前
+ * 背光本来就是 0）。用户一旦把滑块拖到最左端存成 0，下次开机就是**黑屏**，
+ * 而且**屏上没有任何自救手段**（连控制中心都看不见，只能重新烧写或清 NVS）。
+ * 1% 虽然极暗，但面板还有余光 ⇒ 用户看得见界面、能自己调回来。
  *
- * 规则两条（写侧 + 读侧配套，缺一不可）：
- *   · 写：s_bri_user < 下限 ⇒ **跳过不写**，NVS 里保留上一次正常值；
- *   · 读：NVS 里的值 < 下限 ⇒ 视为**无效记录**（旧版污染留下的 0），保持默认不覆盖。
- * 5% 的亮度仍然很暗（夜里看着像黑），但屏上内容可辨 ⇒ 用户能自己调回来。 */
-#define CC_BRI_PERSIST_MIN 5
+ * 两条配套规则（写侧 + 读侧，缺一不可）：
+ *   · 滑块：`lv_slider_set_range(sl, CC_BRI_MIN, 100)` ⇒ 用户**根本拖不到** 0；
+ *     apply_backlight() 也按同一下限钳位（防调试键等旁路路径直接传 0）。
+ *   · 读：NVS 里的值 < 下限仍视为**无效记录**（旧版污染留下的 0），保持默认不覆盖。
+ * 于是「写侧跳过不写」那条已经不再必要（滑块最低 1 永远满足下限），
+ * 但保留 CC_BRI_PERSIST_MIN 与它同名，是为了读侧那道防旧数据的护栏不受影响。 */
+#define CC_BRI_MIN 1
+#define CC_BRI_PERSIST_MIN CC_BRI_MIN
 
 /* 把当前音量 / 亮度写入 NVS（关机断电前必须已落盘，故变更后防抖 + 关页/关机即时落盘）。
  * ⚠️ 必须先 sdgoods_nvs_ensure()：控制中心现在是**每个 app 默认自带**的能力，而最小 app
@@ -409,8 +449,10 @@ static void cc_settings_save(void)
     /* ⚠️ 存 s_bri_user（用户意图值）而不是 sdgoods_lcd_get_backlight()（瞬时值）——
      *    后者在开机动画 / 息屏 / 关机前都是 0，会把「临时熄灭」当成用户偏好写进 NVS
      *    ⇒ 下次开机 restore 成 0 ⇒ **黑屏**。详见 s_bri_user / CC_BRI_PERSIST_MIN。
-     * ⚠️ 低于下限时**跳过写入**（而不是钳到下限）：钳位会凭空造出一个 5% 的「偏好」，
-     *    而跳过能让 NVS 里保留的更早的正常值继续生效 —— 那才是用户真正的设置。 */
+     * ⚠️ 低于下限时**跳过写入**（而不是钳到下限）：钳位会凭空造出一个「偏好」，
+     *    而跳过能让 NVS 里保留的更早的正常值继续生效 —— 那才是用户真正的设置。
+     *    滑块最低 1% ⇒ 这条几乎不会触发；它现在只兜住「旁路路径传进来的 0」
+     *    （调试入口、将来有人放开滑块下限等），读侧那道旧数据护栏才是主力。 */
     const bool bri_ok = (s_bri_user >= CC_BRI_PERSIST_MIN);
     if (bri_ok) {
         nvs_set_u8(h, CC_NVS_KEY_BRI, s_bri_user);
@@ -566,7 +608,9 @@ static void slider_back(void)
     }
 }
 
-static void open_slider(const char *title, int init, void (*apply)(int))
+/* min = 滑块可拖到的**最小值**（含）：音量传 0（静音是有效值），亮度传 CC_BRI_MIN（1，
+ * 见 CC_BRI_MIN 的说明 —— 拖到 0 会存成「用户偏好 0」⇒ 下次开机黑屏且屏上无法自救）。 */
+static void open_slider(const char *title, int min, int init, void (*apply)(int))
 {
     if (s_slider) {
         lv_obj_del(s_slider);
@@ -578,7 +622,10 @@ static void open_slider(const char *title, int init, void (*apply)(int))
      * 为什么要打这一行：`slider[...] value -> N%` 只在**拖动时**触发，所以「当前实际亮度
      * 是多少」在串口上是取不到的 —— 而「从 app 返回启动器后亮度变成 80」这类问题，
      * 唯一的机器可读判据就是它。没有它就只能靠肉眼看截图。 */
-    ESP_LOGI(TAG, "slider page '%s' opened, init=%d%% (live)", s_slider_title, init);
+    /* 亮度页打上下限：真机排查「拖到最左端会不会黑屏」时，日志里必须能看出
+     * 这页的滑块是从 1 起的（init 还可能因为息屏/开机动画是 0，别把它当下限的证据）。 */
+    ESP_LOGI(TAG, "slider page '%s' opened, init=%d%% (live), range=%d..100",
+             s_slider_title, init, min);
 
     lv_obj_t *scr = lv_scr_act();
     s_slider = lv_obj_create(scr);
@@ -605,12 +652,19 @@ static void open_slider(const char *title, int init, void (*apply)(int))
     lv_obj_set_style_text_color(s_val_label, lv_color_white(), 0);
     lv_obj_align(s_val_label, LV_ALIGN_TOP_MID, 0, 72);   /* 维持与标题的间距 */
 
-    /* 横向滑块（left→right）：0 在左、100 在右 */
+    /* 横向滑块（left→right）：min 在左、100 在右。
+     * ⚠️ 必须按 min 设区间，不能设 0 再靠 apply 侧钳位 —— 滑块自己会显示到 0 位置，
+     *    用户拖过去那一下就是「存 0」；区间从 1 起，最左端本身就是 1。 */
+    if (min < 0) {
+        min = 0;
+    } else if (min > 100) {
+        min = 100;
+    }
     lv_obj_t *sl = lv_slider_create(s_slider);
     lv_obj_set_size(sl, 240, 24);
     lv_obj_align(sl, LV_ALIGN_CENTER, 0, 0);
-    lv_slider_set_range(sl, 0, 100);
-    lv_slider_set_value(sl, init, LV_ANIM_OFF);
+    lv_slider_set_range(sl, min, 100);
+    lv_slider_set_value(sl, init < min ? min : init, LV_ANIM_OFF);
     lv_obj_add_event_cb(sl, slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     /* 底部小横条：提示「从底部往上滑返回主页」 */
@@ -631,8 +685,11 @@ static void open_slider(const char *title, int init, void (*apply)(int))
 
 static void apply_backlight(int v)
 {
-    if (v < 0) {
-        v = 0;
+    /* 下限用 CC_BRI_MIN（1）而不是 0：滑块区间已经是 1..100，这里再钳一次是防
+     * **旁路路径**绕过滑块（调试入口、将来有人放开滑块区间）把 0 设进来 —— 0 会被
+     * 存成「用户偏好」，下次开机 restore 就是黑屏。上限 100 保持不变。 */
+    if (v < CC_BRI_MIN) {
+        v = CC_BRI_MIN;
     } else if (v > 100) {
         v = 100;
     }
@@ -660,13 +717,13 @@ static void apply_backlight(int v)
 static void open_vol_async(void *p)
 {
     (void)p;
-    open_slider("Volume", sdgoods_audio_get_volume(), sdgoods_audio_set_volume);
+    open_slider("Volume", 0, sdgoods_audio_get_volume(), sdgoods_audio_set_volume);
 }
 
 static void open_bri_async(void *p)
 {
     (void)p;
-    open_slider("Brightness", sdgoods_lcd_get_backlight(), apply_backlight);
+    open_slider("Brightness", CC_BRI_MIN, sdgoods_lcd_get_backlight(), apply_backlight);
 }
 
 static void pwr_off_async(void *p)
@@ -1065,7 +1122,7 @@ static void debug_open_slider_async(void *p)
     (void)p;
     sdgoods_cc_close();
     sdgoods_cc_open();
-    open_slider("Volume", sdgoods_audio_get_volume(), sdgoods_audio_set_volume);
+    open_slider("Volume", 0, sdgoods_audio_get_volume(), sdgoods_audio_set_volume);
 }
 
 /* which=4：**亮度**滑块页（2026-09-19 新增）。
@@ -1077,7 +1134,7 @@ static void debug_open_bri_async(void *p)
     (void)p;
     sdgoods_cc_close();
     sdgoods_cc_open();
-    open_slider("Brightness", sdgoods_lcd_get_backlight(), apply_backlight);
+    open_slider("Brightness", CC_BRI_MIN, sdgoods_lcd_get_backlight(), apply_backlight);
 }
 
 void sdgoods_cc_debug_open(int which)
@@ -1100,6 +1157,84 @@ static void on_data_click(lv_event_t *e)
     lv_async_call(open_data_async, NULL);
 }
 
+/* ---- 设置二级页 -----------------------------------------------------------
+ * 2026-09-26 用户口径：控制中心一级只留「设置 / 关于 / Power」三个键，
+ * 声音、亮度、数据、电池四项收进「设置」的二级页。二级页沿用控制中心原有的
+ * 两行圆按钮布局（上排 3 + 下排 1），几何坐标与现有一级页完全沿用（已验证在圆内）。
+ * 各项动作直接复用已有的 tap_* 适配器（它们内部都走 lv_async_call 延到下一拍执行，
+ * 避免在输入事件回调里同步改对象树）。 */
+
+static void set_back(void)
+{
+    if (s_set) {
+        lv_obj_del(s_set);
+        s_set = NULL;
+    }
+    /* 🔴 这里**不能**把 s_cc_icon_n 归零：一级控制中心那三个按钮没有被销毁，
+     * 它们仍指着 [base, base+3) 的静态画布槽。归零只会让「下次进设置」重新从 0 分配，
+     * 于是设置页的 Volume/Brightness/Data 又写回一级页的槽 —— 图标串味的老 bug。
+     * 计数就停在本页末尾即可：open_set() 每次都会重新设回 base+3。 */
+}
+
+static void open_set(void)
+{
+    if (s_set) {
+        lv_obj_del(s_set);
+        s_set = NULL;
+    }
+    lv_obj_t *scr = lv_scr_act();
+    s_set = lv_obj_create(scr);
+    lv_obj_set_size(s_set, 360, 360);
+    lv_obj_set_pos(s_set, 0, 0);
+    lv_obj_set_style_bg_color(s_set, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_set, LV_OPA_COVER, 0);   /* 不透明：独立二级页 */
+    lv_obj_set_style_border_width(s_set, 0, 0);
+    lv_obj_set_style_pad_all(s_set, 0, 0);
+    lv_obj_clear_flag(s_set, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_move_foreground(s_set);
+
+    lv_obj_t *t = lv_label_create(s_set);
+    lv_label_set_text(t, "Settings");
+    lv_obj_set_style_text_font(t, &si_yuan_black_icon_16, 0);
+    lv_obj_set_style_text_color(t, lv_color_white(), 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);   /* 与其它二级页标题同高 */
+
+    /* 图标槽从「一级页之后」重新分配，绝不回到 0 —— 一级页那 3 个按钮没被销毁、
+     * 仍指着 [base, base+3) 的画布槽，回落就会把它们的图标就地改写掉（见 s_cc_icon_base 注释）。
+     * 设置页 4 键 ⇒ 用到 base+3..base+6，池子 8 足够（一级 3 + 设置 4 + 1 余量）。 */
+    s_cc_icon_n = s_cc_icon_base + 3;
+
+    /* 两行布局（x / 直径 68 与一级页同源，圆内几何已验证）：
+     *   上排：Volume / Brightness / Data（x = 84 / 180 / 276，cy = 130）
+     *   下排：Battery（x = 84 保持靠左，与首列对齐；cy = 230）
+     * 2026-09-27 用户口径：下排不居中（仍靠左），但要让**按钮块上下居中**。
+     * 按钮块（只算圆按钮，不含 caption）高 = 68×2 = 136，垂直居中 ⇒ 占 96..264（中心 180），
+     * 上排 cy = 96+34 = **130**、下排 cy = 264-34 = **230**。
+     * 两行圆心距 100 ⇒ 上排 caption 底 187、下排按钮顶 196，净空 9px，互不遮挡。
+     * 圆内校验：按钮最远点 |OC|+r —— (84,130) 96.6 距圆心… 取 (84,230)：
+     *   sqrt(96²+50²) = 108.2，+34 = 142.2 ✓ < 180；(276,230) 同 ✓；
+     * 下排 caption "Battery" 左下角约 (56,287)，距圆心 sqrt(124²+107²) = 163.8 ✓ < 180。
+     * 行距：上排 caption 底 = 130+34+6+17 = 187，下排按钮顶 = 196 ⇒ 净空 9px，不遮挡。 */
+    make_round_btn(s_set, 84,  130, 68, CC_ICON_VOL,  "Volume",     tap_vol,  NULL);
+    make_round_btn(s_set, 180, 130, 68, CC_ICON_BRI,  "Brightness", tap_bri,  NULL);
+    make_round_btn(s_set, 276, 130, 68, CC_ICON_DATA, "Data",       tap_data, NULL);
+    make_round_btn(s_set, 84,  230, 68, CC_ICON_BAT,  "Battery",    tap_bat,  NULL);
+
+    make_bottom_hint(s_set);
+
+    /* 从底部横条处上滑 → 直接返回主页（关掉设置页 + 一级控制中心） */
+    sdgoods_swipe_up_bind(s_set, sdgoods_cc_close);
+    /* 从最左边起手左→右滑 → 只关设置页、回到一级控制中心 */
+    sdgoods_swipe_back_bind(s_set, set_back);
+    sdgoods_tap_normalize(s_set);
+}
+
+static void open_set_async(void *p) { (void)p; open_set(); }
+
+static void on_set_click(lv_event_t *e) { (void)e; lv_async_call(open_set_async, NULL); }
+
+static void tap_set(void *ud) { (void)ud; ESP_LOGI(TAG, "tap: Settings"); on_set_click(NULL); }
+
 /* 系统浮层开 / 关状态：用于给应用外壳发 pause / resume 通知，并避免重复通知。 */
 static bool s_overlay_open = false;
 
@@ -1121,8 +1256,12 @@ void sdgoods_cc_close(void)
      *
      * 语义上也本该如此：落盘的目的是「把用户在 CC 里挂起的调节先存下来」，
      * 没有开着的浮层就说明没有任何挂起调节。 */
-    if (s_cc || s_slider || s_data || s_volt) {
+    if (s_cc || s_slider || s_data || s_volt || s_set) {
         sdgoods_cc_flush();   /* 返回主页前落盘（避免随后立即断电丢最近调节） */
+    }
+    if (s_set) {
+        lv_obj_del(s_set);
+        s_set = NULL;
     }
     if (s_volt) {
         lv_obj_del(s_volt);
@@ -1277,6 +1416,7 @@ void sdgoods_cc_open(void)
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);   /* 与首页标题同高 */
 
     s_cc_icon_n = 0;   /* 重置图标缓冲槽位，每个按钮各占一个 */
+    s_cc_icon_base = 0;   /* 页基线：一级页固定从槽 0 起、设置页从槽 3 起（见 s_cc_icon_base 注释） */
 
     /* 应用上下文：小鸟游戏下隐藏 Data / Battery / About，第 5 键改成「返回主页」。 */
     const bool bird = (s_app_ctx == SDGOODS_CC_CTX_BIRD);
@@ -1287,29 +1427,32 @@ void sdgoods_cc_open(void)
         make_round_btn(s_cc, 180, 169, 68, CC_ICON_BRI,  "Brightness", tap_bri, NULL);
         make_round_btn(s_cc, 276, 169, 68, CC_ICON_HOME, "Home",    tap_home, NULL);
     } else {
-        /* 上排 3 个 + 下排 2 个【左对齐】，整块（图标 + caption）在圆内左右、上下都居中：
-         *   上排：Volume / Brightness / Data（x = 84 / 180 / 276，cy = 118）
-         *   下排：Battery / Power（x = 84 / 180，与首列对齐；「关机」固定排最后，误触代价最大）
-         * 整块包围盒：y 84..275（上留白 84 / 下留白 85，上下居中）；
-         *             x 50..310（中心 180，左右居中）。直径 68（较上一版 76 收小）。
-         * ⚠️ 行距必须留出 caption 高度：caption 用 OUT_BOTTOM_MID +6 挂按钮下缘（约 17px 高），
-         * 上排 caption 底 175，下排按钮上缘 184 -> 9px 净空，互不遮挡（曾因行距过小被盖住）。
-         * 圆内校验（贴 360² 圆屏，别靠肉眼）：上排最远点 |OC|+r = 114.3+34 = 148.3 < 180 ✓；
-         * 下排 (84,218) 137.2 ✓、(180,218) 72.0 ✓；"Battery" caption 左下角 (59,275) 距圆心 153.8 ✓。 */
-        make_round_btn(s_cc, 84,  118, 68, CC_ICON_VOL,  "Volume",     tap_vol,  NULL);
-        make_round_btn(s_cc, 180, 118, 68, CC_ICON_BRI,  "Brightness", tap_bri,  NULL);
-        make_round_btn(s_cc, 276, 118, 68, CC_ICON_DATA, "Data",       tap_data, NULL);
-        make_round_btn(s_cc, 84,  218, 68, CC_ICON_BAT,  "Battery",    tap_bat,  NULL);
-        /* ⚠️ 第 5 个按钮不能用「设备模式 == MULTI」来选语义：启动器自己也是 MULTI，
+        /* 2026-09-26 用户口径：一级控制中心只保留「设置 / 关于 / Power」三个键，
+         * 声音、亮度、数据、电池四项全部收进「设置」的二级页（见 open_set）。
+         * 排列沿用原来「下排」那一行（三个键左对齐、整块在圆内左右居中）：
+         *   Settings(84) / About(180) / Power or Exit(276)，cy = 218，直径 68。
+         * 圆内校验（贴 360² 圆屏，别靠肉眼）：|OC|+r —— (84,218) 137.2 ✓、(180,218) 72.0 ✓、
+         * (276,218) 137.2 ✓ 均 < 180；caption 用 OUT_BOTTOM_MID +6 挂在按钮下缘
+         * （约 17px 高，底边 y≈275），最远角约 150 < 180 ✓。
+         * ⚠️ 「关机 / Exit」固定排在最右：误触代价最大。
+         * ⚠️ 第 3 个按钮不能用「设备模式 == MULTI」来选语义：启动器自己也是 MULTI，
          *    但它要的是关机。判据必须是「本固件是不是被启动器管理的 app」：
          *    从 ota_N 启动 ⇒ 被管理 ⇒ 提供 Exit（重启才回得去启动器）；
          *    从 factory 启动（启动器宿主 / 单应用主机固件）⇒ 提供 Power（关机）。 */
+        /* 2026-09-27 用户口径：三个键**整块（按钮 + caption）垂直居中**。
+         * 整块高 = 68（按钮）+ 6（间距）+ ~17（caption）= 91px ⇒ 上下留白各 (360-91)/2 = 134.5，
+         * 按钮圆心 cy = 134.5 + 34 = 168.5 ≈ 169（与小鸟上下文那排同一几何，见上分支）。
+         * x 仍是 84 / 180 / 276（相邻圆心距 96、直径 68 ⇒ 间隙 28，整块宽 260，左右留白对称）。
+         * 圆内校验（贴 360² 圆屏，别靠肉眼）：按钮最远点 |OC|+r —— (84,169) 96.6+34 = 130.6 ✓、
+         * (180,169) 11+34 = 45 ✓、(276,169) 130.6 ✓，均 < 180。
+         * caption "Settings" 左下角约 (56,226)，距圆心 sqrt(124²+46²) = 132.3 ✓ < 180。
+         * 上下不打架：上排按钮顶 135（标题 "Control Center" 在 y≈40 以下，✓）；
+         * 下排 caption 底 ≈226（底部 "SINGLE/MULTI" 小字在 y≈316，✓）。 */
+        make_round_btn(s_cc, 84,  169, 68, CC_ICON_SET,  "Settings", tap_set, NULL);
+        make_round_btn(s_cc, 180, 169, 68, CC_ICON_INFO, "About", tap_about, NULL);
         const bool managed_app = sdgoods_device_is_managed_app();
-        make_round_btn(s_cc, 276, 218, 68, CC_ICON_PWR, managed_app ? "Exit" : "Power",
+        make_round_btn(s_cc, 276, 169, 68, CC_ICON_PWR, managed_app ? "Exit" : "Power",
                        managed_app ? tap_exit : tap_pwr, NULL);
-        /* 第 6 个按钮：About（关于）——显示 app 名称 / 版本 / 编译时间 / 包大小 / 安装槽（多应用）。
-         * 与 Power 互换了位置：About 在中间(180,218)，Power 在最右(276,218)。 */
-        make_round_btn(s_cc, 180, 218, 68, CC_ICON_INFO, "About", tap_about, NULL);
     }
 
     /* 底部小横条：提示「从底部往上滑返回主页」 */
@@ -1348,7 +1491,7 @@ void sdgoods_cc_open(void)
 
 bool sdgoods_cc_is_open(void)
 {
-    return s_cc != NULL || s_slider != NULL || s_data != NULL || s_volt != NULL;
+    return s_cc != NULL || s_slider != NULL || s_data != NULL || s_volt != NULL || s_set != NULL;
 }
 
 bool sdgoods_cc_power_short(void)

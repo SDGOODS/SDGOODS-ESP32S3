@@ -12,17 +12,15 @@
 """sdgoods_publish —— 把固件和固件信息提交到「谷仓 SDGOODS 开放平台」
 
 纯标准库实现（Python 3.8+，无需 pip install），既给人用，也方便 AI 助手直接调用。
-配合谷仓次元屏（SDGOODS-ESP32S3）固件开发使用。
+配合谷仓次元屏（SDGOODS-ESP32S3）固件开发使用：
 
-对外发布只有两条通道：MCP 开发者令牌（推荐）与网页手动。本工具的推荐用法是令牌通道：
+    # 1) 一次性登录（邮箱收 4 位验证码，refreshToken 会缓存在本机）
+    python3 tools/sdgoods_publish.py login you@example.com
 
-    # 1) 一次性保存开发者令牌（sdg_ 开头，平台「个人中心 → 开发者令牌」生成，明文只显示一次）
-    python3 tools/sdgoods_publish.py set-token "sdg_你的令牌"
-    # 或临时用环境变量：export SDGOODS_DEV_TOKEN="sdg_你的令牌"
-
-    # 2) 先导出并校验应用包（必须是「不带地址」的纯 app 镜像）：
+    # 2) 提交固件（截图可选，最多 4 张）
+    #    先导出并校验应用包（必须是「不带地址」的纯 app 镜像）：
     #    python3 tools/pack_app.py
-    python3 tools/sdgoods_publish.py mcp-upload \
+    python3 tools/sdgoods_publish.py publish \
         --file dist/SDGOODS_EBADGE_app.bin \
         --name "我的固件" \
         --desc-zh "一句话介绍这个固件" \
@@ -31,13 +29,14 @@
         --shots shot1.png shot2.png \
         --github https://github.com/you/your-fw
 
-其他令牌通道子命令：mcp-firmwares（列出自己提交的）、mcp-replace <旧id>（删旧重建）、
-mcp-unpublish（下架）、mcp-delete（删除）、mcp-download <id> --check-sha256 <本地sha256>（防砖校验）。
-全部见 `python3 tools/sdgoods_publish.py --help` 与 docs/PUBLISHING.md。
-
-> 附注：本工具还保留了邮箱验证码 REST 通道（login / publish / whoami / logout），
-> 仅用于平台联调/内部参考，**不是对外的发布通道**——生产环境默认没有邮箱登录态，
-> 对外发布一律走 sdg_ 开发者令牌（MCP）或网页手动。
+# 3) 更新**已上架**的固件（保住 id / downloads / flashes，不要先删旧记录）：
+#    a) 改信息：平台更新接口 PATCH /api/firmwares/:id（需网站登录态，见 login）
+#    b) 重新提审：MCP submit_firmware（只收 draft，故 published 要先 mcp-unpublish）
+#    python3 tools/sdgoods_publish.py publish --id <旧id> --file dist/xx_app.bin \
+#        --name "我的固件" --version v1.0.1 --category game --desc-zh "..." --desc-en "..." --shots a.jpg
+#    python3 tools/sdgoods_publish.py mcp-unpublish <旧id>
+#    python3 tools/sdgoods_publish.py mcp-submit <旧id>
+#    注：MCP 的 8 个工具里没有「改固件」工具，改信息这一步只能走 REST PATCH。
 
 上传前本工具会校验应用包（与 tools/pack_app.py 同一套判据）：
 必须是纯 app 镜像 —— 带地址的合并镜像（merged.bin）会被直接拒绝，
@@ -45,7 +44,10 @@ mcp-unpublish（下架）、mcp-delete（删除）、mcp-download <id> --check-s
 确实要跳过校验（不推荐）：加 --no-verify。
 
 API 基地址：环境变量 SDGOODS_API_BASE（与网页端约定一致），或 --api 参数。
-例如生产环境：  export SDGOODS_API_BASE=https://sdgoods.ai/api
+例如生产环境：  export SDGOODS_API_BASE=https://你的平台域名/api
+
+想完全不用本工具、让 AI 直接调接口？见 docs/PUBLISHING.md 的 curl 示例，
+本文件就是那套 REST API 的忠实复刻（鉴权→presign→PUT→POST）。
 """
 
 import argparse
@@ -382,6 +384,103 @@ def mcp_delete(base, token, fw_id):
     return mcp_call(base, token, "tools/call", {"name": "delete_firmware", "arguments": {"id": fw_id}})
 
 
+def mcp_submit(base, token, fw_id):
+    """令牌通道「重新提审」（MCP submit_firmware）：draft → reviewing。
+
+    更新已上架固件后就是靠它走新一轮审核的（2026-09-27 新增）。
+    ⚠️ 它只收 **draft**（描述写明「把指定 id 的固件（草稿）提交审核」），
+    所以更新一条 published 记录后，若状态仍是 published，
+    必须先 `mcp-unpublish <id>` 把它退回 draft 再提审。
+    """
+    return mcp_call(base, token, "tools/call", {"name": "submit_firmware", "arguments": {"id": fw_id}})
+
+
+def mcp_update_firmware(base, token, fw_id, *, file=None, name=None, category=None,
+                        desc_zh=None, desc_en=None, version=None, hardware=None,
+                        tags=None, shots=None, github=None, parts=None):
+    """通过平台托管 MCP（令牌通道）**原地更新**已有固件（update_firmware）。
+
+    与 upload_firmware 的关键差异（2026-09-27 平台新增该工具后才成立）：
+      · **所有字段可选，只传要改的那些** ⇒ 没给的字段**不会被清空**（与 PATCH 同语义）；
+      · id 必填，旧 **id / downloads / flashes / 上架时间 / 审核记录全部保留** —— 这正是
+        它存在的理由，也是「更新优先」替代「删旧建新」的依据；
+      · shots 是**整组替换**：`shots is None` = 完全不动；`[]` = 清空现有截图；非空 = 覆盖。
+        想保留旧图就不要传这个参数；想清掉就显式传空列表；给了一组就是这一组。
+      · ⚠️ **审核中（reviewing）不可改** —— 平台会拒绝，必须先
+        `mcp-unpublish <id>` 撤回提审（reviewing → draft）再改。
+      · ⚠️ **已上架（published）改内容会立刻对市场与 OTA 生效**（与网页改稿一致）。
+        若想让新版本重新过一轮审核，改完之后 `mcp-unpublish` → `mcp-submit`。
+      · 状态与上下架不在这里改 —— 一律用 submit_firmware / unpublish_firmware。
+      · version 平台会自动补 `v` 前缀；不传则取工程 version.txt。
+    返回平台回应的固件记录（dict，已 JSON 解析）。
+    """
+    a = {"id": fw_id}
+
+    if file:
+        if not os.path.isfile(file):
+            raise RuntimeError("固件文件不存在：%s" % file)
+        with open(file, "rb") as f:
+            a["contentBase64"] = base64.b64encode(f.read()).decode("ascii")
+
+    if parts:
+        a["parts"] = parts
+
+    # shots：None = 完全不动；否则整组替换（含空列表 = 清空）
+    if shots is not None:
+        shot_b64 = []
+        for s in shots[:4]:
+            if not os.path.isfile(s):
+                raise RuntimeError("截图文件不存在：%s" % s)
+            with open(s, "rb") as f:
+                shot_b64.append(base64.b64encode(f.read()).decode("ascii"))
+        a["shots"] = shot_b64
+
+    if not version:
+        version = _read_project_version(file) if file else None
+    if name:
+        a["name"] = name
+    if category:
+        a["category"] = category
+    if hardware:
+        a["hardware"] = hardware
+    if version:
+        a["version"] = version
+    if desc_zh:
+        a["descZh"] = desc_zh
+    if desc_en:
+        a["descEn"] = desc_en
+    if tags is not None:
+        a["tags"] = tags          # 传空数组 = 清空标签
+    if github is not None:
+        a["githubUrl"] = github   # 传空字符串 = 清空
+
+    text = mcp_call(base, token, "tools/call",
+                    {"name": "update_firmware", "arguments": a})
+    try:
+        return json.loads(text)
+    except Exception:
+        return {"raw": text}
+
+
+def mcp_rest_get_firmware(base, token, fw_id):
+    """带开发者令牌读单条固件（实测 GET /api/firmwares/:id 用 sdg_ 令牌可通，200）。
+
+    返回体是 `{"firmware": {...}}`（不是平铺），本函数直接返回里面的 firmware 对象，
+    字段为 camelCase：status / version / downloads / flashes / hardware / category / shots…
+    用途：mcp-update 之前预检状态 —— 审核中（reviewing）改不动，提前拦比等平台报错清楚。
+    """
+    req = urllib.request.Request(
+        base.rstrip("/") + "/firmwares/" + fw_id,
+        headers={"Authorization": "Bearer " + token})
+    # 走无代理直连（生产是正式网，代理不可达）
+    op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    r = op.open(req, timeout=30)
+    obj = json.loads(r.read().decode("utf-8", "replace"))
+    if isinstance(obj, dict) and isinstance(obj.get("firmware"), dict):
+        return obj["firmware"]
+    return obj
+
+
 def mcp_download(base, token, fw_id, *, mode=None):
     """令牌通道拉刷机清单（防砖验证）：返回 parts 地址/sha256 + declared。
 
@@ -424,6 +523,82 @@ def cmd_mcp_upload(args):
         sys.exit(1)
     fid = fw.get("id") if isinstance(fw, dict) else None
     print("提交成功（令牌通道）！固件 id=%s，状态：REVIEWING（提审中）。" % (fid or "?"))
+    print(json.dumps(fw, ensure_ascii=False, indent=2))
+
+
+def cmd_mcp_submit(args):
+    """令牌通道重新提审：draft → reviewing（更新已上架固件后走它）。"""
+    base = _api_base(args)
+    token = _load_token()
+    if not token:
+        sys.stderr.write("未配置开发者令牌（set-token / SDGOODS_DEV_TOKEN）。\n")
+        sys.exit(1)
+    try:
+        print(mcp_submit(base, token, args.id))
+    except RuntimeError as e:
+        sys.stderr.write("MCP 提审失败：%s\n" % e)
+        sys.exit(1)
+
+
+def cmd_mcp_update(args):
+    """令牌通道原地更新（update_firmware）：保留 id/downloads/flashes，改后才重新提审。"""
+    base = _api_base(args)
+    token = _load_token()
+    if not token:
+        sys.stderr.write("未配置开发者令牌（set-token / SDGOODS_DEV_TOKEN）。\n")
+        sys.exit(1)
+
+    if args.file:
+        _check_app_package(args.file, max_size=args.max_size, no_verify=args.no_verify)
+
+    if args.shots is not None and len(args.shots) > 4:
+        sys.stderr.write("截图最多 4 张，当前 %d 张。\n" % len(args.shots))
+        sys.exit(1)
+
+    # 预检：审核中（reviewing）平台拒绝修改，提前拦掉比等它报错清楚
+    if not args.no_status_check:
+        try:
+            cur = mcp_rest_get_firmware(base, token, args.id)
+            st = (cur.get("status") or "").upper()
+            if st == "REVIEWING":
+                sys.stderr.write(
+                    "固件 %s 正在审核中（reviewing），平台禁止修改。\n"
+                    "请先撤回：python3 tools/sdgoods_publish.py mcp-unpublish %s\n"
+                    "（加 --no-status-check 可跳过这个预检，由平台自己拦）\n" % (args.id, args.id))
+                sys.exit(1)
+            print("[预检] 当前状态：%s%s" % (st, "（published，改后会对市场/OTA 立即生效）" if st == "PUBLISHED" else ""))
+        except Exception as e:
+            sys.stderr.write("[预检] 读取当前状态失败（不阻断）：%s\n" % e)
+
+    kwargs = {}
+    if args.file:
+        kwargs["file"] = args.file
+    if args.name:
+        kwargs["name"] = args.name
+    if args.category:
+        kwargs["category"] = args.category
+    if args.desc_zh:
+        kwargs["desc_zh"] = args.desc_zh
+    if args.desc_en:
+        kwargs["desc_en"] = args.desc_en
+    if args.hardware:
+        kwargs["hardware"] = args.hardware
+    if args.tags is not None:
+        kwargs["tags"] = args.tags
+    if args.github is not None:
+        kwargs["github"] = args.github
+    # shots：显式给了才传（None = 保留旧图，[] = 清空）
+    if args.shots is not None:
+        kwargs["shots"] = args.shots
+
+    try:
+        fw = mcp_update_firmware(base, token, args.id, version=args.version, **kwargs)
+    except RuntimeError as e:
+        sys.stderr.write("MCP 更新失败：%s\n" % e)
+        sys.exit(1)
+
+    print("更新成功（令牌通道，原地更新）！固件 id=%s"
+          % ((fw.get("id") if isinstance(fw, dict) else None) or args.id))
     print(json.dumps(fw, ensure_ascii=False, indent=2))
 
 
@@ -914,6 +1089,30 @@ def build_parser():
     pmdl.add_argument("--check-sha256", help="本地 app.bin 的 sha256，比对 app@0x10000 段是否一致")
     pmdl.add_argument("--api", help="API 基地址，覆盖 SDGOODS_API_BASE")
     pmdl.set_defaults(func=cmd_mcp_download)
+
+    pms = sub.add_parser("mcp-submit", help="【令牌通道】重新提审：draft → reviewing（更新已上架固件后走它）")
+    pms.add_argument("id", help="固件 id")
+    pms.add_argument("--api", help="API 基地址，覆盖 SDGOODS_API_BASE")
+    pms.set_defaults(func=cmd_mcp_submit)
+
+    pmu2 = sub.add_parser("mcp-update", help="【令牌通道】原地更新已发布固件（保留 id/下载量，改后自行 unpublish+submit 重提审）")
+    pmu2.add_argument("id", help="固件 id")
+    pmu2.add_argument("--api", help="API 基地址，覆盖 SDGOODS_API_BASE")
+    pmu2.add_argument("--file", help="新的应用包 .bin（不传 = 只改信息，不动文件）")
+    pmu2.add_argument("--max-size", type=int, help="槽上限字节数（默认 3 MB），用于校验应用包体积")
+    pmu2.add_argument("--no-verify", action="store_true", help="跳过应用包校验（不推荐）")
+    pmu2.add_argument("--name", help="固件名称（≤60 字）")
+    pmu2.add_argument("--desc-zh", help="中文简介（≤2000 字）")
+    pmu2.add_argument("--desc-en", help="英文简介（≤2000 字）")
+    pmu2.add_argument("--category", help="分类 slug（必须是已有分类）")
+    pmu2.add_argument("--version", help="版本号（不传且不换文件则用 version.txt；平台自动补 v 前缀）")
+    pmu2.add_argument("--hardware", choices=["cyb1", "sdgoods", "both"], help="适用硬件")
+    pmu2.add_argument("--tags", nargs="*", help="标签（≤12 个；显式空值 = 清空标签）")
+    pmu2.add_argument("--shots", nargs="*", help="截图（≤4 张；显式空值 = 清空截图；不传 = 保留旧图）")
+    pmu2.add_argument("--github", help="GitHub 仓库地址（显式空字符串 = 清空）")
+    pmu2.add_argument("--no-status-check", action="store_true",
+                      help="跳过「审核中不可改」预检（默认会先读一次状态）")
+    pmu2.set_defaults(func=cmd_mcp_update)
 
     pmr = sub.add_parser("mcp-replace", help="【令牌通道】删旧建新的「删旧」：下架→删除（对应 REST publish --replace）")
     pmr.add_argument("id", help="旧固件 id")
