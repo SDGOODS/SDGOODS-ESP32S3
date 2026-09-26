@@ -316,15 +316,24 @@ static lv_obj_t *s_val_label = NULL;
 /* 前向声明：二级页从底部小横条上滑直接返回主页时调用 */
 void sdgoods_cc_close(void);
 
-/* 点按守卫上下文池：每个按钮一份（静态存储，不做动态分配 ⇒ 没有失败路径）。
- * 每次重建控制中心时把 s_btn_ctx_n 归零重新分配。 */
-/* 8 = 一级控制中心最多 3 个（设置/关于/电源）+ 设置二级页最多 4 个（声音/亮度/数据/电池）
- * + 1 个余量。⚠️ 两个页面**共用**这张静态池：一级页的守卫上下文在 set_back 之后仍然有效
+/* 点按守卫上下文池：每个按钮一份（静态存储，不做动态分配 ⇒ 没有失败路径）。 */
+/* 12 = 一级控制中心 3 个（设置/关于/电源）+ 设置二级页 4 个（声音/亮度/数据/电池）
+ * + 余量。⚠️ 两个页面**共用**这张静态池：一级页的守卫上下文在 set_back 之后仍然有效
  * （还有用），所以打开设置页时**不能**把 s_btn_ctx_n 归零 —— 那会覆盖一级页已绑定的槽位，
- * 导致「回控制中心后点按钮触发错动作」。池子够大 ⇒ 各占各的，互不踩。 */
-#define CC_BTN_MAX 8
+ * 导致「回控制中心后点按钮触发错动作」。池子够大 ⇒ 各占各的，互不踩。
+ *
+ * 🔴 页基线（2026-09-27 修的实际 bug，别再退回旧写法）：
+ *    `s_btn_ctx_n` 只在 `sdgoods_cc_open()` 里归零，而 `open_set()` / `about_back()` 之类
+ *    只删对象、**不清计数**。于是第二次打开设置页时 n 已经停在 7：第一只按钮取 slot 7，
+ *    之后 `slot >= CC_BTN_MAX` 被 clamp 回最后一个槽 ⇒ **同一页的 4 只按钮全部绑到
+ *    s_btn_ctx[7]**，最后绑定的 tap_bat 胜出 ⇒ 点「音量/亮度/数据」都打开**电池页**。
+ *    这正是用户报的 bug（第一次进设置页正常、第二次起全错）。
+ *    修法与图标池 s_cc_icon_base 同构：每页从自己的页基线重新分配，绝不复用旧槽。 */
+#define CC_BTN_MAX 12
 static sdgoods_tap_ctx_t s_btn_ctx[CC_BTN_MAX];
-static int               s_btn_ctx_n = 0;
+static int               s_btn_ctx_n  = 0;
+static int               s_btn_ctx_base = 0;   /* 本页在池中的起始槽（open_cc 置 0） */
+static int               s_btn_l1_n     = 3;   /* 一级页占用的槽数（当前两分支都是 3） */
 
 /* 圆形图标按钮：在 parent 上以 (cx,cy) 为圆心画直径 d 的圆形按钮，
  * 中心用画布画图标（无文字），下方放 caption 说明；点击触发 cb。 */
@@ -377,8 +386,15 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, int cx, int cy, int d,
     if (cb) {
         /* 走点按守卫：只有「按下期间位移 ≤ 24px」才真的触发动作。
          * 这样「按在按钮上滑走再松手」（无论滑到别的按钮还是页面空白）都不会误触。 */
-        int slot = (s_btn_ctx_n < CC_BTN_MAX) ? s_btn_ctx_n : (CC_BTN_MAX - 1);
-        s_btn_ctx_n++;      /* 池子扩到 8 → 一级 3 + 设置页 4 各占各的，不会互相覆盖 */
+        int slot = s_btn_ctx_n;
+        if (slot >= CC_BTN_MAX) {
+            /* 不该走到这里：每页都在自己的页基线重新分配，池子也够大。真到了就是
+             * 「多个按钮绑同一个槽」的前兆（静默错动作），必须留痕而不是悄悄 clamp。 */
+            ESP_LOGW(TAG, "tap ctx pool overflow (n=%d base=%d): clamp to %d",
+                     s_btn_ctx_n, s_btn_ctx_base, CC_BTN_MAX - 1);
+            slot = CC_BTN_MAX - 1;
+        }
+        s_btn_ctx_n++;      /* 每页开头会从页基线重设，跨页不会互相覆盖 */
         sdgoods_tap_bind(btn, &s_btn_ctx[slot], cb, ud);
     }
     return btn;
@@ -1204,6 +1220,10 @@ static void open_set(void)
      * 设置页 4 键 ⇒ 用到 base+3..base+6，池子 8 足够（一级 3 + 设置 4 + 1 余量）。 */
     s_cc_icon_n = s_cc_icon_base + 3;
 
+    /* 点按守卫上下文：设置页 4 只按钮从一级页之后重新分配（不清零 ⇒ 一级页的槽仍安全）。
+     * 🔴 不重设这里就会踩「第二次打开设置页，4 只按钮全绑同一个槽」的 bug（见 CC_BTN_MAX 注释）。 */
+    s_btn_ctx_n = s_btn_ctx_base + s_btn_l1_n;
+
     /* 两行布局（x / 直径 68 与一级页同源，圆内几何已验证）：
      *   上排：Volume / Brightness / Data（x = 84 / 180 / 276，cy = 130）
      *   下排：Battery（x = 84 保持靠左，与首列对齐；cy = 230）
@@ -1397,7 +1417,8 @@ void sdgoods_cc_open(void)
     if (s_cc) {
         return;   /* 已打开，避免重复创建 */
     }
-    s_btn_ctx_n = 0;   /* 重建一级页：守卫上下文池重新分配 */
+    s_btn_ctx_n    = 0;    /* 重建一级页：守卫上下文池重新分配 */
+    s_btn_ctx_base = 0;    /* 页基线归零；一级页槽数在下面按实际分支记入 s_btn_l1_n */
     lv_obj_t *scr = lv_scr_act();
     s_cc = lv_obj_create(scr);
     lv_obj_set_size(s_cc, 360, 360);
@@ -1454,6 +1475,10 @@ void sdgoods_cc_open(void)
         make_round_btn(s_cc, 276, 169, 68, CC_ICON_PWR, managed_app ? "Exit" : "Power",
                        managed_app ? tap_exit : tap_pwr, NULL);
     }
+    /* 一级页实际占用的守卫槽数 —— 设置页的页基线就是 base + 它。
+     * 上面两个分支（小鸟 3 键 / 标准 3 键）当前都是 3；**改动一级页按钮数时必须同步改这里**，
+     * 否则设置页会从错误的基线取槽（轻则踩槽、重则点错按钮）。 */
+    s_btn_l1_n = 3;
 
     /* 底部小横条：提示「从底部往上滑返回主页」 */
     make_bottom_hint(s_cc);
