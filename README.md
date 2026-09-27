@@ -75,7 +75,7 @@
 几个关键约定（开发者必知）：
 
 - **你只传「纯应用镜像」**：平台会自动在底部拼接官方引导层（bootloader / 分区表），所以你上传的 `.bin` **不带地址**、不含出厂区。
-- **审核机制**：提交后进入审核队列，过审后公开上架；同一应用任何时候平台上只应有一条记录（重新发布 = 删旧建新）。
+- **审核机制**：提交后进入审核队列，过审后公开上架；同一应用任何时候平台上只应有一条记录（重新发布优先用 `mcp-update <旧id>` 原地更新，保住下载数据，详见 [`docs/PUBLISHING.md`](docs/PUBLISHING.md)）。
 - **多应用 vs 单应用**：同一份 `app.bin` 既能作为「多应用模式」的一个 app 上架，也能刷成「单应用模式」主机固件直启——由设备运行时判定，不需要两套编译（详见 `docs/SINGLE_APP_FIRMWARE.md`）。
 
 ---
@@ -264,7 +264,7 @@ AI 会先引导你到平台开发者设置生成一个 `sdg_` 开头的开发者
      --desc-zh "..." --desc-en "..." \
      --shots shot1.jpg shot2.jpg shot3.jpg shot4.jpg
    ```
-   提交后进入审核，过审即上架。重新发布时先 `mcp-replace <旧id>` 删旧再上传。
+   提交后进入审核，过审即上架。重新发布优先 `mcp-update <旧id>` 原地更新（保住 downloads / flashes），仅当更新通道不可用时才 `mcp-replace <旧id>` 删旧再上传。
 
 其他令牌通道子命令：`mcp-firmwares`（列出自己提交的固件）、`mcp-unpublish`（下架）、`mcp-delete`（删除草稿/被拒记录）、`mcp-download <id> --check-sha256 <本地sha256>`（拉平台刷机清单做防砖校验）。全部见 `python3 tools/sdgoods_publish.py --help` 与 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
 

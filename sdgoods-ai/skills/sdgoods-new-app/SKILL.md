@@ -1,6 +1,6 @@
 ---
 name: sdgoods-new-app
-description: 在谷仓次元屏（SDGOODS-ESP32S3 开源工程）上「从零创建一个新的应用工程」：一键封装 tools/new_app_project.py，复制开源工程 → 改名（不加 SDGOODS_ 前缀）→ 裁剪成 PLANE 形单应用直启固件（删启动台/演示 app、生成唯一起始 app ui_<app>.c/.h、重写 apps_registry.c 与 CMakeLists.txt）→ 可选 --run 自动编译+烧录（不备份设备）+ 截主页。产物像 PLANE 那样一开机直入你的 app，是「新用户读代码上手」的标准入口。创建时若用户没给应用名/需求会主动询问（带建议、可跳过→最小应用 Hello<名>!）。Use when asked to 生成应用 / 新建应用 / 开发一个应用 / 创建新项目 / generate a new app / scaffold a standalone app / derive from SDGOODS-ESP32S3.
+description: 在谷仓次元屏（SDGOODS-ESP32S3 开源工程）上「从零创建一个新的应用工程」：一键封装 tools/new_app_project.py，复制开源工程 → 改名（不加 SDGOODS_ 前缀）→ 裁剪成 PLANE 形单应用直启固件（删启动台/演示 app、生成唯一起始 app ui_<app>.c/.h、重写 apps_registry.c 与 CMakeLists.txt）→ 可选 --run 自动编译+烧录（不备份设备）+ 截主页。产物像 PLANE 那样一开机直入你的 app，是「新用户读代码上手」的标准入口。**创建时第一步必问「中英文应用名」**（中文名=市场展示名；英文名=展示名+工程名+设备 app_id，必须 ASCII），再问内容/需求（带建议、可跳过→最小应用 Hello<英文名>!）。Use when asked to 生成应用 / 新建应用 / 开发一个应用 / 创建新项目 / generate a new app / scaffold a standalone app / derive from SDGOODS-ESP32S3.
 agent_created: true
 ---
 
@@ -21,6 +21,8 @@ agent_created: true
 python3 tools/new_app_project.py myapp
 
 # 只预览将要做的改动，不落盘
+# ⚠️ dry-run 局限：文件未真正复制，末尾会提示「! 找不到 main/CMakeLists.txt，跳过 SRCS 改写」
+#    —— 这是预览期的正常提示，真实运行会正常裁剪 SRCS，别据此判脚本坏了。
 python3 tools/new_app_project.py myapp --dry-run
 
 # 生成后若检测到设备，自动编译+烧录（不备份设备固件）+ 截主页
@@ -38,16 +40,25 @@ python3 tools/new_app_project.py myapp --run
 | 「生成一个名为 ABC 的应用」 | `Hello ABC!`（居中） | `ABC` |
 | 「做一个 XXX 功能的应用」（**给了具体需求**） | 按需求实现（脚本只生成最小骨架，AI 据需求改写 `ui_<name>.c`） | 按名或默认 |
 
+- 名称一律指**英文名**（= 工程名 / app_id，ASCII）；中文名只进市场展示，不进设备 UI。
 - 不给名也能跑：`python3 tools/new_app_project.py`（等同于上面的 `myapp` 省略）。
 - 问候语用纯 ASCII（无需重跑字体子集）；若按需求改成中文文案，记得重跑 `tools/gen_fonts.py`。
 
 ## 交互规则（信息缺失时主动询问）
 
-创建应用前，先解析用户的话里有没有「应用名」和「应用内容/需求」。**缺什么就问什么**（用 AskUserQuestion，一次一个问题、带建议选项）；都齐了再跑脚本。
+创建应用前，先解析用户的话里有没有「应用名（中英文）」和「应用内容/需求」。**缺什么就问什么**（用 AskUserQuestion，一次一个问题、带建议选项）；都齐了再跑脚本。
 
-1. **缺应用名称** → 问「这个应用叫什么名字？」
-   - 建议选项：`MyApp` / `Hello` / 让用户用「其他」填自己的名字。
-   - 名称规则：不加 `SDGOODS_` 前缀；空格 / 连字符等非法字符会被自动清洗成 `project()` 合法的标识符（如 `my app` → `MYAPP`）。
+1. **【第一步·必问】应用名称（中英文各一）** → 问「这个应用的**中文名**、**英文名**分别叫什么？」，提问时必须说明两者用途：
+   - **中文名 = 展示名**：只用于市场/开放平台上架展示（可纯中文，如「飞机大战」），**不进设备 UI**；
+   - **英文名 = 展示名 + 工程名 + app_id**：除作市场英文名外，还直接用作固件工程名（根 `CMakeLists.txt` 的 `project(<英文名>)`）和设备端应用身份 `app_id`（`esp_app_desc.project_name`，launcher 首页图标下方显示的就是它）。
+   - 英文名硬约束（提问时同步告知）：
+     - 必须 **ASCII**（launcher 首页只显示 ASCII app_id，中文名会渲染成方框）；
+     - **全局唯一**：决定设备 `appdata/<app_id>/` 目录名，撞名 = 数据互串 + 卸载互删；
+     - 不能用模板默认名（`pack_app.py` 会拒）；约定**不加 `SDGOODS_` 前缀**；
+     - 空格 / 连字符等非法字符会被自动清洗成 `project()` 合法标识符（如 `my app` → `MYAPP`）。
+   - 建议选项：`MyApp` / `Hello` / 让用户用「其他」一起填中英文名。
+   - **只给了中文名、没给英文名** → 按中文含义建议一个 ASCII 英文名（如「贪吃蛇」→ `SNAKE`），AskUserQuestion 让用户确认或改。
+   - **只给了英文名** → 视为已确认；中文名不单独打断，留到发布时（`sdgoods-publish` 的「名称」字段会逐条问）再补。
 2. **缺应用内容 / 需求** → 问「想创建一个怎样的应用？我可以给些建议」
    - 建议选项（每个选项一句话说明，让用户直接选）：
      - 计时器 / 倒计时
@@ -57,10 +68,10 @@ python3 tools/new_app_project.py myapp --run
      - 待办清单
      - 其他 / 我来描述
      - **跳过（生成最小应用）** ← 选它就走最小应用
-3. **用户选「跳过」或没填内容** → 生成最小应用：主页居中只显示 `Hello <应用名>!`（纯 ASCII，无需重跑字体子集）。即跑 `python3 tools/new_app_project.py <name>`。
+3. **用户选「跳过」或没填内容** → 生成最小应用：主页居中只显示 `Hello <英文名>!`（纯 ASCII，无需重跑字体子集）。即跑 `python3 tools/new_app_project.py <英文名>`。
 4. **用户给了具体需求** → 先跑上面的命令生成最小骨架，再据需求改写 `main/apps/ui_<name>.c`（界面 / 逻辑 / 手势）；新增中文文案必须重跑 `tools/gen_fonts.py`，否则屏上出方框。
 
-> 一句话：能问就问（带建议）；问不到或用户跳过内容 → 最小应用 `Hello <名>!`；给了需求 → 按需求实现。
+> 一句话：**第一步先问齐中英文应用名**（中文=展示名；英文=展示名+工程名+app_id）；内容能问就问（带建议）；问不到或用户跳过内容 → 最小应用 `Hello <英文名>!`；给了需求 → 按需求实现。
 
 ## 它到底做了什么（机械改名 + PLANE 形裁剪，全自动）
 

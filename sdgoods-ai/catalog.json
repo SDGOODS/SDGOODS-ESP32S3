@@ -28,13 +28,13 @@
       "id": "sdgoods-new-app",
       "title_zh": "新增应用骨架",
       "title_en": "Scaffold a new app",
-      "summary_zh": "new_app_project.py 从开源工程派生新应用工程：改名（无 SDGOODS_ 前缀）+ 裁成 PLANE 形单应用直启（删演示 app、生成 ui_<app>.c/.h、重写 apps_registry.c 与 CMakeLists.txt），可选 --run 自动编译烧录截主页。",
-      "summary_en": "new_app_project.py derives a new app project from the open-source repo: rename (no SDGOODS_ prefix) + trim to a PLANE-shaped single-app direct-boot firmware, with optional --run to build/flash/screenshot.",
+      "summary_zh": "第一步必须先问中英文双名（中文名=市场展示名、英文名=展示名+工程名+app_id，中文名不进设备 UI），再 new_app_project.py 从开源工程派生新应用工程：英文名作 project()（无 SDGOODS_ 前缀）+ 裁成 PLANE 形单应用直启（删演示 app、生成 ui_<app>.c/.h、重写 apps_registry.c 与 CMakeLists.txt），可选 --run 自动编译烧录截主页。",
+      "summary_en": "First asks for both names in Chinese and English (Chinese = storefront display name; English = display name + project name + app_id, Chinese never reaches the device UI), then new_app_project.py derives a new app project from the open-source repo: the English name becomes project() (no SDGOODS_ prefix) + trim to a PLANE-shaped single-app direct-boot firmware, with optional --run to build/flash/screenshot.",
       "file": "sdgoods-ai/skills/sdgoods-new-app/SKILL.md",
       "wraps": ["tools/new_app_project.py"],
       "platforms": ["workbuddy", "claude", "cursor", "generic"],
-      "trigger_zh": "生成应用 / 新建 / 开发一个应用 / 派生新工程",
-      "trigger_en": "generate / scaffold a new app / derive a new project"
+      "trigger_zh": "生成应用 / 新建 / 开发一个应用 / 派生新工程 / 起中英文名 / 要中文应用名",
+      "trigger_en": "generate / scaffold a new app / derive a new project / name a new app in Chinese and English"
     },
     {
       "id": "sdgoods-build-flash",
@@ -88,13 +88,13 @@
       "id": "sdgoods-publish",
       "title_zh": "提交固件到开放平台",
       "title_en": "Publish firmware to open platform",
-      "summary_zh": "把做好的固件提交到谷仓 SDGOODS 开放平台：开发者只传一个 app.bin 应用包（平台按内容判别落 0x10000 并自动补引导层，不砖）；流程含能力检查（决定截图来源）、逐条带草稿问字段、发布三铁律（重编+1 / 删旧建新 / 审中可取消）。",
-      "summary_en": "Submit built firmware to the SDGOODS open platform: upload a single app.bin package (platform lands it at 0x10000 by content and auto-adds the bootloader, safe); the flow covers a capability check (decides screenshot source), per-field draft Q&A, and three iron laws (rebuild+1 / delete-old-create-new / cancel-in-review).",
+      "summary_zh": "把做好的固件提交到谷仓 SDGOODS 开放平台：开发者只传一个 app.bin 应用包（平台按内容判别落 0x10000 并自动补引导层，不砖）；流程含能力检查（决定截图来源）、逐条带草稿问字段、发布三铁律（重编+1 / 更新优先 / 审中可取消）——重新发布已上架固件走 MCP update_firmware 原地更新（保 downloads/flashes），只有更新通道不可用才降级删旧建新。通道与截图方式都是第一步就问。",
+      "summary_en": "Submit built firmware to the SDGOODS open platform: upload a single app.bin package (platform lands it at 0x10000 by content and auto-adds the bootloader, safe); the flow covers a capability check (decides screenshot source), per-field draft Q&A, and three iron laws (rebuild+1 / update-in-place preferred / cancel-in-review) — republishing an already-published firmware goes through MCP update_firmware to preserve downloads/flashes, falling back to delete-old-create-new only when the update channel is unavailable. Channel and screenshot mode are both asked first.",
       "file": "sdgoods-ai/skills/sdgoods-publish/SKILL.md",
       "wraps": ["tools/sdgoods_publish.py", "mcp/sdgoods-mcp-server/server.py"],
       "platforms": ["workbuddy", "claude", "cursor", "generic"],
-      "trigger_zh": "publish / 提交 / upload 固件到开放平台",
-      "trigger_en": "publish / upload firmware to the SDGOODS open platform"
+      "trigger_zh": "publish / 提交 / upload 固件到开放平台 / 更新已上架固件 / 下架 / 删除固件",
+      "trigger_en": "publish / upload firmware to the SDGOODS open platform / update a published firmware / unpublish / delete firmware"
     },
     {
       "id": "sdgoods-crash-triage",

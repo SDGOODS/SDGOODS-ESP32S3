@@ -4,7 +4,7 @@
 **谷仓 SDGOODS 开放平台**（官网 **https://sdgoods.ai**）——开发者上传固件、其他用户浏览/下载/烧录的广场。
 本文给你**两条对外发布通道**（MCP 令牌直推 / 网页手动），文末附邮箱 REST 接口的**内部参考实现**。
 
-## AI 发布流程（权威，照 `skills/sdgoods-publish/SKILL.md` 走）
+## AI 发布流程（权威，照 [`sdgoods-ai/skills/sdgoods-publish/SKILL.md`](../sdgoods-ai/skills/sdgoods-publish/SKILL.md) 走）
 
 不想记下面两条通道？直接让 AI 助手按
 [`sdgoods-ai/skills/sdgoods-publish/SKILL.md`](../sdgoods-ai/skills/sdgoods-publish/SKILL.md)
@@ -24,7 +24,7 @@
    - 手动 → AI 把 `app.bin` + 截图 + 信息草稿打包成 `release/` 文件夹交你自行登录平台填表提交（代码不代推）。
    - MCP → 用 `sdg_` 开发者令牌走 `upload_firmware` 直推单应用包。
 
-> ⚠️ **重新发布 = 删旧建新（铁律②）**：市场上已有同名记录时，先检测旧记录、拿旧信息当草稿、再**先删旧记录再 POST 新建**，平台上同一 app 始终只有一条、禁止两个同名。旧记录即使已上架/审核中也能删（`DELETE /api/firmwares/:id` 不限状态、只校验归属）。
+> ⚠️ **重新发布 = 更新优先（铁律②，2026-09-27 修订）**：市场上已有同名记录时，先检测旧记录、拿旧信息当草稿；旧记录**已上架 / 已有下载数据**的，走 MCP **`update_firmware`**（CLI `mcp-update <旧id>`，吃 `sdg_` 令牌、**不需要登录态**）**原地更新**（保住 id / downloads / flashes / 审核时间线），再 `mcp-submit` 重新提审；**只有更新通道不可用时才降级**删旧建新（`mcp-replace`），且降级前必须向用户明示「下载数据会清零」并确认。同一 app 始终只有一条、禁止两个同名。见 [skill `sdgoods-publish`](../sdgoods-ai/skills/sdgoods-publish/SKILL.md) 的「🔄 更新优先」一节。
 > ⚠️ **审核中可取消（铁律③）**：个人中心「我的固件」里审核中的固件可「取消审核」→ 回草稿，改稿后再提交即重新审核。
 
 > 🛠 **工具分工**：`tools/sdgoods_publish.py` 是提交/删除/替换的 CLI（`login` / `publish` / `publish --replace` / `delete` / `set-token <sdg_>` / `firmwares` / `whoami`）；`tools/pack_app.py` 导出单应用包 `dist/<项目>_app.bin`；真机烧录用 `esptool`、截屏用 `tools/screenshot_recv.py`。`tools/publish_wizard.py` 是**旧版可选助手**，已不推荐作为主流程。
@@ -129,7 +129,7 @@ python3 tools/sdgoods_publish.py mcp-upload \
   --shots shot1.png shot2.png
 ```
 
-提交后进入审核，过审即上架。**重新发布**先 `mcp-replace <旧id>`（下架→删除）再 `mcp-upload`，平台上同一 app 始终只有一条。
+提交后进入审核，过审即上架。**重新发布**优先 `mcp-update <旧id>`（MCP `update_firmware` 原地更新，保住 downloads / flashes），只有更新通道不可用才降级 `mcp-replace <旧id>`（下架→删除）再 `mcp-upload`，平台上同一 app 始终只有一条。
 
 > 工具会在**上传前**校验应用包（与 `pack_app.py` 同一套判据）：带地址的合并镜像
 > `merged.bin`、bootloader、别的芯片的固件、超过槽大小的固件，都会被直接拒绝。
