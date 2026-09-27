@@ -52,13 +52,13 @@
       "id": "sdgoods-screenshot",
       "title_zh": "串口一键截屏",
       "title_en": "Serial screenshot",
-      "summary_zh": "把谷仓次元屏经 USB 串口发的原始位图还原成 PNG/JPG，给 AI「看图」验证 UI/字体/画面，单张约 2~25s；并内置合成触摸序列，可在无人手条件下验证点按/滑动判别。",
-      "summary_en": "Restore the badge's raw serial bitmap into a PNG/JPG so the AI can 'see' the UI/fonts/screen (~2-25s per shot); also feeds synthetic touch sequences to verify tap/swipe routing with nobody touching the screen.",
+      "summary_zh": "把谷仓次元屏经 USB 串口发的原始位图还原成 PNG/JPG，配合日志链验证 UI/字体/画面，单张约 2~25s；内置合成触摸序列，可在无人手条件下验证点按/滑动判别。🔴 出图后不靠肉眼——用数值法判定（圆屏亮像素到圆心距离 ≤180 即「在圆内」）。",
+      "summary_en": "Restore the badge's raw serial bitmap into a PNG/JPG (~2-25s per shot) and verify UI/fonts/screens together with the serial log; also feeds synthetic touch sequences to test tap/swipe routing with nobody touching the screen. Verified numerically, not by eyeballing.",
       "file": "sdgoods-ai/skills/sdgoods-screenshot/SKILL.md",
       "wraps": ["tools/screenshot_recv.py"],
       "platforms": ["workbuddy", "claude", "cursor", "generic"],
-      "trigger_zh": "screenshot / 截屏 / 验证 UI / 合成触摸 / 手势验证",
-      "trigger_en": "screenshot / capture the badge screen / verify UI visually / synthetic touch / gesture test"
+      "trigger_zh": "screenshot / 截屏 / 验证 UI / 合成触摸 / 手势验证 / 圆内布局 / 圆形屏幕适配 / 点按打空",
+      "trigger_en": "screenshot / capture the badge screen / verify UI visually / synthetic touch / gesture test / circular-screen layout / tap missing"
     },
     {
       "id": "sdgoods-fonts",
