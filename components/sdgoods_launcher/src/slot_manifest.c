@@ -293,6 +293,15 @@ esp_err_t sdgoods_launcher_orphan_appdata_cleanup(void)
     struct dirent *e;
     /* "/appdata" (8) + "/" + d_name(≤255) ≈ 264，留足余量 */
     char full[320];
+    /* 🔴 平台自己的目录（**不是 app_id**）必须在判孤儿之前先豁免：
+     * appdata 里除了 app_id 目录，还有平台自己落的数据（Wi-Fi 凭据与总开关，
+     * /appdata/wifi/on.cfg|cred.cfg —— 启动器的 app_sdk.c 会写它）。名字不可能等于任何
+     * app_id，若按「对不上已装槽就删」处理，结果是**每次开机把平台数据删一遍**：
+     * 2026-09-27 真机表现 = 「关了 Wi-Fi 再打开，上次连过的 ssid 又要重新输密码」。
+     * 白名单常量在 sdgoods_launcher_int.h（与拼路径同一个字面量来源）。
+     * 加新的平台级目录**只改那一处**。 */
+    static const char *const reserved[] = SDGOODS_APPDATA_RESERVED_NAMES;
+    const size_t reserved_n = sizeof(reserved) / sizeof(reserved[0]);
     while ((e = readdir(d)) != NULL) {
         if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) {
             continue;
@@ -301,6 +310,17 @@ esp_err_t sdgoods_launcher_orphan_appdata_cleanup(void)
         struct stat st;
         if (stat(full, &st) != 0 || !S_ISDIR(st.st_mode)) {
             continue;   /* 只清理「app_id 目录」 */
+        }
+        bool is_reserved = false;
+        for (size_t k = 0; k < reserved_n; k++) {
+            if (strcmp(reserved[k], e->d_name) == 0) {
+                is_reserved = true;
+                break;
+            }
+        }
+        if (is_reserved) {
+            ESP_LOGI(TAG, "appdata '%s': platform-reserved -> keep", e->d_name);
+            continue;
         }
         bool used = false;
         for (int k = 0; k < keep_n; k++) {

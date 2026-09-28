@@ -36,6 +36,7 @@ __pycache__/
 # ---- 串口截屏产物（tools/screenshot_recv.py 默认落在仓库根目录）----
 shot_*.jpg
 shot_*.png
+shots/
 
 # ---- 字体工具 ----
 # lv_font_conv（node_modules）与本地产物

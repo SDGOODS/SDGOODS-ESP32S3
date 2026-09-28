@@ -31,6 +31,20 @@ bool sdgoods_slot_read_desc(int idx, char *app_id, char *version, uint8_t *elf_s
 /* appdata 分区的分区表标签。整表只有这一处字面量，找分区别另写字符串。 */
 #define SDGOODS_APPDATA_PART_LABEL "appdata"
 
+/* ---- appdata 下「平台自己的」子目录名（**不是 app_id**）---------------------------
+ * appdata 按 app_id 隔离，但平台自己也要落少量持久状态（Wi-Fi 凭据、总开关），
+ * 它们的目录名不可能等于任何 app_id。**这些名字必须在孤儿清理里白名单豁免**，
+ * 否则启动器每次开机都会把平台数据当「已卸载 app 的残留」删掉
+ * （2026-09-27 真机抓到：/appdata/wifi/ 被删 ⇒ 关开 Wi-Fi 后又要重新输密码）。
+ * 🔴 全表只有这里一份字面量：拼路径（启动器的 app_sdk.c 会写 /appdata/wifi/…）
+ *    与判白名单（slot_manifest.c）都用它。app 工程里虽然暂时没有这类目录，
+ *    白名单**也必须保留**——否则将来平台级的持久状态一进 appdata，
+ *    就会被开机孤儿清理当成「已卸载 app 的残留」删掉，重演同一个 bug。 */
+#define SDGOODS_APPDATA_PLATFORM_DIR_WIFI "wifi"
+
+/* 白名单：孤儿清理逐个跳过这些目录名。加新的平台级目录时**只改这一处**。 */
+#define SDGOODS_APPDATA_RESERVED_NAMES { SDGOODS_APPDATA_PLATFORM_DIR_WIFI }
+
 /* 槽 manifest 持久化的 NVS namespace。 */
 #define SDGOODS_SLOTS_NVS_NS "sdgoods_slots"
 
