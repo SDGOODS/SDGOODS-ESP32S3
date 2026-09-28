@@ -127,10 +127,13 @@ run_case(...)          # 跑 N 轮，任一轮出现 Guru/Rebooting 就计一次
 3. **换 bootloader 做 A/B**（一步定生死）：把**已知能启动**的那份 bootloader 写到 `0x0`，
    **其余一个字不动**。起来了 ⇒ 就是 bootloader；还静默 ⇒ 往分区表/时钟/闪存配置查。
 4. **比对"包里的文件"与"本地编译产物"**：`cmp` 装机包里的 `bootloader.bin` 与各
-   `build_*/bootloader/bootloader.bin`。曾有真实案例：市场官方装机包里的 bootloader 与
-   本地所有编译产物**段数/字节数无一命中** ⇒ 是打包时混入了坏文件；而设备上的 ROM banner
+   `build_*/bootloader/bootloader.bin`。曾有真实案例（2026-09-21）：市场官方装机包里的
+   bootloader 只有 **13792 B / 4 段（含一段仅 4 字节）**，而本地**全部**编译产物都是
+   **19744 B / 3 段**、**无一命中** ⇒ 是打包时混入了坏文件；而设备上的 ROM banner
    （`load:` 那几行的地址/长度）**与这份坏 bootloader 逐字吻合**，一眼就能把"设备当前跑的
    是谁"对上号。
+   💡 **尺寸 + 段数**是最快的指纹：正常 bootloader 是 **3 段**；出现 **4 段**（尤其带一个
+   4 字节的碎段）基本可判坏文件。
    💡 **ROM banner 的 `load:addr,len` 就是 bootloader 的段表** —— 把它抄下来跟候选文件比，
    比反复刷机快得多。
 5. 诊断期间用 **`esptool.py` 直读芯片**（`--baud 921600` 很稳）：读 `0x0` 看 `0xe9`、

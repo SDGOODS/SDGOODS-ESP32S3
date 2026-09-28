@@ -6,7 +6,7 @@ agent_created: true
 
 ⚠️ **三条发布铁律（用户 2026-09-23 硬性规定，② 于 2026-09-27 修订）**：① 改源码必重编、版本号必 +1，连设备则必重刷最新 + 重截；② 重新发布**已上架/已有下载数据的** app 时，**优先「原地更新」**（MCP `update_firmware` / CLI `mcp-update <id>`，保住 id / downloads / flashes / 审核时间线；2026-09-27 起令牌通道直接可用，**不需要登录态**），**只有更新通道不可用时才降级为删旧建新**（`mcp-replace`），且降级前必须向用户明示「下载数据会清零」并确认 —— 详见下方「🔄 更新优先」一节；同一 app 始终只有一条、禁止两个同名项目；③ 平台支持**审核中取消**（`POST /api/firmwares/:id/cancel-review` + 个人中心「取消审核」按钮），作者撤回后改稿再提交即重新审核。
 
-📦 **发布脚本分布（2026-09-23 起四仓同源）**：`tools/sdgoods_publish.py` 现存在于 `SDGOODS-PLANE` / `SDGOODS-ESP32S3`（开源） / `SDGOODS-HELLO` / `SDGOODS_LAUNCHER` 四仓，内容逐字节一致（以 PLANE 仓为基准同步）。改脚本时四仓一起改。
+📦 **发布脚本**：`tools/sdgoods_publish.py`（就在本仓库内）。它同时维护在多份**派生工程**里、内容逐字节一致 —— 改脚本时记得所有副本一起改。
 
 # 编译并发布固件到开放平台（交互式）
 
@@ -411,7 +411,7 @@ AI 起草依据：`git log --oneline -5` + `main/apps/apps_registry.c`（含飞�
 
 - 选项 1（**放在第一个、标注「推荐」**）：**手动截图** —— 固定 **4 张**（手动模式**不套用下方 ③ 的内容框架**，见下），
   由**用户在真机上自己挑有代表性的画面**翻页，AI 逐张问、用户说好了就截。
-  - 优点：**快得多**（不用 AI 猜调试键、不用等合成触摸/动画、不会因按钮命中区偏差截错页，PLANE 那次 8px 空隙点不动就是自动路线的典型坑）。
+  - 优点：**快得多**（不用 AI 猜调试键、不用等合成触摸/动画、不会因按钮命中区偏差截错页 —— 曾有一次按钮间 8px 空隙点不动，就是自动路线的典型坑）。
 - 选项 2：**自动截图** —— 完全按现有流程走：AI 用调试键（`--pre <char>` / 合成触摸）自己切页并逐张截（严格按 2b ③ 内容规则 + 调试键序列）。
 
 **手动截图循环（逐张询问，不一次性列全）**：
@@ -615,7 +615,7 @@ python3 scripts/publish_recovery_pkg.py \
   --part 0x310000:/path/otadata_8192B_全0xFF.bin \
   --set-recovery
 ```
-脚本自己完成：后台邮箱验证码登录（ops@sdgoods.dev）→ 四段 presign+PUT → 换 parts →
+脚本自己完成：后台邮箱验证码登录（**运维账号邮箱**，凭据由平台运维提供）→ 四段 presign+PUT → 换 parts →
 置恢复包 → 回读 `GET /firmwares/recovery` 与 `POST /firmwares/:id/download` 校验
 （`declared` 必须 true、四段地址必须与上传一致、必须过得了整片擦除闸门）。
 
@@ -628,7 +628,7 @@ python3 scripts/publish_recovery_pkg.py \
 配套事实（2026-09-21 落地）：内容 = 平台「默认文件」那四份（`SystemAsset` 表，
 后台「内容 / 默认文件」页），与其它固件刷机时平台自己拼的引导层同源；
 `otadata` 是 8192B 全 `0xFF`（刷完 bootloader 走 factory = 启动器，4 个空槽）。
-真机验收：`ENTRY=recovery` 跑 `sdgoods-backend-e2e/hw/e2e_market_install.js`，
+真机验收：用浏览器 Web Serial 走一次市场「一键恢复」流程，
 确认步骤 3 是「清空设备数据 32.0 MB」而不是「已跳过」，且刷完启动器起来、4 槽全空。
 
 ## 固件下架 / 删除（MCP 已支持，不必再走网站 JWT）

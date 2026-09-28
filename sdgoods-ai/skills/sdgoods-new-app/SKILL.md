@@ -1,23 +1,24 @@
 ---
 name: sdgoods-new-app
-description: 在谷仓次元屏（SDGOODS-ESP32S3 开源工程）上「从零创建一个新的应用工程」：一键封装 tools/new_app_project.py，复制开源工程 → 改名（不加 SDGOODS_ 前缀）→ 裁剪成 PLANE 形单应用直启固件（删启动台/演示 app、生成唯一起始 app ui_<app>.c/.h、重写 apps_registry.c 与 CMakeLists.txt）→ 可选 --run 自动编译+烧录（不备份设备）+ 截主页。产物像 PLANE 那样一开机直入你的 app，是「新用户读代码上手」的标准入口。**创建时第一步必问「中英文应用名」**（中文名=市场展示名；英文名=展示名+工程名+设备 app_id，必须 ASCII），再问内容/需求（带建议、可跳过→最小应用 Hello<英文名>!）。Use when asked to 生成应用 / 新建应用 / 开发一个应用 / 创建新项目 / generate a new app / scaffold a standalone app / derive from SDGOODS-ESP32S3.
+description: 在谷仓次元屏（SDGOODS-ESP32S3 开源工程）上「从零创建一个新的应用工程」：一键封装 tools/new_app_project.py，复制开源工程 → 改名（不加 SDGOODS_ 前缀）→ 裁剪成单应用直启固件（删启动台/演示 app、生成唯一起始 app ui_<app>.c/.h、重写 apps_registry.c 与 CMakeLists.txt）→ 可选 --run 自动编译+烧录（不备份设备）+ 截主页。产物一开机直入你的 app，是「新用户读代码上手」的标准入口。**创建时第一步必问「中英文应用名」**（中文名=市场展示名；英文名=展示名+工程名+设备 app_id，必须 ASCII），再问内容/需求（带建议、可跳过→最小应用 Hello<英文名>!）。Use when asked to 生成应用 / 新建应用 / 开发一个应用 / 创建新项目 / generate a new app / scaffold a standalone app / derive from SDGOODS-ESP32S3.
 agent_created: true
 ---
 
-# 从开源工程派生一个新的应用工程（PLANE 形单应用直启）
+# 从开源工程派生一个新的应用工程（单应用直启）
 
 ## 何时使用
 - 用户说「生成一个应用 / 开发一个应用 / 新建一个项目 / 从零做一个自己的 app」。
-- 目标产物是一台 **「单应用机」**—— 像 PLANE 那样一开机就直接进你的 app，没有主页 / 演示 / 启动台。
+- 目标产物是一台 **「单应用机」**—— 一开机就直接进你的 app，没有主页 / 演示 / 启动台。
 
-> 📌 关键前提：**种子工程是本开源仓库 `SDGOODS-ESP32S3`**（用户能读到的只有它）。
-> `SDGOODS-PLANE` 是不开源的内部固件，**不能当种子**。`new_app_project.py` 是从开源工程
-> 派生、再「形状」裁成和 PLANE 一样的单应用直启结构 —— **不是直接拷贝 PLANE**。
+> 📌 关键前提：**种子工程就是本开源仓库 `SDGOODS-ESP32S3`**。
+> `new_app_project.py` 是从这个开源工程派生、再裁成**单应用直启**结构
+> （开机直接进你的 app，没有主页/演示/启动台）。**不要**去找某个"现成的单应用工程"来拷贝 ——
+> 它不在开源范围内。
 
 ## 唯一入口命令（从本仓库根目录）
 
 ```bash
-# 派生 MYAPP（不加 SDGOODS_ 前缀）→ 生成 ../MYAPP/，PLANE 形单应用直启
+# 派生 MYAPP（不加 SDGOODS_ 前缀）→ 生成 ../MYAPP/，单应用直启
 python3 tools/new_app_project.py myapp
 
 # 只预览将要做的改动，不落盘
@@ -73,11 +74,11 @@ python3 tools/new_app_project.py myapp --run
 
 > 一句话：**第一步先问齐中英文应用名**（中文=展示名；英文=展示名+工程名+app_id）；内容能问就问（带建议）；问不到或用户跳过内容 → 最小应用 `Hello <英文名>!`；给了需求 → 按需求实现。
 
-## 它到底做了什么（机械改名 + PLANE 形裁剪，全自动）
+## 它到底做了什么（机械改名 + 裁剪，全自动）
 
 1. **复制**本仓库（跳过 `.git` / `dist` / `build*` / `managed_components`）。
 2. **改名**：根 `CMakeLists.txt` 的 `project()` → `<NAME>`（**不加 `SDGOODS_` 前缀**，沿用 HELLO 约定 `project(HELLO_3)`）；`version.txt` → `1.0.0`。
-3. **裁成 PLANE 形单应用**：
+3. **裁成单应用直启**：
    - 删 `ui_home / ui_scan_page / ui_rec_page / ui_other_page / ui_flappy` 五个启动台/演示 app；
    - 从 `app_template` 派生**唯一**起始 app `main/apps/ui_<name>.c/.h`（函数 `ui_<name>_start` / `_poll`），主页居中显示 `Hello <名或 SDGOODS>!`（最小应用，无计数/按钮）；
    - 重写 `apps_registry.c`：`home_create_show / home_show / apps_show` 全部指向 `ui_<name>_start`（开机直入、退出也回本 app）；
@@ -109,7 +110,7 @@ python3 tools/new_app_project.py myapp --run
 
 | | `new_app_project.py`（本 skill，**新用户首选**） | `new_standalone_project.py` |
 |---|---|---|
-| 意图 | **从零新建一个 app**，干净 PLANE 形直启 | 把**整个仓库**派生成「你自己品牌的独立产品」 |
+| 意图 | **从零新建一个 app**，干净的单应用直启 | 把**整个仓库**派生成「你自己品牌的独立产品」 |
 | 起始 app | 从 `app_template` 派生全新骨架 `ui_<name>.c` | 保留某个现有 demo（默认 `flappy`）当基底 |
 | 改名 | `project()` → `<NAME>`（无 `SDGOODS_` 前缀） | 全局替换 `SDGOODS_EBADGE` 字面量 + git init |
 | 圆屏约束 | 模板已写死 | 沿用原 demo 既有代码 |

@@ -19,21 +19,20 @@ agent_created: true
 其实设备好好地在跑。要主动触发**必须**带 `-t`：
 
 ```bash
-python3 tools/screenshot_recv.py -p /dev/cu.usbmodem21301 -t -o shot.jpg
+python3 tools/screenshot_recv.py -p /dev/cu.usbmodemXXXXXX -t -o shot.jpg
 ```
 （超时第一排查顺序：① 有没有 `-t` ② 设备是否在跑应用，再去看链路。）
 
 ## 运行（从仓库根目录）
-> ⚠️ **脚本只在 `SDGOODS-ESP32S3/tools/` 里有一份**（2026-09-21 核实：`SDGOODS_LAUNCHER/tools/` 与
-> `SDGOODS-HELLO/tools/` 都**没有**这个脚本）。它跟被截的是哪个工程的固件**无关** —— 不管当前板子上跑的是
-> 启动器还是某个 app，一律 `cd <工作区>/SDGOODS-ESP32S3` 再跑。别去 skill 目录下找 `tools/`（那里只有 SKILL.md）。
+> ⚠️ **脚本只在 `SDGOODS-ESP32S3/tools/` 里有一份**。它跟被截的是哪个固件**无关** ——
+> 不管当前板子上跑的是什么，一律 `cd <仓库根>` 再跑。别去 skill 目录下找 `tools/`（那里只有 SKILL.md）。
 
 ```bash
 # 自动向串口发 's' 触发并接收 1 张，存 shot_时间戳.png
 python3 tools/screenshot_recv.py -t
 
 # 指定端口 / 连续抓 3 张 / 指定输出
-python3 tools/screenshot_recv.py -p /dev/cu.usbmodem21301 -n 3 -o my_shot.png
+python3 tools/screenshot_recv.py -p /dev/cu.usbmodemXXXXXX -n 3 -o my_shot.png
 
 # 探测固件能力（串口发 '?'，看是否含 SHOT）
 python3 tools/screenshot_recv.py --caps
@@ -151,6 +150,66 @@ def components(im, region, target, tol, min_area=6):
 ⚠️ 容差要卡在「同色部件能分开、JPEG 抖动又不丢」的窗口：本次电池框用 `tol=22`
 （1px 缝的过渡像素 `|0x70-0xE0|=112` 一定不匹配；放到 `tol=30` 就开始有合并风险）。
 
+### 🔴 判色判「色相族」，别判全等；找边界禁单点/单列（2026-09-28 双踩）
+
+**① 截图是 JPEG ⇒ 色度子采样（4:2:0）会把细笔画的红/白拉淡，全等判据必假阴性。**
+实测同一张图：DEL 红字核心只量到 `(160,60,57)`（理论 `(255,69,58)`，**仅 ~58% 覆盖**）、
+空格白字 `(187,189,186)`（不是 255）⇒ 三条「红字/白字」判据全部报 🔴，但代码明明生效了。
+**判它是采样问题而非 bug 的旁证**：同一帧里主题绿量到 `(164,224,4)` ≈ 理论 `(161,227,7)`
+—— **绿能全等、红不能**，正因为红通道（和亮度）被子采样拉低。
+⇒ 判色改用**色相族**（宽松但依然排他）：
+
+```python
+def is_red(c):   # c = (r,g,b) 核心像素
+    return c is not None and c[0] > 120 and c[0] - max(c[1], c[2]) > 60 and abs(c[1] - c[2]) < 25
+def is_white(c):
+    return c is not None and c.min() > 150 and (c.max() - c.min()) < 14
+```
+（配合上面「取差异最大的前 25% 像素」拿核心，两者一起用。）
+
+**② 找控件边界（输入框/面板/键盒）禁用单点或单列采样。**
+`vseg(a, col=180, ...)` 这类「取屏幕中线那一列、扫最长的 ≈框底色 run」的写法，在
+**文字正好穿过该列**时会量出荒谬结果：字的抗锯齿边缘像素也是暗灰、落进「≈框底色」容差里，
+于是把框上沿认到字的顶上 —— 本次实测把输入框量成 `y=(48,104)`（真值 `(75,104)`），
+**误判「输入框没上移」**，白查一轮。
+⇒ 改成**按行走访 + 只认「整行匹配像素数 > 阈值」**：框体那几十行每行有 ~200 个匹配像素，
+文字行只有零星几个，一眼可分：
+
+```python
+def vseg(a, col_lo, col_hi, y1, y2, box, tol=14, need=120):
+    rows = a[y1:y2+1, col_lo:col_hi]
+    hit = (np.abs(rows - box).sum(axis=2) < tol * 3).sum(axis=1)
+    ys = np.nonzero(hit > need)[0]
+    return (y1 + int(ys.min()), y1 + int(ys.max())) if len(ys) else None
+```
+
+这两个坑都是**「判据报错 ≠ 固件错」**的又一例（同上面「几何反推自检」那条铁律）：
+先怀疑采样口径，再动固件。
+
+**③ 判「某个控件的底色」时，必须从源码宏取真值，别拿另一个控件的颜色凑容差。**
+（2026-09-28 第二次踩，仍是同一条 `vseg` 判据。）
+`vseg()` 里的 `box` 是**被测量控件自己的底色**。本次要量**键盘页输入框**（真值
+`(26,31,35)`），却沿用了**键**的底色 `#2C2C2E = (44,44,46)` 再放宽容差到 `±42`：因为两个色
+相差 `|26-44|+|31-44|+|35-46| = 60 > 42` 本该不匹配，结果**只有键区那 112 行**能过阈值
+⇒ `y` 恒为 `None`，判据报「输入框不见了」。
+更糟的是这坑**会先假通过一次**：更早一版用 `(58,47,47)±42` 时「差 60 也能蹭到别的像素」，
+碰巧量出了对的 `x` 跨度 ⇒ 让人以为这条判据是可信的。
+⇒ **规矩：`box` 一律先去源码里抄**（如 `KB_FIELD_*` / `KEY_BG` / `CC_COLOR_*`），
+容差收到 `±9` 级别；**期望值也一样**（本次把 `KB_FIELD_H` 凭印象写成 30，真值 **40**）。
+
+**④ 数「同类控件的个数」不能扫控件中线那一行 —— 会被控件里的文字切成好几段。**
+本次要验「键盘行 0 仍是 11 颗键」，扫键心 `y=156` 那一行的键底色连续段 ⇒ 得到 **35 段**
+（标签文字把每颗键切成 2~3 段），过长的只有 9 段 ⇒ 误判「键数变了」。
+⇒ 改扫**控件上沿那几行**（`y 142..147`，无文字）并按**列覆盖率**（`≥80%` 的行数是键底色）
+连通成段 ⇒ 稳定得到 **11** 颗、各宽 17..20（`KB_W=25` 减去圆角与抗锯齿）：
+
+```python
+col = (np.abs(a[142:147, :] - KEYB).sum(axis=2) < 27).sum(axis=0)   # 5 行覆盖
+on  = col >= 4
+```
+⚠️ 行数一变阈值就得跟着变（6 行配 `>=5` 会多切出两个小段 ⇒ 又数成 9 颗）；
+**先跑一遍探针把「段宽清单」打出来**再定阈值，别直接写死。
+
 ### 定位第一步：先把圆心**量**出来，别估（2026-09-21 连踩三次）
 
 要给某个圆形 UI 元素做半径/角度分析，第一件事是拿到它的圆心。这一步估错，
@@ -211,7 +270,7 @@ PIL 静默退回位图字体 ⇒ 中文全成方框「□□」）。可用的�
 
 ```bash
 # --pre <char>：先发该字符，等 1.5s 让页面渲染，再发 's' 抓图
-python3 tools/screenshot_recv.py -p /dev/cu.usbmodem21301 --pre c -o cc.png
+python3 tools/screenshot_recv.py -p /dev/cu.usbmodemXXXXXX --pre c -o cc.png
 ```
 启动器现有调试命令（均为**串口专用**，不进正常交互流程），对应 `sdgoods_launcher_cc_debug_open(which)`：
 - `c` → 控制中心一级页（等价「主页顶部下滑」）｜`which=0`
@@ -257,7 +316,7 @@ void sdgoods_tap_synth_now(int x, int y, int dx, int dy, int frames);  /* 须在
 - ⚠️ **日志 tag 是 `gesture`，不能是 `tap`**：tag 取 `tap` 会打出 `tap: synth: ...`，
   含子串 `"tap: "`，与「按钮被点」的 `cc: tap: Volume` 撞车 ⇒ 做禁词校验的回归脚本会把
   合成触摸本身误判成「按钮被误触」（曾制造 9/23 假阳性）。禁词要写 `"cc: tap: "`（带完整 tag）。
-- 手势矩阵回归（23 步，must/mustnot 断言）见技能 `sdgoods-platform-sync`。
+- 回归建议做一张**手势矩阵**：({点按, 滑动, 长按} × {启动器页, app 内页}) 各配 must/mustnot 断言。
 - ⚠️ 钩子必须只做 `lv_async_call(...)` 转到 LVGL 线程：console RX 是独立 FreeRTOS 任务，
   直接改 LVGL 对象 / indev 驱动会跨线程出问题。
 - 测完若被切进某个 app，写回空白 otadata 回启动器即可（见上）。
@@ -294,6 +353,24 @@ python3 tools/screenshot_recv.py -p <port> --pre 3 -o home_leftmost.png   # 开�
 正确做法：临时把某个键改成**向左 ≥150px** 再编译验证（例如 `case '8': …(200,180,-160,0,3);`），
 验证完**必须还原并重编**。判定标准：home→sw1 的**中心 132² 区域像素要变**（换图标了），
 且主题色圆环**仍精确居中**（环跟着新居中图标走）；本机若只装 2 个 app 则 sw2==sw3（滑不动），属正常。
+
+### 2026-09-28 补：现成键 `','` + 🔴 两个必须避开的坑（都实测踩过）
+
+launcher 已有现成键 **`','`** = 主页图标行**慢速左滑 150px**（`(290,254)`，step **-5 × 30 帧**），
+不必再临时改键。它是为「主页底部页码 1/N → 2/N」这类**逐格可判读**的行为准备的。
+两个坑写在这里，凡做「滑动类合成手势」都适用：
+
+1. 🔴 **起点绝不能落在图标 cell 上**（否则会**直接启动那个 app**）。
+   实测：起点取 (250,157)（cell 边缘）时，日志出现
+   `launcher_ui: slot 3: tap (max move 7 px of 24) -> launch` —— 设备当场重启进该 app。
+   机制：LVGL 滚动接管后给 child 发 `PRESS_LOST`，于是 `on_app_pressing` **只记到 7px**（位移守卫失效），
+   而收尾仍给该 cell 补发了一次 `CLICKED` ⇒ 被 tap 守卫判成点按。
+   ⇒ 起点一律取 **`y = 254`**：图标行盒子高 = `ICON(132)+24 = 156` ⇒ 行占 **y 102..257**，
+   而 cell 只占 **y 114..245**，所以 y=254 是「行内、cell 外」的那 7px 空白带。
+2. 🔴 **`dx/dy` 是「每帧」位移，不是总位移**（`sdgoods_tap.c`：`point = start + d * frame`）
+   ⇒ 150px 要写 `-5 × 30 帧`（或 `-25 × 6 帧`），别写 `-150`。
+   ⚠️ 每帧 25px 的**快拖有 LVGL 滑行惯性**（scroll throw）：松手后会一路滑到最右端
+   （实测 1/4 直接变 4/4），验不出「一次一格」⇒ 要逐格就用**每帧 5px、30 帧**的慢拖。
 
 ## 截屏超时的第一嫌疑：设备根本没在跑
 
@@ -351,8 +428,7 @@ print('\n'.join('#' if px[x,y] > 140 else ' ' for y in ... for x in ...))
 
 截屏只能证明**画面**，证明不了「状态有没有跨 app 传过去」——那类断言要靠**日志链**
 （例：启动器 `cc: save: vol=.. bri=..` ↔ 进 app 后 `cc: restore: vol=.. bri=..`）。
-现成的两个脚本在 skill `sdgoods-platform-sync`：`verify_settings_sync.py`（音量/亮度跨 app 同步
-+ 电池读数，14 判据）、`verify_app0_slot.py`（app0 幂等性 + 电量，8 判据）。
+这类断言建议单独写脚本跑，判据形如「同一组 vol/bri 在两边日志里逐字相等」。
 
 常用串口调试键（**启动器与 app 不是同一套，别混**）：
 - 启动器：`'v'` 音量滑块页 / `'w'` 亮度滑块页 / `'c'/'d'/'b'` CC 一级/数据/电量页 /
@@ -435,11 +511,30 @@ esptool --chip esp32s3 -p <port> erase_region 0x310000 0x2000      # 擦成全 0
    一律按**几何**（宽/高/顶边）挑，或先按位置切开。
    拿不到预期页面时的稳妥做法：**连拍 N 张、逐张自证、取第一张合格的**。
 
+### 2026-09-28 补：「按住型」调试键松手会**真的改变状态** ⇒ 脚本顺序本身就是判据
+
+启动器里有一类调试键是 `sdgoods_tap_synth_hold(kx,ky,8000)` —— **按住 8 秒**（为了在按住期间
+截到悬停态）。它松手时 LVGL 照样派发 CLICKED ⇒ **那一按键的功能会真的执行**。
+
+实测翻车：`'$'`（按住**页切换键**）松手 ⇒ 键盘切到符号页；脚本紧接的 `--pre '.'`
+（也是页切换）又把它切回字母页；再之后的 `'&'`（按住符号页**空格键**）就在字母页上找不到
+`Space` 了。露馅方式：`v1100_kb_sym.jpg` 与 `v1100_hint_space.jpg` **SHA256 完全相同**
+（两次截到的是同一帧），而串口给的是
+`kb key center: token 'Space' not on this page (s_kb_n=40, sym=0)`。
+
+**规矩：**
+- **按住型键一律排在捕获序列的最后**；切片式的键（如 `'.'`）放在它前面。
+- 判据先做**字节级自证**：两张本该不同的图若 SHA256 相同 ⇒ 别急着改代码，先怀疑 `--pre` 没生效
+  （投递被覆盖、或前一个按住的松手把状态改了）。
+- 一眼定位用 `--wait` 期内的串口日志（`not on this page` 那行会直接告诉你**当时是哪一页**：
+  `s_kb_n` = 当前建出的键数，字母页 40 / 符号页 34 ⇒ 比 `sym` 标志位更可信）。
+
 ## 跑验收/分析脚本用哪个解释器
 
-- **只要 pyserial**（纯收发/解析）：`~/.workbuddy/binaries/python/envs/esptool39/bin/python3`。
-- **要 pyserial + numpy + PIL**（量化截图）：用
-  **`~/.workbuddy/binaries/python/envs/default/bin/python`** —— 三个库都有；
-  `envs/esptool39` **没有 numpy**（2026-09-27 就因为这个白跑一次）。
-  系统 `/usr/bin/python3` 两个都没有（MEMORY 里那条「esptool 必须用 IDF python」是**烧录**场景，
-  与这里不冲突）。
+- **只要 pyserial**（纯收发/解析）：用装了 pyserial 的解释器即可（`python3 -c "import serial"` 自检）。
+- **要 pyserial + numpy + PIL**（量化截图）：必须用**三个库都有**的解释器 ——
+  **先自检再跑**，因为「有 pyserial」不等于「有 numpy」（曾拿只有 pyserial 的解释器跑量化脚本白跑一次）：
+  ```bash
+  python3 -c "import serial, numpy, PIL; print('ok')"
+  ```
+  ⚠️ 系统 `python3` 往往缺库 ⇒ 优先用 venv / IDF 自带的那份 python。

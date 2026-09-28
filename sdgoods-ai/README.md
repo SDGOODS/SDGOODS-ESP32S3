@@ -20,7 +20,7 @@
 | Skill | 封装的动作 | 关键回退 |
 |---|---|---|
 | `sdgoods-check-env` | 跑 `check_env.py`，解析 MUST/WARN | 缺项给安装指引 |
-| `sdgoods-new-app` | `new_app_project.py` 从开源工程派生 PLANE 形单应用直启工程（改名 + 裁剪 + 可选 --run 烧录截屏） | 种子=本开源仓；不含 SDGOODS_ 前缀 |
+| `sdgoods-new-app` | `new_app_project.py` 从开源工程派生单应用直启工程（改名 + 裁剪 + 可选 --run 烧录截屏） | 种子=本开源仓；不含 SDGOODS_ 前缀 |
 | `sdgoods-build-flash` | `tools/build.sh`（封装 env 坑）一键构建/烧录/监视 | 底层仍是 `idf.py build`+`flash`，但 env 坑（unset 三变量、保留 SESSION_ID、不 rm -rf build）已固化进脚本，AI/开发者一行即可 |
 | `sdgoods-screenshot` | 串口一键截屏 + 自动打开 PNG 给 AI「看图」 | 单张约 2~25s，UI 改动必做 |
 | `sdgoods-fonts` | 改中文后重跑 `gen_fonts.py` + `font_metrics.py` | 漏字=方框，圆屏弦宽校验 |
