@@ -55,6 +55,8 @@
  * ⚠️ 不要拿 `sdgoods_slot_entry_t.app_id` 比：那份 manifest 里的 app_id 在「平台 OTA
  *    安装」路径上会被写成平台的 Firmware.id，与 project_name 不是同一个标识
  *    （见 slot_manifest.c 的「以 flash 为准回填 manifest」注释），比了会误判。
+ * ⚠️ 这一条判据只属于**槽尾封面**。平台下发给「推送列表」的那种封面还没有归属的槽
+ *    （见下面 `_check()` / `_adopt()`），没有可比的对象 —— 别照抄过去。
  */
 #pragma once
 
@@ -125,7 +127,84 @@ typedef struct {
  * 只读查询，**任何固件都可调用**（不加权限闸门）。 */
 esp_err_t sdgoods_slot_cover_load(int slot_idx, sdgoods_slot_cover_t *out);
 
-/* 释放 sdgoods_slot_cover_load 拿到的缓冲。可重复调用（内部指针置空）。 */
+/* 校验**内存里**的一整块 SDGCOVER 数据（上面那张表逐字节：头 + 像素 + crc32）。
+ * 不改动 blob、不分配内存 ⇒ 调用方仍拥有 blob。
+ *
+ * 为什么需要它：推送列表里那些「还没装进槽」的 app 也要显示封面，而平台给的正是
+ * 同一个格式的块（`GET /api/firmwares/:id/cover.raw`，见 PUSH_INSTALL.md §6.3）。
+ * 校验必须与 `sdgoods_slot_cover_load()` **同一个实现**，否则两条路的容错度会漂移
+ * （典型症状：能装进槽的封面在推送列表里显示不出来，或反过来）。
+ *
+ * ⚠️ 与 load() 的区别：**不比对 app_id**。槽尾封面必须比对是因为槽会被复用（同一个槽
+ *    今天装 A 明天装 B，旧封面会顶着新 app）；而这里那份封面还没有归属的槽，没有可比的
+ *    对象。将来收编进槽时（§5.5.4）才由安装链把那 40 字节改成 flash 里的 project_name。
+ *
+ * ESP_OK
+ * ESP_ERR_INVALID_ARG —— 空指针、长度不足、data_len 与实长不符、crc32 不符
+ * ESP_ERR_NOT_FOUND —— magic / 版本 / 格式 / 边长 / data_len 有一项不符
+ */
+esp_err_t sdgoods_slot_cover_check(const void *blob, size_t len);
+
+/* 校验一块内存数据并**接管它的所有权**（成功后 `out->owner == blob`）。
+ *
+ * `blob` 必须是堆分配（`heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` 之类）且可 free 的指针：
+ * 成功之后释放只需 `sdgoods_slot_cover_free(&out)` 一次，它会连 blob 一起 free。
+ * 失败时**不接管**，blob 仍归调用方（记得自己 free），out 被清零。
+ *
+ * 为什么是「接管」而不是「拷贝」：一张封面 52336 字节，8 个推送项重建一次主页就是
+ * 400KB+ 的额外拷贝；而这份缓冲读进来之后除了显示没有第二个消费者。
+ */
+esp_err_t sdgoods_slot_cover_adopt(void *blob, size_t len, sdgoods_slot_cover_t *out);
+
+/* 把封面**就地在 RGB565 平面上灰化**（A8 平面不动），用于「推送列表里还没装」的灰封面。
+ *
+ * 为什么灰化必须在数据层做、不能靠样式：
+ *   · `lv_obj_set_style_img_recolor()` 对 `LV_IMG_CF_RGB565A8` **确实生效**
+ *     （`lv_draw_sw_img.c` 逐像素 `lv_color_mix_premult`），但它是**向黑混色 = 整体变暗**，
+ *     不是去饱和 —— 彩色封面变暗之后仍然是彩的（红还是红）。
+ *   · 数据层 `y = (77R + 150G + 29B) >> 8` 才是真正的去饱和，确定性最强、零 LVGL 依赖。
+ * 代价：52272 字节一次线性遍历（其中 RGB565 平面 34848 字节），相对一次 flash 读取可忽略。
+ *
+ * 🔴 字节序：本设备 `CONFIG_LV_COLOR_16_SWAP=y`，块里的 RGB565 平面是**高低字节对调过**的
+ *    （见本文件顶部的警告）。算法必须先把 16 位值还原成 RGB565 再拆 R/G/B，算完再对调写回；
+ *    漏了这一步会把 R/B 权重套错通道。真机判据：灰封面必须是**中性的灰**，不偏黄也不偏蓝。
+ */
+void sdgoods_slot_cover_grayscale(sdgoods_slot_cover_t *cover);
+
+/* 把一整块 SDGCOVER 写进**槽尾保留区**（安装流程把推送项那块封面收编进槽时用）。
+ *
+ * 与 `_load()` 是严格的一对：写进去的东西必须能被 `_load()` 读回来，否则这个函数等于
+ * 把 52 KB 悄悄写进了一个没人看的地方。为此它替调用方多做了两件事：
+ *
+ *   ① **把块头里的 app_id 改成槽内 app 的 `project_name`**
+ *      （调 `sdgoods_slot_read_desc()` 从 flash 实读，不是拿 manifest 缓存）。
+ *      平台下发的块里带的是平台自己的标识，原样落盘会被 `_load()` 的 app_id 比对拒掉 ⇒
+ *      症状是「封面明明写了、槽里也有，图标却是字母占位」，极难倒推。
+ *      改的是**本地头副本**，不动调用方的缓冲（它可能还在被显示用）。
+ *      ⚠️ 这一改**不会**让 CRC 失效：crc32 只覆盖像素平面（见文件顶部的格式表）。
+ *   ② **落盘之前先校验整块**（含 CRC）—— 坏块绝不入库，否则每次读都是一次白读。
+ *
+ * 🔴 擦的是 `part->size − 0xE000` 起的 0xE000 字节，而 app 最多到
+ *    `0x300000 − 0xE000 = 0x2F2000 = 3088384`，平台闸门 `SDGOODS_SLOT_SAFE_BYTES`
+ *    是 3040870 ⇒ 余量 47514 字节（与文件顶部「为什么是 56 KiB」那段的算法一致）。
+ *    **一旦有人放宽体积闸门，这里就会擦掉 app 的尾部**。
+ *
+ * 写完后会回读 magic 做一次确认：抓「erase/write 都返回 OK 但内容没落地」这种最贵的
+ * 静默失败（只读 8 字节，成本可忽略）。
+ *
+ * ⚠️ 只应由**启动器宿主**的安装流程调用（内部有 `sdgoods_device_is_launcher_host()`
+ *    闸门，非宿主返回 ESP_ERR_INVALID_STATE 且不碰 flash）。
+ *
+ * ESP_OK
+ * ESP_ERR_INVALID_ARG   —— 空指针；或块内容非法（头/长度/CRC 任一项不符）
+ * ESP_ERR_NOT_FOUND     —— 槽号非法；或槽内读不出 app desc（不知道该署谁的名）
+ * ESP_ERR_INVALID_STATE —— 非启动器宿主；或写完后回读不到 magic
+ * 其它 —— 底层 flash 驱动返回的错误
+ */
+esp_err_t sdgoods_slot_cover_save(int slot_idx, const void *blob, size_t len);
+
+/* 释放 sdgoods_slot_cover_load / _adopt 拿到的缓冲。可重复调用（内部指针置空）。
+ * ⚠️ 对只经过 `_check()` 的那块缓冲**不要**调它（那个接口不接管所有权）。 */
 void sdgoods_slot_cover_free(sdgoods_slot_cover_t *cover);
 
 #ifdef __cplusplus

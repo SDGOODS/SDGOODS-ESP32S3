@@ -42,8 +42,17 @@ bool sdgoods_slot_read_desc(int idx, char *app_id, char *version, uint8_t *elf_s
  *    就会被开机孤儿清理当成「已卸载 app 的残留」删掉，重演同一个 bug。 */
 #define SDGOODS_APPDATA_PLATFORM_DIR_WIFI "wifi"
 
+/* 设备自助安装（推送列表）用的两个平台级目录：
+ *   device/ —— 设备身份（配对拿到的 DeviceToken）与设备级配置
+ *   push/   —— 平台推送下来的安装列表缓存（list.cfg）
+ * 读写方是 main/sdgoods_devlink.c。**同样必须进下面的白名单**，
+ * 否则开机孤儿清理会把刚拉下来的推送列表删掉 —— 表现为「每次开机都要重新下载列表」。 */
+#define SDGOODS_APPDATA_PLATFORM_DIR_DEVICE "device"
+#define SDGOODS_APPDATA_PLATFORM_DIR_PUSH "push"
+
 /* 白名单：孤儿清理逐个跳过这些目录名。加新的平台级目录时**只改这一处**。 */
-#define SDGOODS_APPDATA_RESERVED_NAMES { SDGOODS_APPDATA_PLATFORM_DIR_WIFI }
+#define SDGOODS_APPDATA_RESERVED_NAMES \
+    { SDGOODS_APPDATA_PLATFORM_DIR_WIFI, SDGOODS_APPDATA_PLATFORM_DIR_DEVICE, SDGOODS_APPDATA_PLATFORM_DIR_PUSH }
 
 /* 槽 manifest 持久化的 NVS namespace。 */
 #define SDGOODS_SLOTS_NVS_NS "sdgoods_slots"

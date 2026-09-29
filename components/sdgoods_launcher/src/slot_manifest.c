@@ -198,6 +198,10 @@ esp_err_t sdgoods_launcher_self_check(void)
 
         if (ok) {
             strncpy(e.app_id, name, SDGOODS_SLOT_APPID_MAX - 1);
+            /* ⚠️ 用 flash 的 project_name 覆盖 app_id，**但不能顺手清掉 package_id**：
+               package_id 是「平台的 Firmware.id」，是 /sync 上报给平台的唯一稳定标识，
+               而它只可能在 install_end（平台安装）时被写进来 —— self_check 一旦清掉，
+               平台装的应用重启一次平台就再也不认识它了。见 sdgoods_launcher.h。 */
             e.app_id[SDGOODS_SLOT_APPID_MAX - 1] = '\0';
             strncpy(e.version, ver, SDGOODS_SLOT_VER_MAX - 1);
             e.version[SDGOODS_SLOT_VER_MAX - 1] = '\0';
@@ -213,6 +217,7 @@ esp_err_t sdgoods_launcher_self_check(void)
                 e.state = SDG_SLOT_EMPTY;
             }
             e.app_id[0] = '\0';
+            e.package_id[0] = '\0';   /* 无 app 了，平台标识也不该留着（否则 /sync 会为一个空槽报 appId） */
             e.version[0] = '\0';
             memset(e.sha256, 0, 32);
         }
@@ -593,6 +598,14 @@ esp_err_t sdgoods_launcher_install_end(void)
         strncpy(e.app_id, s_install.app_id, sizeof(e.app_id) - 1);
     } else {
         strncpy(e.app_id, name, sizeof(e.app_id) - 1);
+    }
+    /* 平台标识单记一份到 package_id：`app_id` 会在下次开机的 self_check 里被 flash 的
+     * project_name 覆盖（那是 appdata 目录名与孤儿清理白名单的口径，不能动），所以
+     * 想让平台标识活过重启就必须另存。仅在**平台下发了 id** 时才写 —— 串口注入路径
+     * 传的是 NULL，那种 app 平台本来就不认识，留空让 /sync 如实回退报 app_id。
+     * 详见 sdgoods_launcher.h 里 package_id 的说明。 */
+    if (s_install.app_id[0]) {
+        strncpy(e.package_id, s_install.app_id, sizeof(e.package_id) - 1);
     }
     strncpy(e.version, s_install.version[0] ? s_install.version : ver, sizeof(e.version) - 1);
     memcpy(e.sha256, s_install.has_sha ? s_install.expect_sha : calc, 32);
