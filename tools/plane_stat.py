@@ -136,8 +136,8 @@ def live(ports, duration):
     try:
         import serial
     except ImportError:
-        print("缺少 pyserial：请用 /Users/zhangzuoliang/.workbuddy/binaries/python/"
-              "versions/3.13.12/bin/python3 运行", file=sys.stderr)
+        print("缺少 pyserial：请先安装（python3 -m pip install pyserial），"
+              "或用带 pyserial 的解释器运行", file=sys.stderr)
         return 1
 
     sers = []

@@ -57,8 +57,8 @@
       "file": "sdgoods-ai/skills/sdgoods-screenshot/SKILL.md",
       "wraps": ["tools/screenshot_recv.py"],
       "platforms": ["workbuddy", "claude", "cursor", "generic"],
-      "trigger_zh": "screenshot / 截屏 / 验证 UI / 合成触摸 / 手势验证 / 圆内布局 / 圆形屏幕适配 / 点按打空",
-      "trigger_en": "screenshot / capture the badge screen / verify UI visually / synthetic touch / gesture test / circular-screen layout / tap missing"
+    "trigger_zh": "screenshot / 截屏 / 验证 UI / 合成触摸 / 手势验证 / 圆内布局 / 圆形屏幕适配 / 点按打空 / 截图能证明什么 / 短动画截不到中间帧 / 造态 / 文字间距量法",
+    "trigger_en": "screenshot / capture the badge screen / verify UI visually / synthetic touch / gesture test / circular-screen layout / tap missing / what a screenshot can and cannot prove / short animation mid-frame / set up an app state / measure a text gap"
     },
     {
       "id": "sdgoods-fonts",
@@ -105,8 +105,8 @@
       "file": "sdgoods-ai/skills/sdgoods-crash-triage/SKILL.md",
       "wraps": ["sdgoods-ai/skills/sdgoods-crash-triage/scripts/crash_triage_harness.py"],
       "platforms": ["workbuddy", "claude", "cursor", "generic"],
-      "trigger_zh": "崩溃 / 重启 / Guru Meditation / 看门狗 / 内存被写坏 / 刷完起不来 / 串口无输出 / 偶发失效",
-      "trigger_en": "crash / reboot / Guru Meditation / watchdog / corrupted memory / no-boot-after-flash / no serial output / intermittent failure"
+    "trigger_zh": "崩溃 / 重启 / Guru Meditation / 看门狗 / 内存被写坏 / 刷完起不来 / 串口无输出 / 偶发失效 / tlsf_free / block already marked as free / 任务栈越界 / 画面不动 / 拿不到内部 DMA",
+    "trigger_en": "crash / reboot / Guru Meditation / watchdog / corrupted memory / no-boot-after-flash / no serial output / intermittent failure / tlsf_free / block already marked as free / task stack overflow / screen frozen / no internal DMA buffer"
     }
   ],
   "agent": {

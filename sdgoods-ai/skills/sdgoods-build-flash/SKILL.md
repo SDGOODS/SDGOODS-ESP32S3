@@ -180,10 +180,34 @@ $IDF_PY -m esptool --chip esp32s3 -p $PORT --before default_reset --after no_res
         是**静默提前返回**（不报错、不退出）⇒ 那 14 秒"什么都没收到"，开机日志其实是在 pump
         返回**之后**才到的 ⇒ 首轮 13 条判据里 4 条假阴性（"没抓到启动器横幅""没有自证日志"），
         而设备其实完全正常。**凡是"等某个开机/上屏后才会出现的日志"，一律轮询，禁止固定 sleep。**
+     ④ 🔴 **`'R'` 与 DTR 脉冲跑的不是同一条启动路径**（2026-09-29 定案，最容易判成"不复现"）：
+        - `'R'` = `esp_restart()` ⇒ `esp_reset_reason()==ESP_RST_SW` ⇒ `sdgoods_boot_show()`
+          走**快路径**：**不播开机动画**，主页 ~1.4s 建好（此时 Wi-Fi 还没连上 ⇒ 内部内存还没被吃）。
+        - **上电 / 硬复位**（日志里是 `rst:0x15 USB_UART_CHIP_RESET`）⇒ 走**开机动画路径**：
+          `sdgoods_boot_show()` 阻塞约 4s 才建主页（~5.8s），此时 Wi-Fi 已连上、内存已被占。
+        ⇒ **「刷完机器第一次启动」的现象只能用硬复位（DTR 脉冲）测**；一直用 `'R'` 会得出
+          「修好了 / 不复现」的假结论。抓冷启动日志用
+          `tools/verify_shots/devpage/read_cold.py`（DTR 脉冲 + flock + 边读边等）。
+        - 🔴 **DTR 脉冲 / RTS 复位 ⇒ `ESP_RST_USB`(11) 或 `ESP_RST_EXT`(2)，永远造不出 `ESP_RST_POWERON`(1)**
+          （2026-10-02 定案）：所以「**只对真冷上电生效**」的逻辑（如 launcher 的「长按才开机」门）
+          **在台架上无法自动验证** —— 只能验到
+          `boot: long-press gate skipped (reset reason 11)` 这条豁免行。这类改动的验收必须
+          **明确报给用户手工断电重上电**（短按应完全无光、长按 ~1.5s 才开机），别在脚本上硬凑。
+          （复位原因取值：`1=POWERON 2=EXT 3=SW 8=DEEPSLEEP 11=USB`。）
 2. **截屏通道**（最直观）：见 skill `sdgoods-screenshot`。改 UI/文案后必做。
    - 截屏 init（`sdgoods_screenshot_init`）在开机动画**之后**才注册 SHOT 能力位：设备启动后 ~6s 内发 `'s'` 只会回 `screenshot capability not enabled`，等进首屏再触发。fmt=1(JPEG) 时即使 `-o xx.png` 也落 `.jpg`。
 3. **改过中文文案 → 必须重跑字体子集生成**（skill `sdgoods-fonts`），否则新字变方框。
 4. **lv_gif/大块 lv_mem_alloc 分配失败 → 开机动画崩溃重启死循环**：根因多半是 `CONFIG_SPIRAM_USE_MALLOC` 没开（只有 `SPIRAM_USE_CAPS_ALLOC` 时标准 malloc 不接 PSRAM，内部 DRAM ~300KB 不够 240² GIF 的 ~230KB 画布）。两工程都必须 `CONFIG_SPIRAM_USE_MALLOC=y` + `CONFIG_LV_MEM_CUSTOM=y`。改 SPIRAM 模式后必须删根 sdkconfig + 全量重编。`sdgoods_boot.c` 已加防御（GIF 打开失败→跳过动画直接进首屏）。
+
+     ⑤ 🔴 **"等就绪行"的超时给宽一点：≥150s**（2026-10-04 踩）。
+        典型就绪锚点是 `devlink: push-list ok n=N (installed=M)` —— 它要等**整条开机链 + Wi-Fi 连上**。
+        真机实测有一次用了 **86.8s**（AP 先 `AUTH_FAIL` → `connect timeout` → 守望任务重连 → `got ip`），
+        而脚本给 75s 就判"设备没就绪" ⇒ **假红**（设备其实完全正常，只是连网慢）。
+        ⇒ 宁可多等几十秒，也不要让"设备慢"冒充"设备坏"；超时信里要写明是"没网 / 没配对 / 真没起来"三种可能。
+        ⚠️ 另一条同源干扰（2026-10-04）：**`install auto-resume`** —— 上一轮被打断的下载，
+        设备重启后会认槽为 `UPDATING (flash head valid, install incomplete)`，Wi-Fi 一回来
+        **自动从已写字节续传**（`download attempt 0: resume from 294912/1655136`）。
+        它会在你毫不知情时**装完并占掉空槽**，让"槽是空的"这个前置条件失效（曾被误判成"有人操作设备"）。
 
 ## 四、坑位清单
 - **并行构建多个工程时，`rm -rf "$CODEBUDDY_SAFE_DELETE_BULK_STATE_DIR"` 会互踩（2026-09-21 踩）**：
@@ -207,6 +231,29 @@ $IDF_PY -m esptool --chip esp32s3 -p $PORT --before default_reset --after no_res
   而 macOS 的 BSD grep 里 `\b` 不可靠 ⇒ 写成
   `grep -E 'movi[[:space:]]+a[0-9]+, (0x70|112)\b'` 会**明明存在却一条都不命中**，
   很容易误判成「新常量没进镜像」，然后白折腾一轮。
+- 🔴 **LVGL 颜色常量在反汇编里「换了个数」——因为 `CONFIG_LV_COLOR_16_SWAP=y`（2026-10-02 踩）**：
+  本工程 `sdkconfig` 里 `CONFIG_LV_COLOR_16_SWAP=y` ⇒ `lv_color_hex()` 走的是
+  `lv_color.h` 的**字节交换分支**：
+  ```c
+  r.full = ((c & 0xF80000) >> 16) | ((c & 0xFC00) >> 13) | ((c & 0x1C00) << 3) | ((c & 0xF8) << 5);
+  ```
+  于是主题色 `0xA1E307`（SWAP=0 时是 `0xA700` = **42752**）在 SWAP=1 下变成
+  **`0x00A7` = 167** —— 小到能用 `movi` 直接装载 ⇒ 反汇编里看到的是 `movi a5, 167`。
+  ⇒ **拿 `grep 0xA700` / `grep 42752` 找主题色常量会一条都不命中**，极易误判成"改了没编进去"；
+    正确判据是搜 **`167`**（或 `0xA7`）。
+  ⇒ 想确认某个颜色常量到底编译成了几，**别手算，用最小样本校准**（30 秒）：
+    ```c
+    /* /tmp/xprobe/color.c —— 用同一条 xtensa 工具链编，再 objdump */
+    static inline unsigned short hex16(unsigned c){
+        return (unsigned short)(((c & 0xF80000) >> 16) | ((c & 0xFC00) >> 13) | ((c & 0x1C00) << 3) | ((c & 0xF8) << 5));
+    }
+    int probe(void){ return hex16(0xA1E307); }     /* 与 LV_COLOR_16_SWAP=1 同形 */
+    ```
+    编译：`$TC/xtensa-esp32s3-elf-gcc -c -O2 -mlongcalls color.c -o color.o && $TC/xtensa-esp32s3-elf-objdump -d color.o`
+    （`$TC` = `~/.espressif/tools/xtensa-esp-elf/*/xtensa-esp-elf/bin`）
+  ⇒ **顺便记住**：12 位有符号 `movi` 装不下 >2047 的值（如 `0xA700`），那种常量 GCC 会走
+    `l32r` + `.literal` 字面量池 —— 所以"字面量池里搜不到"并不等于"常量没进镜像"，先算对数值再说。
+  ⇒ **最终判据永远是真机像素**：颜色是可见行为，截屏量化（取色块中位色）比任何反汇编都硬。
 - **`Edit` 把 `/*` 吃成 `/ *`，编译报一堆 `stray '\343'`（2026-09-28 踩）**：
   `old_string` 若**以 ` * ` 开头**（想改注释块的中间某行），匹配会落到 `/* …` 的那个 `*` 上，
   替换完文件里就成了 `/ * …` ⇒ 注释提前结束，紧跟其后的中文全被当代码解析，报
@@ -229,15 +276,66 @@ $IDF_PY -m esptool --chip esp32s3 -p $PORT --before default_reset --after no_res
   ```
   另一个同类雷：**注释里写 `50/…/**310**` 会触发 `error: "/*" within comment [-Werror=comment]`**
   ⇒ 比值 / 路径后面别紧跟 `**`（写成 `…/310` 或中间留空格）。
+  **形态补全（2026-10-02 又踩，`main/sdgoods_wallpaper.h:15`）——中文注释里写路径/glob 就会中**：
+  `-Wall` 含 `-Wcomment`，触发条件是「**已经处于一段注释内部**时再出现 `/*`」，所以最常见的三种写法都算：
+  · `` 不进 components/**、 `` ← 路径的 `/` 紧跟中文粗体起头的 `**`
+  · `` `file(GLOB_RECURSE src/*.c)` `` ← 路径的 `/` 紧跟 `*.c`
+  · `` 目录/…/**310** `` ← 同第一种
+  🔴 **报错行指向的是「include 了这个头的 .c」，不是根因文件**：本次它报在
+  `ui_launcher.c.obj` 与 `sdgoods_devlink.c.obj` 两个编译单元上（两者都只是 `#include` 了那个头），
+  而且**只在第一个命中的头文件上报一次** ⇒ 一看到是"某个 .c 里报的"先去它 include 的头里找。
+  🔴 **「注释配对自检」脚本抓不到这一种**（见上面 / 下面那两段）：配对是**好的**，
+  `/*` 稳稳地落在合法注释内部 ⇒ 脚本报 OK，只有 gcc 会拦。正确判据是**状态机**：
+  遍历时带一个 `in_comment`，只在 `in_comment==true` 时读到的 `/*` 才算违规
+  （直接 grep `/\*` 会把 `static int x;/* 说明 */` 这种**合法注释起点**也算进来，
+  本工程 `sdgoods_cc.c` 里大量这种写法，是假阳性大户）。
+  现成脚本：`SDGOODS_LAUNCHER/tools/check_comment_werror.py`（默认扫 `main/` + `components/`）。
+  ⇒ 中文注释里写路径时，**一律用 `` `components/` 目录 `` 这种写法**（斜杠后面跟中文或反引号，
+  绝不跟 `*`）。
   ⇒ 立即数用**宽松**的 `grep -E "movi.*, 112"`（别加 `\b`、别锚 `$`）。
   ⇒ **更硬的证据是真机**：改的若是可见行为（坐标/尺寸/间距），直接截屏量化它的位移量 ——
   例：把 label 的 dy 从 98 改到 112，真机上文字中心从 y=277.5 变 291.5（正好 +14）
   就等于「新码在跑」，同时把功能也验证了。**能看真机就别只信反汇编。**
+- 🎯 **真机验收脚本的三条纪律（2026-10-04 一轮里连踩三次，都是"假红"不是固件问题）**：
+  ① **「屏上行序 ≠ 数据序」**：列表 / 网格界面里，屏上第 N 行与"数据下标 / 槽号"**经常不是一回事**
+     （实例：安装选槽对话框的行序是 `order[]`＝主页格序，**空槽会排到最后一**行）。
+     ⇒ 让固件把**行号**随取证日志一起打出来（如 `picker row: 3 Slot 0 SELECTABLE`），
+       脚本读行号、**绝不拿"第几条日志"当"第几行"**；否则会点到**另一个**格子（往往是置灰不可点的）。
+       实测代价：`{row0!` 打到置灰行 ⇒ 毫无反应，现象极像"合成点击失效"，白查一轮。
+  ② **点到「不可点的行」= 静默失败**：既不报错、**也不关浮层** ⇒ 浮层一直盖着主页，
+     接下来所有坐标手势都打在遮罩上（`page:` 一行不出）⇒ 判据集体假红、白跑一整轮下载。
+     ⇒ 点完要么**自证浮层已关**，要么在下一步前先清一次场（`Q` = `ui_app_menu_close()`）。
+  ③ **脚本自己触发的冷启动要从"健康基线"里排除**：为抓 console 日志，脚本起手一般做一次
+     DTR/RTS 硬复位 ⇒ boot 横幅 `rst:0x15 (USB_UART_CHIP_RESET)` 落在日志**最前面**。
+     若"无意外复位"这条判据全量扫，就会**每轮稳定报 1 条假红**、把总判定拖成 ❌。
+     ⇒ 记下"设备就绪"那一行的下标，复位判据**只扫它之后**（之后的 `rst:` 才是真异常）。
 - **写"串口验收脚本"时，所有 `read()` 都要进同一个日志缓冲**（2026-09-19 踩）：脚本里常有个
   `wait_for(marker)` 专门等某个回包，它内部 `read()` 到的东西**如果不追加进日志列表**，那段时间的
   设备日志就永久丢了 —— 而关键事件（比如"事件已派发""poll 已执行"）恰好都在那一刻打印 ⇒
   判据集体**假阴性**，会误以为自己刚写的功能没生效（首版验收 4 项"失败"其实全绿）。
   规矩：**一个脚本里只允许一个 `recv()` 出口**，它同时负责"找 marker"和"收日志"。
+  ⚠️ 变体（2026-09-29 又踩）：**`time.sleep` 也是同一个坑的另一副面孔** —— 脚本里几秒不读串口，
+  USB-Serial-JTAG 的 RX 环形缓冲就会溢出并**静默丢日志**（表现为「设备明明打了、脚本里找不到」）。
+  所有等待一律写成「边读边等」的循环，禁止裸 `sleep`。详见 skill `sdgoods-screenshot`。
+- **🎯 串口调试命令只许「置标志」，真正的活交给 devlink 任务（8 KB 栈）——`opendir`/`stat` 也算"碰文件系统"**
+  （2026-09-29 真机踩，症状极误导）：`':'` 命令在 `dump_state()` 里直接调了
+  `sdgoods_pushstore_dump()`，后者要 `opendir()` + 逐个 `stat()` 数封面缓存 ⇒
+  **`A stack overflow in task bsp_console has been detected. Rebooting...`**。
+  🔴 直觉陷阱：以为只有 `fopen/fwrite/fread` 重，其实**目录遍历一样重**（VFS + FatFs 的 `DIR`
+  结构本身就吃几百字节栈）。console 任务只有 **4 KB**，凡是碰 `/appdata` 的能力都别在里面做。
+  ⇒ 记住的形状：`s_xxx_req = true;` 只置标志 → devlink 任务下一轮循环消费。
+  ⚠️ **副作用要一起接受**：devlink 任务是**单线程串行**的，它若正在 `do_pull()`（阻塞的 HTTP），
+  标志就要等在飞请求结束 —— 实测 `':'` 连发 3 次、明细只在 **45 秒后**打出 **1 份**
+  （3 次合并成 1 次消费，正说明那段时间任务没跑循环）。验收脚本对这类命令要**给足等待并允许重试**。
+- **🔴 FatFs 的 `f_rename` 在目标已存在时返回 `FR_EXIST`（`errno=17`），不像 POSIX 允许覆盖**
+  （2026-09-29 真机踩）：于是「写 `<file>.tmp` → `rename` 覆盖」这套常见的原子落盘写法，
+  在 FatFs 上**只在文件还不存在时成功一次** ⇒ 之后**每次更新都落不了盘**，
+  而屏上一切正常（内存副本还在）⇒ 属于「有 bug 也不出声」、**重启才丢数据**的一类。
+  ⇒ 正解 `(void)remove(path); rename(tmp, path);`（中间有个极短窗口，读方读到"文件不存在"
+  时按空内容处理即可，远比"永远存不下"好）。
+  ⇒ 配套纪律：**错误路径不许静默 `return false`** —— 本轮就是被一个静默的
+  `if (!dir_ensure(...)) return false;` 绕掉一整轮排查（只看到一句调用方的
+  `list not persisted`，看不出是哪一步失败的）。每条失败分支都要打**自己的步骤名**。
 - 同一文件多处 Edit 必须串行：一条消息对同一文件发多个 Edit 会并发、只部分落盘。**一次一个 Edit**，或 Read 全文件 + Write 整体覆盖；改完用 Grep 复核关键行。
 - **Edit 会吞掉行尾的 `*/`（2026-09-21 复现，`ui_launcher.c`）**：改形如
   `const int GAP = 18;   /* 说明 */` 这种**带尾注释的单行代码**时，落盘后注释可能没闭合，

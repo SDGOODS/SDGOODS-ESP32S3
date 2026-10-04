@@ -103,8 +103,114 @@ run_case(...)          # 跑 N 轮，任一轮出现 Guru/Rebooting 就计一次
 |---|---|
 | `InstructionFetchError`，PC 在 PSRAM，addr2line → `lv_timer.c:313` | **跨任务 `lv_async_call`** 与 LVGL 线程同时改那条无锁定时器链表。改用「volatile 环形队列 + LVGL 线程 poll」 |
 | `***ERROR*** A stack overflow in task bsp_console` | console RX 任务栈只有 4KB，在里面同步建 LVGL 浮层。改成投递到 LVGL 线程 |
-| `draw_bitmap FAILED 0x101` + 画面残缺/黑带 | 内部 DMA 弹跳缓冲预算不足（PSRAM 剩余空间不够，需腾出内部 DMA 缓冲） |
+| **`assert failed: block already marked as free`**（`tlsf_free` tlsf.c:630）+ 随后 `rst:0xc (RTC_SW_CPU_RST)`，栈里有 `prvDeleteTCB ← vPortFree ← heap_caps_free ← multi_heap_free_impl ← tlsf_free` | **某任务栈越界写坏了相邻堆块的 tlsf 头**，只在任务自删（`vTaskDelete(NULL)`）释放栈块时暴露。**完整判据/量法/修法见 §5d** |
+| `draw_bitmap FAILED 0x101` + 画面残缺/黑带 | 内部 DMA 弹跳缓冲预算不足 —— **完整判据与修法见 §5c** |
 | lv_gif 分配失败 → 开机动画死循环重启 | `CONFIG_SPIRAM_USE_MALLOC` 没开（见 skill `sdgoods-build-flash`） |
+
+## 5c. 「看不到主页 / 画面不动」= 整屏 flush 拿不到内部 DMA（2026-09-29 定案）
+
+症状三连，**必须同时成立才是这个 bug**：
+1. 用户说「看不到主页 / 画面停在某一帧 / 安装应用时显示也有问题」；
+2. 串口有 `lcd: draw_bitmap FAILED x:0 y:0 w:360 h:360 err=0x101 ext=1 bytes=259200`
+   + 紧跟 `lcd: internal DMA largest_free=N bytes free=M bytes`；
+3. **截图完全正常** —— ⚠️ 截屏走的是 `lv_snapshot_take_to_buf`（LVGL 帧缓冲快照），
+   **不是面板回读** ⇒ **截图证明不了面板在显示**。别拿截图正常去否定这条。
+
+### 机理（一句话）
+PSRAM 里的全屏绘制缓冲经 `spi_master` 发出去时，**每个在途事务**都要一块内部 DMA
+弹跳缓冲，大小 = `spi_bus_get_max_transaction_len()` = **4092B**（`LCD_SPI_MAX_TRANSFER_SIZE`
+写 512 也没用 —— 描述符粒度向上取整到 4092，缩宏是无效动作）。
+`trans_queue_depth=2` ⇒ **需 ≥8192B 连续内部 DMA**。拿不到 ⇒ 分片循环 `break`
+⇒ 整帧被丢 ⇒ 面板停在上一帧。
+
+### 🔴 三条判据纪律（本轮踩出来的）
+1. **只看 largest（最大连续），不看 free。** 实测 `free=6139B` 但 `largest=2304B`
+   ⇒ 照样全失败。
+2. **必须按时间序列采样，不能只看开机那一刻。** 只看 `sdgoods_lvgl_init()` 会看到
+   `largest=22528B` 得出「余量充足」的**错误结论**；真凶在 1.2s~6.2s 之间吃掉它。
+   手法：`heap_probe(tag)`（里程碑）+ 每 500ms 的 `heap_watch_task`（时序）。
+   ⚠️ 采样任务**栈 ≥4096**：2048 实测在 GIF 解码最紧那一刻 `A stack overflow in task
+   heap_watch` —— 诊断任务自己把设备搞崩。
+3. **冷启动 ≠ 软复位，测错路径会判成「不复现」。**
+   - `read_boot.py` 发的 `'R'` = `esp_restart()` ⇒ `ESP_RST_SW` ⇒ `sdgoods_boot_show()`
+     走**快路径**（无开机动画，主页 ~1.4s 建好，此时 Wi-Fi 还没占内存）⇒ **看起来一切正常**；
+   - **上电 / 硬复位**（`rst:0x15 USB_UART_CHIP_RESET`）⇒ 走**开机动画路径**，
+     `sdgoods_boot_show()` 阻塞 4s 才建主页（~5.8s），Wi-Fi 已连上、内存已被吃掉
+     ⇒ 首帧就失败。**用户口中的「刷完机器第一次启动」= 这条。**
+   - 硬复位手法：pyserial **DTR 脉冲**（`DTR False→True→False`，RTS 脉冲无效），
+     串口全程不关 ⇒ 不漏 bootloader 头。脚本 `tools/verify_shots/devpage/read_cold.py`。
+
+### 真凶与修法（启动器）
+`sdgoods_ble_init()` 在**启动器**里是纯白养：全工程无一处调 `sdgoods_ble_list()`
+（BLE 扫描页只在开源 app 工程 `SDGOODS-ESP32S3/main/apps/ui_home.c`；启动器是宿主固件，
+进 app 后跑的是那个 app 自己的固件）。它**一口吃掉 60KB 内部 DMA**：
+```
+after-wifi-init  largest=32768 free= 98799
+after-ble-init   largest=26624 free= 38163   ← −60KB
+6.0s (Wi-Fi 连上后)          largest= 7168   ← <8192 ⇒ 每帧失败
+```
+⇒ 删掉启动器的 `sdgoods_ble_init()`（`sdgoods_ble_list()` 内部本就是懒初始化，不会坑后来人）。
+修后 6.0s 稳在 **largest=31744**，十轮整屏重绘压力 **零 `draw_bitmap FAILED`**，
+固件还小 432KB。**同根因的连带症状**：冷启动 `E sd_cmd: cannot create command task`
+（8KB 内部栈分不出来）也一并消失。
+
+### 排查顺序（固定）
+1. 先抓**冷启动**日志，看 `internal DMA largest_free` 是否 ≥8192（队列 2）；
+2. 不够 ⇒ 查 Wi-Fi 缓冲档位（`CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=3` /
+   `DYNAMIC_RX_BUFFER_NUM=16` / `DYNAMIC_TX_BUFFER_NUM=16`，**根 `sdkconfig` 与实际生效的那份都要改**）；
+3. 还不够 ⇒ 查**启动器里是否白养了 BLE**（本节）；
+4. 最后才考虑把 `LCD_SPI_TRANS_QUEUE_SZ` 降到 1（需求减半到 4096B）。
+   **缩 `LCD_SPI_MAX_TRANSFER_SIZE` 永远无效。**
+
+### 回归脚本（已留仓）
+- `tools/verify_shots/devpage/read_cold.py` —— DTR 硬复位 + 边读边等（冷启动路径）。
+- `tools/verify_shots/devpage/read_stress.py` —— 冷启动 + N 轮整屏重绘，只报错误/诊断行。
+  判据：`(无 —— 本次压力下显示链路干净)`。
+
+## 5d. `tlsf_free: block already marked as free` = **某个任务栈越界**（2026-10-04 定案）
+
+### 指纹（认准这一串，别去查业务逻辑）
+```
+assert failed: block already marked as free      (tlsf_free tlsf.c:630)
+Backtrace: panic_abort <- esp_system_abort <- __assert_func <- tlsf_free
+           <- multi_heap_free_impl <- heap_caps_free <- vPortFree
+           <- prvDeleteTCB <- prvCheckTasksWaitingTermination (IDLE)
+rst:0xc (RTC_SW_CPU_RST)
+```
+机理：栈**向下**增长，越界是写到**栈块下方相邻堆块**去，只把它的 **tlsf 块头** 写坏
+（`!block_is_free(block)` 断言失败）。只有当**那块后来被 free/alloc**时才炸 ——
+最常见的就是**任务自删（`vTaskDelete(NULL)`）时 `prvDeleteTCB` 释放自己的栈块**。
+
+### 🔴🔴 最重要的一条方法学：**"吃多少栈"是「任务」的属性，不是「函数」的**
+所以**不能**用"新起一个临时任务调同一个函数"来量真机栈 —— 临时任务少一层调用帧，
+量出来的数**偏小**，会得出"够用"的**错结论**。
+2026-10-04 实测同一个 `ui_push_install_remote()`：
+
+| 量的对象 | 栈 | hwm 读数 | 峰值 |
+|---|---|---|---|
+| 临时调试任务 | 12288 | `4036 B free` | 8252 B ← **偏小，会误判** |
+| 真机常驻任务 `sd_cmd` | 10240 | `1628 B free` | **8612 B** ← 真值 |
+
+⇒ 真机原来 8192 是 **−420 B（负数）**：**每次远程安装都在悄悄越界**，
+但**偶发崩溃、不是必崩**（要等相邻块被回收），所以用户只报功能异常、从不报崩溃。
+
+### 量法（可复制的动作）
+1. 给**真机那个任务**加一条常驻日志：`uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)`，
+   打印 `N B free of <本任务栈常量>B`。
+   ⚠️ 要放在**最深那段之后**（例如回执 TLS 之后），hwm 是运行期最小值、越晚读越准。
+2. 想在无人值守下触发真机路径 ⇒ 加一个"把指令**投进真机任务自己的队列**"的串口入口
+   （本项目：`{cm<slot>,<idx>!` → `sdgoods_cmd_debug_install_now()` → `sdgoods_cmd_submit()`）。
+   **只加"新起临时任务"的入口（`{ri`）量不出真机数**，这是关键区别。
+3. 加完重编烧录跑一次，把 `N` 与峰值记进注释。
+
+### 两条硬约束（都会让你白改一轮）
+- 🔴 **内部堆紧张时"加栈"本身会失败**：`xTaskCreatePinnedToCore(…, 16384, …)` 直接返回失败
+  （栈走**内部 RAM**，要一块**连续**的内部块；下载中 `heap_int≈33 KB` 时给不出 16 KB）。
+  ⇒ 别一次翻倍，先试 12288 这类"够但不大"的值，并在失败分支把
+  `heap_caps_get_free_size / get_largest_free_block(MALLOC_CAP_INTERNAL)` 打出来。
+- 🔴 **别无限加栈**：常驻任务每多 1 KB 都在挤压 TLS 等需要内部堆的东西。
+  余量不够优先**把大局部数组挪出栈**（本项目 `install_run` 的 `url[512]` 等），
+  其次才是加栈。加 2 KB 换来"从负数到 +1628 B"是划算的；再加就该换思路。
 
 ## 5b. 特例：设备**完全**不启动（读到 11 行就没了）
 

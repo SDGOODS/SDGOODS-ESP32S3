@@ -45,6 +45,13 @@
 ----
     npm i lv_font_conv        # 官方字体转换工具
     python3 tools/gen_fonts.py --bin ./node_modules/.bin/lv_font_conv
+
+可移植性
+--------
+lv_font_conv 的 `--format lvgl` 会把**完整命令行**写进产物头部的 `Opts:` 注释，
+于是 `--font` / `-o` 里的本机绝对路径会随源码一起进仓库。本脚本在写盘前
+把这两个路径参数归一化（仓库内 → 相对仓库根；仓库外 → `<abs>/文件名`），
+并做一次守卫：产物里若仍出现本机路径就直接报错，而不是静默泄漏。
 """
 
 import argparse
@@ -139,9 +146,61 @@ def run_conv(bin_path, font, size, bpp, symbols, name, out):
     subprocess.run(cmd, check=True)
 
 
+# --------------------------------------------------------------------------- 绝对路径归一化
+# 为什么需要：lv_font_conv 会把**完整命令行**回写进产物头部注释（见上面「可移植性」）。
+# 不处理的话，维护者本机家目录下的私有工作区（…/WorkBuddy/<日期>/…）就会随字体源文件进仓库 ——
+# 2026-10-04 开源就绪度体检定的 P0-1。
+# 🔴 模式写成**正则**而不是裸字面量：否则本文件自己就会被「全仓搜本机绝对路径」那条
+#    验收判据命中，污染结论（自指污染）。
+_LEAK_RE = re.compile(
+    r"/(?:Users|home|root)/"                                  # POSIX 私有目录
+    r"|[A-Za-z]:[\\/](?:Users|Documents and Settings)[\\/]"    # Windows 私有目录
+)
+
+
+def norm_path_arg(p):
+    """把一个命令行路径参数改成可移植写法（只影响注释，不碰任何字形数据）。"""
+    if ROOT + os.sep in p:                                   # 仓库内 → 相对仓库根
+        return p.replace(ROOT + os.sep, "")
+    if p.startswith("/") or re.match(r"[A-Za-z]:[\\/]", p):   # 仓库外 → 只留文件名
+        return "<abs>/" + os.path.basename(p.replace("\\", "/"))
+    return p
+
+
+def sanitize_opts_comment(src):
+    """归一化产物里 `Opts:` 注释行的 --font / -o 路径参数。"""
+    lines = []
+    for line in src.splitlines(keepends=True):
+        if "Opts:" in line:
+            toks = line.split(" ")
+            for i, t in enumerate(toks[:-1]):
+                if t in ("--font", "-o"):
+                    toks[i + 1] = norm_path_arg(toks[i + 1])
+            line = " ".join(toks)
+        lines.append(line)
+    return "".join(lines)
+
+
+def assert_no_host_paths(out, src):
+    """守卫：产物里绝不允许出现本机私有路径。
+
+    归一化依赖 lv_font_conv 头部注释的**格式**；哪天上游改了格式或换了工具，
+    就会静默把路径写回去。这里让它**当场炸**，而不是等第三方在仓库里看见。
+    """
+    hit = _LEAK_RE.search(src)
+    if hit:
+        raise RuntimeError(
+            f"{out} 里仍有本机路径（命中 {hit.group(0)!r}）—— 请检查 lv_font_conv 的头部格式，"
+            f"必要时同步更新 sanitize_opts_comment()"
+        )
+    if ROOT + os.sep in src:
+        raise RuntimeError(f"{out} 里仍有仓库绝对路径（{ROOT}）—— 归一化没生效")
+
+
 def postprocess(out, size, name, fallback_name=None):
-    """加 OFL 许可头；主字体额外注入 .fallback 指向全量字体。"""
+    """加 OFL 许可头；主字体额外注入 .fallback 指向全量字体；归一化绝对路径。"""
     src = open(out, encoding="utf-8").read()
+    src = sanitize_opts_comment(src)
 
     extra = ""
     if fallback_name:
@@ -165,6 +224,7 @@ def postprocess(out, size, name, fallback_name=None):
             raise RuntimeError(f"在 {out} 里找不到 '.fallback = NULL,'，无法注入 fallback")
         src = src.replace(".fallback = NULL,", f".fallback = &{fallback_name},", 1)
 
+    assert_no_host_paths(out, header + src)
     open(out, "w", encoding="utf-8").write(header + src)
 
 

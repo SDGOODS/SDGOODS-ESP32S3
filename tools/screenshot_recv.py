@@ -208,10 +208,9 @@ def open_port(port, baud):
     try:
         import serial
     except ImportError:
-        print('需要 pyserial，请用带 pyserial 的解释器运行，例如：', file=sys.stderr)
-        print('  /Users/zhangzuoliang/.workbuddy/binaries/python/versions/3.13.12/bin/python3 %s'
-              % os.path.basename(__file__), file=sys.stderr)
-        print('  或先安装：python3 -m pip install pyserial', file=sys.stderr)
+        print('需要 pyserial。安装：python3 -m pip install pyserial', file=sys.stderr)
+        print('  （或用你环境里带 pyserial 的解释器运行 %s）' % os.path.basename(__file__),
+              file=sys.stderr)
         return None
     try:
         ser = serial.Serial(port, baud, timeout=0.5)
