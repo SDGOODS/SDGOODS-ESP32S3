@@ -7,6 +7,7 @@
   复制本仓库（默认种子 = SDGOODS-ESP32S3，开源工程，用户只能读它）
     → 改名 <NEWAPP>（**不加 SDGOODS_ 前缀**，沿用 HELLO 约定 `project(HELLO_3)`）
     → 改根 CMakeLists.txt 的 project() + version.txt → 1.0.0
+    → 写 app_meta.json（中英文名 + 版本，供发布链读取，不用再问一遍）
     → **裁剪成 PLANE 形**：删掉启动台/演示 app（ui_home/ui_scan_page/ui_rec_page/
       ui_other_page/ui_flappy），只留一个从 app_template 派生的起始 app，开机直入该
       app（home_create_show / home_show / apps_show 全指向它）
@@ -23,17 +24,35 @@
 main/apps/apps_registry.c 的 s_apps[] 里加一行、在 main/CMakeLists.txt 的 SRCS
 加一行即可（详见 apps_registry.c 顶部注释）。
 
+命名规则（重要，别搞混两个名字）：
+  · **英文名 = 工程名 = 设备端 app_id** —— 必须 ASCII（launcher 首页只显示 ASCII
+    的 app_id，中文会渲染成方框）；约定**不加 SDGOODS_ 前缀**；空格 / 连字符等
+    非法字符会被清洗成 project() 合法标识符（`my app` → `MYAPP`）。
+  · **中文名 = 市场/平台展示名** —— 可纯中文，用 `--name-zh` 给，只写进
+    `<新工程>/app_meta.json`，**不进设备 UI**。
+  · 只要「没显式给英文名（`--name-en`）而中文名有来源」，即下列两种写法之一：
+      ① `new_app_project.py 贪吃蛇`         （位置参数是中文）
+      ② `new_app_project.py --name-zh 贪吃蛇`（只给中文名）
+    → **直接报错（退出码 1）并给出建议英文名**，由用户确认。**绝不静默折叠**：
+    旧版会把「贪吃蛇」清成工程名 `APP`、把「飞机大战2」清成工程名 `2`，产出坏工程
+    却退出码 0；而 ② 这种写法更隐蔽 —— 它会悄悄退回默认名 `MYAPP`。
+
 默认主页文案（最小应用）：
-  · 不给应用名  →  屏幕中央显示 "Hello SDGOODS!"
-  · 给应用名(如 ABC)  →  显示 "Hello ABC!"
+  · 不给应用名  →  工程名 MYAPP，屏幕中央显示 "Hello MYAPP!"
+  · 给应用名(如 ABC)  →  显示 "Hello ABC!"（用**清洗后**的名字，不是输入原文）
   · 用户给了具体需求  →  按需求实现（本脚本只生成最小骨架，AI 再据需求改写 ui_<app>.c）
 
 用法:
-  # 默认：不给名 → 生成显示 "Hello SDGOODS!" 的最小应用 MYAPP 工程（父目录）
-  python3 tools/new_app_project.py
-
-  # 给名：生成显示 "Hello ABC!" 的最小应用 ABC 工程
+  # 给英文名：生成显示 "Hello ABC!" 的最小应用 ABC 工程（父目录）
   python3 tools/new_app_project.py ABC
+
+  # 中文名 + 英文名：工程名用 --name-en，中文名落进 app_meta.json（供发布链读取）
+  python3 tools/new_app_project.py --name-zh 贪吃蛇 --name-en SNAKE
+  #   也可以把中文名当位置参数写，但仍必须给 --name-en：
+  #   python3 tools/new_app_project.py 贪吃蛇 --name-en SNAKE
+
+  # 默认：不给名 → 生成显示 "Hello MYAPP!" 的最小应用 MYAPP 工程（父目录）
+  python3 tools/new_app_project.py
 
   # 只预览，不写文件
   python3 tools/new_app_project.py ABC --dry-run
@@ -44,9 +63,13 @@ main/apps/apps_registry.c 的 s_apps[] 里加一行、在 main/CMakeLists.txt �
 
   # 指定其他种子工程目录（一般不用，默认就是本仓库）
   python3 tools/new_app_project.py ABC --seed-dir /path/to/SDGOODS-ESP32S3
+
+  # 指定输出父目录（默认：种子工程的同级目录）
+  python3 tools/new_app_project.py ABC --dest-dir /path/to/parent
 """
 import argparse
 import glob
+import json
 import os
 import re
 import shutil
@@ -70,6 +93,55 @@ DEMO_APP_BASENAMES = (
     "ui_flappy",
 )
 
+# 不给名时的默认英文名（会走 dest_folder_name() 清洗 → MYAPP）
+DEFAULT_APP_NAME = "MyApp"
+
+# main/CMakeLists.txt 里 SRCS 的裁剪锚点：「# --- 导航页 / 工具页 ---」…「"apps/ui_flappy.c"」。
+# 单独提出来是为了让「预检」与「执行」用同一份正则 —— 各写一份迟早会漂移。
+CMAKE_SRCS_RE = re.compile(
+    r'[ \t]*# --- 导航页 / 工具页 ---.*?"apps/ui_flappy\.c"\n',
+    re.DOTALL,
+)
+
+# 只给中文名时用来建议一个英文名。**值必须是 project() 合法的 ASCII 标识符**。
+# 只在「猜得出」时才给建议；猜不出就请用户自己起 —— 不硬造一个假名字糊过去。
+EN_NAME_DICT = {
+    "贪吃蛇": "SNAKE",
+    "打地鼠": "WHACK",
+    "飞机大战": "PLANE_WAR",
+    "俄罗斯方块": "TETRIS",
+    "五子棋": "GOMOKU",
+    "扫雷": "MINESWEEPER",
+    "小游戏": "MINIGAME",
+    "游戏": "GAME",
+    "计时器": "TIMER",
+    "倒计时": "COUNTDOWN",
+    "秒表": "STOPWATCH",
+    "时钟": "CLOCK",
+    "闹钟": "ALARM",
+    "日历": "CALENDAR",
+    "天气": "WEATHER",
+    "计步器": "STEPPER",
+    "计算器": "CALC",
+    "相册": "ALBUM",
+    "图片浏览器": "PHOTOS",
+    "待办清单": "TODO",
+    "待办": "TODO",
+    "便签": "NOTES",
+    "音乐": "MUSIC",
+    "播放器": "PLAYER",
+    "录音": "RECORDER",
+    "心率": "HEARTRATE",
+    "呼吸": "BREATH",
+    "骰子": "DICE",
+    "抽签": "LOTTERY",
+    "手电筒": "FLASHLIGHT",
+    "水平仪": "LEVEL",
+    "指南针": "COMPASS",
+    "名片": "BADGE",
+    "签到": "CHECKIN",
+}
+
 # 起始 app 的 C 源（从 app_template 精简出的「最小应用」，只居中显示一行问候语）
 STARTER_C = r'''/*
  * 谷仓共创计划 · 谷仓 SDGOODS 开放平台基础工程
@@ -87,9 +159,11 @@ STARTER_C = r'''/*
  * 新应用起始骨架（派生自 app_template，已精简为「最小应用」）
  *
  * 本工程是「单应用固件」：开机直接进入唯一的应用（见 apps_registry.c），
- * 屏幕中央默认只显示一行问候语 ——
- *   · 没给应用名时显示 "Hello SDGOODS!"
- *   · 给了应用名（如 ABC）时显示 "Hello ABC!"
+ * 屏幕中央默认只显示一行问候语 —— 脚本填的是**清洗后的英文名**：
+ *   · 不给名   → "Hello MYAPP!"
+ *   · 给了 ABC → "Hello ABC!"
+ * 中文名只写进工程根的 app_meta.json（市场展示用），**不会**出现在屏上
+ * （设备 UI 用纯 ASCII 问候语，省得每次派生都要重跑字体子集）。
  * 要写真正的应用，照着这个文件改即可。
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
@@ -159,7 +233,7 @@ void ui_{lower}_start(void)
 
     /* ★★★ 接入标准应用框架（两行，顺序别改）★★★
        bind 必须在 lv_scr_load 之后 —— 它要往当前屏上挂手势捕获层。 */
-    sdgoods_app_shell_bind(s_scr);                 /* 顶部下滑出菜单（音量+/-/退出/截屏） */
+    sdgoods_app_shell_bind(s_scr);                 /* 顶部下滑出控制中心（设置 / 关于 / 关机或退出） */
     sdgoods_app_shell_set_exit_cb(on_menu_exit);        /* 退出时清理（切屏后才回调） */
 
     ESP_LOGI(TAG, "start");
@@ -316,13 +390,70 @@ def resolve_seed_dir(script_dir, args):
 
 
 def dest_folder_name(name):
+    """用户给的英文名 → 合法的工程名（不加 SDGOODS_ 前缀）。
+
+    清洗不出合法标识符时**抛 ValueError**，绝不静默折叠成 "APP"：
+    静默折叠出来的名字看起来「成功了」，实际已经不是用户要的那个
+    （旧版把「贪吃蛇」变 `APP`、「飞机大战2」变 `2`，还照样退出码 0）。
+    """
     # 用户规定：新工程名不加 SDGOODS_ 前缀（沿用 HELLO 约定，如 project(HELLO_3)）
     up = name.strip().upper()
     if up.startswith("SDGOODS_"):
         up = up[len("SDGOODS_"):]
     # 非标识符字符（空格/连字符等）折叠掉，保证 project() 合法
-    up = re.sub(r"[^A-Z0-9_]+", "", up) or "APP"
-    return up, up
+    ident = re.sub(r"[^A-Z0-9_]+", "", up)
+    # 至少要有一个字母：纯数字（如中文名清洗后剩下的 "2"）当工程名是坏名字 ——
+    # 它会变成 app_id / appdata 目录名，而且一眼看不出是哪个应用。
+    if not re.search(r"[A-Z]", ident):
+        raise ValueError(name)
+    return ident, ident
+
+
+def has_non_ascii(s):
+    """含中文 / 全角等非 ASCII 字符。设备端 app_id 必须是 ASCII。"""
+    return any(ord(ch) > 127 for ch in s)
+
+
+def suggest_en_name(zh_name):
+    """给一个中文名建议 ASCII 英文名；猜不出返回 None（**不编造**）。
+
+    先查整串；查不到再逐步截短前缀查表，并把尾部剩下的 ASCII 数字/字母拼回去
+    —— 这样「飞机大战2」能建议出 `PLANE_WAR2`（旧版会把它清成 `2`）。
+    """
+    s = zh_name.strip()
+    if not s:
+        return None
+    if s in EN_NAME_DICT:
+        return EN_NAME_DICT[s]
+    for cut in range(len(s) - 1, 0, -1):
+        head, tail = s[:cut], s[cut:]
+        if head in EN_NAME_DICT and all(ord(c) <= 127 for c in tail):
+            suffix = re.sub(r"[^A-Za-z0-9_]", "", tail).upper()
+            return EN_NAME_DICT[head] + suffix
+    return None
+
+
+def precheck_seed(seed_dir):
+    """在**动任何文件之前**确认种子工程能按本脚本的规则裁剪。
+
+    为什么必须先做：裁剪规则靠 `main/CMakeLists.txt` 里的一段注释 + 最后一个
+    SRCS 条目定位（`CMAKE_SRCS_RE`）。锚点失配说明种子结构变了 —— 旧版这时只在
+    日志里打一行「! 未匹配到导航页块，跳过 SRCS 改写」然后 **退出码仍是 0**，
+    而 5 个 `ui_*.c` 已经被删掉、SRCS 还引用着它们 ⇒ 交给用户的工程**编译不过**，
+    却看不出哪里出错。这里提前失败，且**退出码非 0**。
+    """
+    cmake = os.path.join(seed_dir, "main", "CMakeLists.txt")
+    if not os.path.exists(cmake):
+        sys.exit("✗ 种子工程缺少 %s —— 不像一份完整的 SDGOODS-ESP32S3 工程。" % cmake)
+    with open(cmake, "r", encoding="utf-8") as fh:
+        if not CMAKE_SRCS_RE.search(fh.read()):
+            sys.exit(
+                "✗ 种子工程的 main/CMakeLists.txt 里找不到 SRCS 裁剪锚点"
+                "（`# --- 导航页 / 工具页 ---` … `\"apps/ui_flappy.c\"`）。\n"
+                "  说明种子工程的结构已经变了、本脚本的裁剪规则失效 ——\n"
+                "  请先修 tools/new_app_project.py，**不要**手工继续（否则会得到一个\n"
+                "  CMakeLists 仍引用已删源文件的、编译不过的工程）。"
+            )
 
 
 def copy_tree(src, dst, dry, log, counter):
@@ -341,7 +472,7 @@ def copy_tree(src, dst, dry, log, counter):
                 shutil.copy2(os.path.join(root, f), os.path.join(target, f))
 
 
-def patch_project(seed_dir, dst, base, dry, log):
+def patch_project(seed_dir, dst, base, name_zh, dry, log):
     # 根 CMakeLists.txt: project(SDGOODS_EBADGE) -> project(<BASE>)
     cmake = os.path.join(dst, "CMakeLists.txt")
     src_cmake = cmake if os.path.exists(cmake) else os.path.join(seed_dir, "CMakeLists.txt")
@@ -357,6 +488,11 @@ def patch_project(seed_dir, dst, base, dry, log):
                 log.append("  ~ CMakeLists.txt : project() -> %s" % base)
             else:
                 new.append(line)
+        # 根 CMakeLists.txt 里没有 project() ⇒ 工程名压根没改，产物 app_id 仍是模板名。
+        # 这与 patch_cmake 的「静默跳过」是同一类问题：看着成功、实际交付坏工程。
+        # pack_app.py 到发布时才拦，代价太大（那时已经编译烧录过了）。
+        if not replaced:
+            sys.exit("✗ %s 里找不到 project(...) 行 —— 无法改名，已中止。" % src_cmake)
         if not dry:
             with open(cmake, "w", encoding="utf-8") as fh:
                 fh.write("\n".join(new) + "\n")
@@ -366,6 +502,22 @@ def patch_project(seed_dir, dst, base, dry, log):
         with open(vt, "w", encoding="utf-8") as fh:
             fh.write("1.0.0\n")
     log.append("  ~ version.txt   -> 1.0.0")
+    # app_meta.json：中英文名 + 版本，供发布链直接读取（不用每次重问名字）
+    meta = {
+        "_note": ("应用元信息。name_zh 只用于市场/平台展示、不进设备 UI；"
+                  "name_en = project() = 设备端 app_id（appdata 目录名）。"
+                  "发布时读这里填「名称」，不要再问一遍。"),
+        "name_zh": name_zh,
+        "name_en": base,
+        "project": base,
+        "app_id": base,
+        "version": "1.0.0",
+    }
+    if not dry:
+        with open(os.path.join(dst, "app_meta.json"), "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+    log.append("  ~ app_meta.json -> 中文名 %r / 英文名 %s / 版本 1.0.0" % (name_zh, base))
 
 
 def transform_to_plane_shape(dst, base, greeting, dry, log):
@@ -373,7 +525,13 @@ def transform_to_plane_shape(dst, base, greeting, dry, log):
     lower = base.lower()
     apps_dir = os.path.join(dst, "main", "apps")
 
-    # 1) 删掉启动台 / 演示 app（ui_home / ui_scan_page / ui_rec_page / ui_other_page / ui_flappy）
+    # 1) 先裁剪 main/CMakeLists.txt 的 SRCS —— 刻意放在最前面：它是唯一可能「失败」的一步，
+    #    锚点对不上时 patch_cmake 直接 sys.exit，此时还**一个文件都没删**。
+    #    反过来做（先删 5 个 ui_*.c、再改 SRCS）一旦失败，留下的就是 SRCS 引用已删文件的
+    #    编译不过的工程 —— 旧版正是这个顺序 + 只打日志不报错。
+    patch_cmake(dst, lower, dry, log)
+
+    # 2) 删掉启动台 / 演示 app（ui_home / ui_scan_page / ui_rec_page / ui_other_page / ui_flappy）
     for bn in DEMO_APP_BASENAMES:
         for ext in (".c", ".h"):
             p = os.path.join(apps_dir, bn + ext)
@@ -382,7 +540,7 @@ def transform_to_plane_shape(dst, base, greeting, dry, log):
                     os.remove(p)
                 log.append("  - 删除演示 app : main/apps/%s%s" % (bn, ext))
 
-    # 2) 写一个派生自 app_template 的最小起始 app（ui_<lower>.c/.h）
+    # 3) 写一个派生自 app_template 的最小起始 app（ui_<lower>.c/.h）
     starter_c = STARTER_C.replace("{lower}", lower).replace("{greeting}", greeting)
     starter_h = STARTER_H.replace("{lower}", lower)
     if not dry:
@@ -392,14 +550,14 @@ def transform_to_plane_shape(dst, base, greeting, dry, log):
             fh.write(starter_h)
     log.append("  + 起始 app     : main/apps/ui_%s.c / .h（最小应用，主页显示 %r）" % (lower, greeting))
 
-    # 3) 重写 apps_registry.c 成单应用直启形态
+    # 4) 重写 apps_registry.c 成单应用直启形态
     registry = REGISTRY_C.replace("{lower}", lower)
     if not dry:
         with open(os.path.join(apps_dir, "apps_registry.c"), "w", encoding="utf-8") as fh:
             fh.write(registry)
     log.append("  ~ apps_registry.c : 单应用直启（home_* 全指向 ui_%s_start）" % lower)
 
-    # 4) 改 apps_registry.h 里过时的 tools/new_app.py 引用 → tools/new_app_project.py
+    # 5) 改 apps_registry.h 里过时的 tools/new_app.py 引用 → tools/new_app_project.py
     hr = os.path.join(apps_dir, "apps_registry.h")
     if os.path.exists(hr):
         with open(hr, "r", encoding="utf-8") as fh:
@@ -411,27 +569,29 @@ def transform_to_plane_shape(dst, base, greeting, dry, log):
         if h2 != htxt:
             log.append("  ~ apps_registry.h : new_app.py 引用 -> new_app_project.py")
 
-    # 5) 改 main/CMakeLists.txt 的 SRCS：去掉导航页/演示/游戏，留 app_template + 新 app
-    patch_cmake(dst, lower, dry, log)
-
 
 def patch_cmake(dst, lower, dry, log):
+    """把 main/CMakeLists.txt 的 SRCS 裁成 app_template.c + ui_<lower>.c。
+
+    锚点（`CMAKE_SRCS_RE`）匹配不上 ⇒ **sys.exit 非 0**，不再「打一行日志就当没事」。
+    对应的预检在 `precheck_seed()`（跑在复制任何文件之前）。
+    """
     cmake = os.path.join(dst, "main", "CMakeLists.txt")
     if not os.path.exists(cmake):
-        log.append("  ! 找不到 main/CMakeLists.txt，跳过 SRCS 改写")
+        # dry-run 下不复制文件，所以这里必然找不到 —— 锚点已由 precheck_seed() 在种子上验过。
+        log.append("  ! 找不到 main/CMakeLists.txt（dry-run 未复制文件），跳过 SRCS 改写"
+                   "（锚点已在种子预检里确认）")
         return
     with open(cmake, "r", encoding="utf-8") as fh:
         txt = fh.read()
 
     # 锚定：从「导航页 / 工具页」注释开始，到「游戏」的 ui_flappy.c 结束
-    pattern = re.compile(
-        r'[ \t]*# --- 导航页 / 工具页 ---.*?"apps/ui_flappy\.c"\n',
-        re.DOTALL,
-    )
-    m = pattern.search(txt)
+    m = CMAKE_SRCS_RE.search(txt)
     if not m:
-        log.append("  ! CMakeLists.txt 未匹配到导航页块，跳过 SRCS 改写（请手动改）")
-        return
+        sys.exit(
+            "✗ main/CMakeLists.txt 里找不到 SRCS 裁剪锚点 —— 已中止（未继续删任何文件）。\n"
+            "  预检本该在复制前就拦住，说明工程在复制后被改过；请检查 %s。" % cmake
+        )
 
     block = (
         '        # --- 应用骨架（开发者二次开发模板，始终编译以便参考） ---\n'
@@ -584,8 +744,14 @@ def run_flow(dest, base, dry):
 def main():
     ap = argparse.ArgumentParser(description="派生新的独立 app 工程（从本仓库复制改名，产出 PLANE 形单应用固件）")
     ap.add_argument("name", nargs="?", default=None,
-                    help="新 app 名（可选）。不给→默认生成显示 'Hello SDGOODS!' 的最小应用；"
-                         "给了(如 ABC)→显示 'Hello ABC!'。工程名沿用 HELLO 约定，不加 SDGOODS_ 前缀")
+                    help="英文名（可选）= 工程名 = 设备端 app_id，必须 ASCII。"
+                         "不给→默认生成显示 'Hello MYAPP!' 的最小应用 MYAPP 工程；"
+                         "给了(如 ABC)→显示 'Hello ABC!'。工程名不加 SDGOODS_ 前缀。"
+                         "若这里写中文名，必须另给 --name-en")
+    ap.add_argument("--name-zh",
+                    help="中文展示名（只用于市场/平台展示，可纯中文；落到 <新工程>/app_meta.json）")
+    ap.add_argument("--name-en",
+                    help="英文名（= 工程名 = app_id，必须 ASCII）。给了它，位置参数只当中文名用")
     ap.add_argument("--seed-dir", help="种子工程根目录（默认：脚本所在仓根 = SDGOODS-ESP32S3）")
     ap.add_argument("--dest-dir", help="新工程父目录（默认：种子工程的同级目录）")
     ap.add_argument("--run", action="store_true",
@@ -598,31 +764,74 @@ def main():
     if not os.path.isdir(seed_dir):
         sys.exit("种子目录不存在: %s" % seed_dir)
 
-    # 主页问候语规则：
-    #   · 不给名 → 显示 "Hello SDGOODS!"，工程名默认 SDGOODS_APP
-    #   · 给名   → 显示 "Hello <名>!"，工程名 = 清洗后的名
-    if args.name:
-        folder, base = dest_folder_name(args.name)
-        greeting = "Hello %s!" % args.name.strip()
-    else:
-        folder, base = "SDGOODS_APP", "SDGOODS_APP"
-        greeting = "Hello SDGOODS!"
+    raw = (args.name or "").strip()
+    zh_in = (args.name_zh or "").strip()
+    en_src = (args.name_en or "").strip()
+
+    # ① 定英文名（工程名 = app_id）—— 设备端只认 ASCII，见文件头「命名规则」
+    #
+    # 🔴 下面两种情形必须**报错退出**，绝不能"猜一个用"：
+    #    ① 位置参数直接给了中文名（`new_app_project.py 贪吃蛇`）；
+    #    ② 只给了 --name-zh、没给 --name-en（`new_app_project.py --name-zh 贪吃蛇`）。
+    #    二者若放行，都会静默折叠成 DEFAULT_APP_NAME（MYAPP）—— 用户以为建了
+    #    「贪吃蛇」，实际拿到 MYAPP 工程，且**退出码 0、屏幕上毫无提示**。
+    #    （这正是 P1-3 缺陷 3「中文名静默折叠」在 --name-zh 这条入口上的同类残留。）
+    #    注意以下两种写法都**合法**（都显式给了英文名）：
+    #      `--name-zh 贪吃蛇 --name-en SNAKE` / `SNAKE --name-zh 贪吃蛇`
+    zh_only = raw if (raw and has_non_ascii(raw)) \
+        else (zh_in if (zh_in and not raw) else "")
+    if not en_src:
+        if zh_only:
+            sug = suggest_en_name(zh_only)
+            hint = ("建议英文名：%s（可改成你想要的）" % sug) if sug \
+                else "这个中文名猜不出对应英文，请你自己起一个"
+            sys.exit(
+                "✗ 应用名 %r 含中文等非 ASCII 字符，不能直接当工程名。\n"
+                "  设备端 app_id（= 工程名 = appdata 目录名）必须是 ASCII：\n"
+                "  launcher 首页只显示 ASCII 的 app_id，中文会渲染成方框。\n"
+                "  请**显式**给出英文名，中文名单独用 --name-zh 记录（只用于市场展示，不进设备 UI）：\n"
+                "\n"
+                "      python3 tools/new_app_project.py --name-zh %s --name-en %s\n"
+                "\n"
+                "  %s" % (zh_only, zh_only, sug or "YOUR_APP_NAME", hint)
+            )
+        en_src = raw or DEFAULT_APP_NAME
+
+    try:
+        folder, base = dest_folder_name(en_src)
+    except ValueError:
+        sys.exit(
+            "✗ 英文名 %r 清洗后不是合法标识符（只允许 A-Z 0-9 _，且至少要有一个字母）。\n"
+            "  例：'my app' → MYAPP，'plane-war' → PLANEWAR。请换一个名字。" % en_src
+        )
+
+    # ② 定中文展示名：优先 --name-zh；否则位置参数若含中文就用它；再否则同英文名
+    name_zh = (args.name_zh or "").strip() or (raw if has_non_ascii(raw) else base)
+
+    # ③ 问候语用**清洗后的**名字，不是输入原文：
+    #    'my app' → 屏上 'Hello MYAPP!'（旧版是 'Hello my app!'，工程名却叫 MYAPP）。
+    #    中文名不进这里 —— 模板刻意用纯 ASCII 问候语，省得每次派生都要重跑字体子集。
+    greeting = "Hello %s!" % base
 
     dest_dir = os.path.abspath(args.dest_dir) if args.dest_dir else os.path.dirname(seed_dir)
     dest = os.path.join(dest_dir, folder)
     if os.path.exists(dest):
         sys.exit("目标已存在，终止: %s" % dest)
 
+    # ④ 预检：种子工程必须能被本脚本裁剪。**放在复制/删除之前** —— 见 precheck_seed() 的说明。
+    precheck_seed(seed_dir)
+
     log = []
     counter = [0]
     print("[new_app_project] 源(种子工程): %s" % seed_dir)
     print("[new_app_project] 目标工程    : %s/  (project=%s, 单应用直启形, 主页=%s)" %
           (folder, base, greeting))
+    print("[new_app_project] 名称        : 中文展示名=%s ｜ 英文名(app_id)=%s" % (name_zh, base))
 
     copy_tree(seed_dir, dest, args.dry_run, log, counter)
     if args.dry_run:
         log.insert(0, "  + 复制 %d 个文件（已跳过 .git / dist / build*）" % counter[0])
-    patch_project(seed_dir, dest, base, args.dry_run, log)
+    patch_project(seed_dir, dest, base, name_zh, args.dry_run, log)
     transform_to_plane_shape(dest, base, greeting, args.dry_run, log)
 
     for l in log:
@@ -632,7 +841,8 @@ def main():
     if not args.dry_run:
         print("下一步：编辑 %s/main/apps/ui_%s.c 实现你的应用（注意圆屏安全区），再：" %
               (dest, base.lower()))
-        print("  idf.py set-target esp32s3 && idf.py -B build_%s build" % base.lower())
+        print("  idf.py -B build_%s build      # 目标芯片已由 sdkconfig.defaults 定为 esp32s3，无需再 set-target"
+              % base.lower())
         if args.run:
             run_flow(dest, base, args.dry_run)
 

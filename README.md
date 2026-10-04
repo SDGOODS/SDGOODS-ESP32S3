@@ -148,7 +148,7 @@ bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自�
 |---|---|
 | ![第一个应用 Hello SDGOODS!](screenshot/first-app-hello.jpg) | ![控制中心](screenshot/first-app-cc.jpg) |
 
-看到左边这个画面，说明你已经跑通了「生成 → 编译 → 烧录 → 真机验证」整条链路（全程 10 分钟内）；右边的控制中心是平台模板自带的——音量、亮度、截屏、关于页都能用，你的应用自动拥有它们。
+看到左边这个画面，说明你已经跑通了「生成 → 编译 → 烧录 → 真机验证」整条链路（全程 10 分钟内）；右边的控制中心是平台模板自带的——设置（音量 / 亮度 / 数据 / 电量）、关于页都能用，你的应用自动拥有它们。
 
 **💻 开发者**
 
@@ -176,7 +176,7 @@ idf.py -B build build                    # 编译
 | **开机直入你的 app** | 没有主页 / 启动台 / demo，上电就进你的界面 | `ui_<name>.c` |
 | **圆屏安全区** | 自带 `SDG_UI_SAFE_X/Y/W/H` 栅格，控件不会被圆边切掉 | 布局时引用常量 |
 | **触摸交互** | 点按钮、点屏幕任意处、左滑返回，全部走平台成熟原语（不让你自己写手势检测） | `sdgoods_app_on_tap` / `sdgoods_app_on_gesture` |
-| **顶部下滑菜单** | 顶部下滑唤出控制中心：音量 ± / 亮度 / 截屏 / 退出 | 平台层自动提供 |
+| **顶部下滑菜单** | 顶部下滑唤出控制中心：设置（音量 / 亮度 / 数据 / 电量）/ 关于 / 关机或退出 | 平台层自动提供 |
 | **控制中心 / 关于页** | 音量、亮度、设备信息（含固件版本）——开发者无需自己写 | 平台层自动提供 |
 | **平台音效** | 调用 `sdgoods_audio_sfx_flap()` 即播提示音，安全无副作用 | 事件回调里调用 |
 | **中英双语文案** | 用 `SDG_T("中文", "English")` 写文案，用户可在设置里切换语言 | 所有界面字符串 |
@@ -281,11 +281,39 @@ AI 会先引导你到平台开发者设置生成一个 `sdg_` 开头的开发者
 
 ---
 
+## 🧭 我要做 X → 读哪个文件（文档路由表）
+
+文档是按**任务**组织的，不是按目录。先在下表找到你"要做的事"，再顺着那篇往下走。
+（`AGENTS.md` 里有**同一张表** —— 两处一起改，别只改一边。）
+
+| 我要… | 先读 | 入口 / 关键文件 |
+|---|---|---|
+| 配环境、第一次编译烧录 | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) → [`docs/BUILD.md`](docs/BUILD.md) | `python3 tools/check_env.py` → `tools/build.sh` |
+| **从零做一个自己的应用**（最常用） | [`AGENTS.md`](AGENTS.md) §3b + skill `sdgoods-new-app` | `python3 tools/new_app_project.py MyApp` |
+| 理解整体分层、运行时、钩子机制 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | `components/sdgoods_board/` ⇄ `main/` |
+| 写应用界面（安全区 / 手势 / 文案 / 生命周期） | [`docs/APP_SDK.md`](docs/APP_SDK.md) + `include/sdgoods_ui.h` | `main/apps/ui_<name>.c` |
+| **改顶部下滑菜单 / 控制中心**（设置·关于·关机/退出） | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §3.5 + [`docs/APP_SDK.md`](docs/APP_SDK.md) §3.2 | `components/sdgoods_launcher/src/sdgoods_cc.c`（`include/sdgoods_cc.h`） |
+| 新增/改中文文案（否则屏上是方框） | [`AGENTS.md`](AGENTS.md) §4 + skill `sdgoods-fonts` | `python3 tools/gen_fonts.py --check` |
+| 真机验证 / 截屏自查 | [`AGENTS.md`](AGENTS.md) §7 + skill `sdgoods-screenshot` | `python3 tools/screenshot_recv.py -p <串口> -t` |
+| 存数据（掉电不丢） | [`docs/APP_SDK.md`](docs/APP_SDK.md) | `/appdata/<app_id>/` |
+| 发布上架到开放平台 | [`docs/PUBLISHING.md`](docs/PUBLISHING.md) + [`docs/MCP_CONTRACT.md`](docs/MCP_CONTRACT.md) | `tools/pack_app.py` → `sdgoods_publish.py mcp-upload` |
+| 崩了 / 花屏 / 卡顿 / 内存不对 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) + skill `sdgoods-crash-triage` | 串口日志 + 截屏 |
+| 换板子 / 改引脚 | — | `components/sdgoods_board/include/board_pins.h` |
+| 把整个仓库变成我自己的品牌固件 | [`docs/STANDALONE_PROJECT.md`](docs/STANDALONE_PROJECT.md) | `tools/new_standalone_project.py` |
+| 多应用插槽 / 槽地址与封面布局 | [`docs/MULTI_APP_DYNAMIC_SLOTS.md`](docs/MULTI_APP_DYNAMIC_SLOTS.md) | — |
+| 许可范围 / 商标能不能用 | [`LICENSING.md`](LICENSING.md) / [`TRADEMARK.md`](TRADEMARK.md) | — |
+
+> **两条边界**：① `components/sdgoods_board/`（板级支持包）与 `components/sdgoods_launcher/`（启动器 + 控制中心）是**平台契约**，第三方不要改；
+> ② 99% 的二次开发都发生在 `main/apps/` —— 动手前先问自己「这是应用层的事，还是平台层的事」。
+
+---
+
 ## 项目结构
 
 ```
 components/sdgoods_board/   # 平台层（Apache-2.0，可商用）：驱动/LVGL/触摸/音频/外壳/字体
   └── include/board_pins.h  # 引脚定义（换板子改这里）
+components/sdgoods_launcher/  # 平台层：多应用启动器 + 控制中心（顶部下滑菜单，sdk 在 include/sdgoods_cc.h）
 main/apps/                  # 应用层（Apache-2.0，二次开发主要在这里）
   ├── apps_registry.c       # 应用清单（主页显示什么、谁被轮询）
   ├── app_template.c        # 新应用模板（new_app_project.py 派生时复制它）

@@ -293,6 +293,48 @@ def verify_app_bin(path, max_bytes=DEFAULT_SLOT_BYTES, allow_template_name=False
     return res
 
 
+# --------------------------------------------------------------------------- app_meta
+def load_app_meta():
+    """读工程根的 app_meta.json（`tools/new_app_project.py` 派生工程时会生成）。没有则返回 None。"""
+    p = os.path.join(REPO, "app_meta.json")
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError) as e:
+        return {"_error": str(e)}
+    return d if isinstance(d, dict) else {"_error": "不是 JSON 对象"}
+
+
+def attach_app_meta(res):
+    """把 app_meta.json 的「中英文名」并进校验结果，并核对 app_id 与固件实际身份是否一致。
+
+    为什么要核：app_meta 是「发布时名称该填什么」的真相源。如果改了工程名
+    （根 CMakeLists.txt 的 `project()`）却忘了同步 app_meta.json，平台上的展示名
+    就和设备里的 app_id 分家了 —— 而在此之前**没有任何一步**会报错。
+    """
+    meta = load_app_meta()
+    if not meta:
+        return
+    if meta.get("_error"):
+        res["warnings"].append("app_meta.json 读不出来（%s），本次忽略。" % meta["_error"])
+        return
+    res["nameZh"] = (meta.get("name_zh") or "").strip() or None
+    res["nameEn"] = (meta.get("name_en") or "").strip() or None
+    res["appMetaPath"] = os.path.join(REPO, "app_meta.json")
+    if res.get("kind") != "app":
+        return   # 形态都没过，名字对不上已无意义
+    declared = (meta.get("app_id") or meta.get("project") or "").strip()
+    if declared and res.get("projectName") and declared != res["projectName"]:
+        res["errors"].append(
+            "app_meta.json 里的 app_id「%s」与固件实际身份「%s」不一致 —— 多半是改了根 "
+            "CMakeLists.txt 的 project() 却没同步 app_meta.json。名称对不上会让平台展示名"
+            "与设备端 app_id 分家。" % (declared, res["projectName"])
+        )
+        res["ok"] = False
+
+
 # --------------------------------------------------------------------------- 输出
 def format_report(res, emitted=None, outdir=None):
     """把校验结果排成人类可读的多行文本（缩进交给调用方）。"""
@@ -323,6 +365,9 @@ def format_report(res, emitted=None, outdir=None):
     lines.append("  体积      %s%s" % (_human(res["sizeBytes"]), used))
     lines.append("  芯片      %s (0x%04X)" % (res.get("chipName"), res.get("chipId", 0)))
     lines.append("  项目名    %s" % (res.get("projectName") or "(空)"))
+    if res.get("nameZh") or res.get("nameEn"):
+        lines.append("  中英文名  %s / %s（来自 app_meta.json）"
+                     % (res.get("nameZh") or "(空)", res.get("nameEn") or "(空)"))
     lines.append("  版本      %s" % (res.get("version") or "(空)"))
     lines.append("  编译时间  %s %s" % (res.get("buildDate", ""), res.get("buildTime", "")))
     lines.append("  IDF       %s" % (res.get("idfVersion") or "(空)"))
@@ -378,6 +423,7 @@ def main(argv=None):
         return 2
 
     res = verify_app_bin(src, max_bytes=args.max_size, allow_template_name=args.allow_template_name)
+    attach_app_meta(res)
 
     emitted = None
     if res["ok"] and not args.no_emit:
@@ -394,6 +440,7 @@ def main(argv=None):
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump({k: res.get(k) for k in (
                     "fileName", "sizeBytes", "sha256", "chipName", "chipId", "projectName",
+                    "nameZh", "nameEn",
                     "version", "buildDate", "buildTime", "idfVersion", "entryAddr")},
                     f, ensure_ascii=False, indent=2)
             res["emitted"] = emitted

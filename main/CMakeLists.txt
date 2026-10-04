@@ -30,7 +30,7 @@ idf_component_register(
         "apps/ui_flappy.c"
 
     INCLUDE_DIRS
-        "apps"                  # 让 #include "ui_home.h" 直接可用
+        "apps"                  # 让 #include "ui_xxx.h" 直接可用
         "."                     # 让 #include "app_data_store.h" 直接可用
 
     REQUIRES

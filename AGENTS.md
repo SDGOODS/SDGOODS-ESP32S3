@@ -94,6 +94,11 @@ components/sdgoods_board/     平台层（板级支持包）
     lcd/      ST77916 QSPI 面板驱动
     fonts/    中文子集字体（由 tools/gen_fonts.py 生成）
 
+components/sdgoods_launcher/  平台层：多应用启动器 + 控制中心
+    include/sdgoods_cc.h      控制中心 API（顶部下滑那个浮层）
+    src/sdgoods_cc.c          控制中心实现（一级 3 键 + 设置二级页 4 键）
+    include/                  launcher / app_sdk / device_mode / slot_cover
+
 main/                         应用层
     main.c        装配点：初始化平台 + apps_register() 接线
     apps/         ★ 用户的应用写在这里
@@ -114,6 +119,30 @@ tools/                      开发 / 发布脚本
 
 **改代码前先问自己：这是应用层的事，还是平台层的事？**
 99% 的二次开发需求（加应用、改玩法、改界面）都只在 `main/apps/` 里做。
+
+---
+
+## 0.6 我要做 X → 读哪个文件（文档路由表）
+
+找不到路时先看这张表，别全文搜索。**它与 `README.md` 里那张是同一份内容 ——
+两边要一起改**（这里给 AI 用，README 给人和 AI 用）。
+
+| 我要… | 先读 | 入口 / 关键文件 |
+|---|---|---|
+| 配环境、第一次编译烧录 | `docs/ENVIRONMENT.md` → `docs/BUILD.md` | `python3 tools/check_env.py` → `tools/build.sh` |
+| **从零做一个自己的应用** | §3b 本节 + skill `sdgoods-new-app` | `python3 tools/new_app_project.py MyApp` |
+| 理解整体分层、运行时、钩子机制 | `docs/ARCHITECTURE.md` | `components/sdgoods_board/` ⇄ `main/` |
+| 写应用界面（安全区 / 手势 / 文案 / 生命周期） | `docs/APP_SDK.md` + `include/sdgoods_ui.h` | `main/apps/ui_<name>.c` |
+| **改顶部下滑菜单 / 控制中心** | `docs/ARCHITECTURE.md` §3.5 + `docs/APP_SDK.md` §3.2 | `components/sdgoods_launcher/src/sdgoods_cc.c` |
+| 新增/改中文文案（否则屏上是方框） | §4 本节 + skill `sdgoods-fonts` | `python3 tools/gen_fonts.py --check` |
+| 真机验证 / 截屏自查 | §7 本节 + skill `sdgoods-screenshot` | `python3 tools/screenshot_recv.py -p <串口> -t` |
+| 存数据（掉电不丢） | `docs/APP_SDK.md` | `/appdata/<app_id>/` |
+| 发布上架到开放平台 | `docs/PUBLISHING.md` + `docs/MCP_CONTRACT.md` | `tools/pack_app.py` → `sdgoods_publish.py mcp-upload` |
+| 崩了 / 花屏 / 卡顿 / 内存不对 | `docs/ARCHITECTURE.md` + skill `sdgoods-crash-triage` | 串口日志 + 截屏 |
+| 换板子 / 改引脚 | — | `components/sdgoods_board/include/board_pins.h` |
+| 把整个仓库变成我自己的品牌固件 | `docs/STANDALONE_PROJECT.md` | `tools/new_standalone_project.py` |
+| 多应用插槽 / 槽地址与封面布局 | `docs/MULTI_APP_DYNAMIC_SLOTS.md` | — |
+| 许可范围 / 商标能不能用 | `LICENSING.md` / `TRADEMARK.md` | — |
 
 ---
 
@@ -234,7 +263,7 @@ sdgoods_ui_set_nav(&nav);           /* nav = { home_create_show, home_show, apps
 新应用要接的框架（`app_template.c` 里已写好）：
 
 ```c
-sdgoods_app_shell_bind(s_scr);                 /* 1. 顶部下滑出菜单（音量/退出） */
+sdgoods_app_shell_bind(s_scr);                 /* 1. 顶部下滑出控制中心（设置 / 关于 / 关机或退出） */
 sdgoods_app_shell_set_exit_cb(on_menu_exit);   /* 2. 退出清理：回调名别叫 on_exit！ */
 sdgoods_app_shell_set_pause_cb(on_pause);      /* 3. 菜单打开/关闭时会调（可省） */
 sdgoods_app_shell_set_resume_cb(on_resume);
@@ -337,7 +366,7 @@ tools/build.sh -B build_fixNN       # 指定构建目录（换名字即可，不
 
 关键提醒（AI 常踩）：独立工程**自动拥有控制中心**，它来自 `components/sdgoods_launcher`
 （`sdgoods_cc.c`），只要你 `sdgoods_app_shell_bind(scr)` 且 `main/CMakeLists.txt` 的
-`REQUIRES` 里留着 `sdgoods_launcher`，顶部下滑就会弹出（音量 ± / 亮度 / 数据 / 电量 / 第 5 键 / 截屏），
+`REQUIRES` 里留着 `sdgoods_launcher`，顶部下滑就会弹出（一级页 3 个键：设置 / 关于 / 关机或退出），
 **无需自己实现**。删掉 `components/sdgoods_launcher` 才会丢控制中心。
 
 > 控制中心的**完整 API 与一级/二级页布局**见 [`docs/APP_SDK.md §3.2`](docs/APP_SDK.md)。

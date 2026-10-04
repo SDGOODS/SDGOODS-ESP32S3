@@ -201,24 +201,35 @@ sdgoods_app_shell_set_resume_cb(on_resume);    /* 4. 菜单关闭时恢复 */
 ### 3.2 控制中心（随外壳默认自带，无需额外代码）
 
 **每个 app 默认都有控制中心**。顶部下滑唤出的「控制中心」是**设备级统一系统浮层**
-（实现：平台层 `components/sdgoods_launcher/src/sdgoods_cc.c`），一级页布局：
+（实现：平台层 `components/sdgoods_launcher/src/sdgoods_cc.c`；公开 API 在 `include/sdgoods_cc.h`）。
+一级页只有 **3 个圆键**：
 
 ```
-        Control Center
-   Volume   Brightness   Data        ← 上排 3 个
-   Battery  Power|Exit                ← 下排 2 个，左对齐
-             Mode MULTI                ← 底部小字：当前启动模式
+              Control Center
+      Settings     About     Power|Exit      ← 3 个圆键（cy = 169，直径 68）
+                     SINGLE                  ← 底部小字：当前启动模式（SINGLE / MULTI）
 ```
+
+| 一级页按钮 | 行为 |
+|---|---|
+| **Settings** | 进**设置二级页**（见下表） |
+| **About** | 进关于页（设备信息 / 固件版本） |
+| **Power** 或 **Exit** | 二选一，判据是「这段固件是不是**被启动器管理的 app**」（`sdgoods_device_is_managed_app()`）：<br>· 被管理 app（从 `ota_N` 启动）⇒ **Exit** → `sdgoods_return_to_launcher()` 返回启动器（**要重启才回得去**）<br>· 启动器宿主 / 单应用主机固件（从 `factory` 启动）⇒ **Power** → 直接关机 |
+
+> ⚠️ 判据**不是**「单应用 / 多应用模式」—— 启动器自己也是 MULTI，但它要的是关机。
+> ⚠️ 关机键固定排最右（误触代价最大）。
+
+**设置二级页 4 个圆键**：
 
 | 按钮 | 行为 |
 |---|---|
 | Volume / Brightness | 进二级滑块页，实时调节（落盘 NVS，键 `sdg_cc`） |
 | Data | 进数据页：`Slot 已装/总槽`、`RAM Free 可用/总 KB`、`MEM Free x.x MB`（全部实测） |
 | Battery | 进电量页：`Voltage x.xxV` + `Level nn%`（3.00V=0%、4.28V=100% 线性映射） |
-| **Power** | **单应用模式**：关机（与启动器一致） |
-| **Exit** | **多应用模式**：`sdgoods_return_to_launcher()` 返回启动器 |
 
-二级页操作：左缘右滑回一级；底部横条上滑关掉整个控制中心回 app。
+一级页底部小字显示当前启动模式（`SINGLE` / `MULTI`，**不带 "Mode" 前缀**）。
+
+二级页操作：左缘右滑回上一级；底部横条上滑关掉整个控制中心回 app；电源键短按先关浮层。
 
 app **不需要**为控制中心写任何代码，也**不要**自己再实现一套类似的浮层。
 需要知道「控制中心是否正盖在我上面」时（例如游戏要暂停推进）：
@@ -229,8 +240,12 @@ sdgoods_app_shell_set_pause_cb(on_pause);     /* 浮层打开 -> 暂停 */
 sdgoods_app_shell_set_resume_cb(on_resume);   /* 浮层关闭 -> 恢复 */
 ```
 
-标题文案是英文（`Control Center` / `Volume` / `Brightness` / `Data` / `Battery` / `Power` /
-`Exit` / `Mode`），与全设备 UI 文案口径一致，无需 app 处理。
+想**按自己的 app 定制**控制中心（隐藏某些按钮 / 换第 3 键的语义），用
+`sdgoods_cc_set_app_ctx()`：`SDGOODS_CC_CTX_BIRD` 会隐藏 Data/Battery/About 并把第 3 键换成
+`Home`（小鸟游戏就是这么做的），离开时恢复 `SDGOODS_CC_CTX_DEFAULT`。**平台层不写死任何具体 app**。
+
+标题文案是英文（`Control Center` / `Settings` / `About` / `Power` / `Exit` / `Volume` /
+`Brightness` / `Data` / `Battery`），与全设备 UI 文案口径一致，无需 app 处理。
 
 ### 3.3 单应用 / 多应用启动模式检测
 

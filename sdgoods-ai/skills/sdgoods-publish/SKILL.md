@@ -131,7 +131,8 @@ bootloader 与分区表：它们不属于任何固件，由平台托管（`Syste
   │       └─ has_cc?          看平台层：build*/<PROJECT>.map 含 sdgoods_cc_open，或仓库含 components/sdgoods_launcher/src/sdgoods_cc.c（WHOLE_ARCHIVE）。app 源码无 sdgoods_cc 字面量 ≠ 没有控制中心
    │
    ├─③ 逐条搜集 app 信息（带草稿，逐字段问，不一次性列全）
-   │     草稿来源（由 ⓪ 决定）：
+   │     草稿来源（由 ⓪ 决定，**按下面优先级从上到下取第一个命中的**）：
+   │       ├─ **本工程根有 `app_meta.json`** → 「名称」直接取 `name_zh`、版本取 `version`（**最高优先，别再问一遍名称**）
    │       ├─ **有令牌**（MCP 已存/刚填、或手动但本机已存）→ 已发布过：拉平台旧记录(name/descZh/descEn/category/githubUrl)；没发布过：AI 生成
    │       └─ **无令牌**（手动且本机未存 / MCP 但用户跳过填令牌）→ **不查平台**，AI 直接按 app 内容生成
    │     版本号：自动取最新固件版本(version.txt/二进制)，不询问
@@ -376,9 +377,10 @@ env -u CODEBUDDY_SAFE_DELETE_SANDBOX -u CODEBUDDY_BROKERED_FS_HOOK_ENABLED -u CO
 - **搜集信息时（③）逐条问，不一次性列全**：按「名称 → 简介中文 → 简介英文 → 分类 → GitHub」顺序，**每一条单独**用 `AskUserQuestion` 带该字段的**草稿值**问用户「是否要修改？」：
   - **不修改** → 直接采用草稿，跳到下一条；
   - **要修改** → 用户在问题下方的空白（自由输入 / Other）填写新值，采用后跳下一条。
-  - **草稿来源（取决于 ⓪ 的通道与令牌有无）**：
-    - **有令牌**（MCP 已存/刚填，或手动但本机已存）→ 已发布过：拉平台旧记录 name/descZh/descEn/category/githubUrl 当草稿；没发布过：AI 生成。
-    - **无令牌**（选手动且本机未存，或选 MCP 但用户跳过填令牌）→ **不查平台**，一律由 **AI 按 app 内容生成草稿**。
+  - **草稿来源（**按下面优先级从上到下取第一个命中的**）**：
+    - **① 本工程根有 `app_meta.json`**（`tools/new_app_project.py` 派生工程时写下的，字段 `name_zh` / `name_en` / `version`）⇒ **「名称」直接用 `name_zh`、版本用 `version`**，按常规流程只问「是否修改」，**不要假装不知道再让用户重说一遍**。⚠️ 若 `name_en` 与固件实际 `project()`（`tools/pack_app.py` 的 `projectName`）不一致，**以固件为准**并在提问里提示用户。
+    - **② 有令牌**（MCP 已存/刚填，或手动但本机已存）→ 已发布过：拉平台旧记录 name/descZh/descEn/category/githubUrl 当草稿；没发布过：AI 生成。
+    - **③ 无令牌**（选手动且本机未存，或选 MCP 但用户跳过填令牌）→ **不查平台**，一律由 **AI 按 app 内容生成草稿**。
   - **草稿如何展示（重要 UI 限制）**：`AskUserQuestion` 的选项 `description` 在聊天前端**会被截断**，长文本用户看不到完整内容（但工具回传的 JSON 是完整的，提交/发布不丢数据，所以「提交没问题、只是看不见」）。处理方式：
     - 短字段（名称、分类 slug、GitHub 通常较短）→ 草稿可直接放进 option `description`。
     - **长字段（简介中/英，可能很长）→ 禁止把全文放进 `description`**：在调用 `AskUserQuestion` 的**同一条消息里先以普通文本把该草稿完整打印**（或写入 `release/draft_desc_zh.md` / `draft_desc_en.md` 并在消息里给路径），`AskUserQuestion` 的 `description` 只写一句「完整草稿见上方/文件，是否沿用？」，`label` 用简短的「不改 / 要修改」。

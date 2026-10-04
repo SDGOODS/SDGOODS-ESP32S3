@@ -151,6 +151,50 @@ sdgoods_app_shell_set_resume_cb(on_resume);
 
 ---
 
+## 3.5 控制中心 `components/sdgoods_launcher/src/sdgoods_cc.c`
+
+**顶部下滑弹出的那个系统浮层就是「控制中心」**（不是"应用外壳的菜单"）。它属于
+`components/sdgoods_launcher/`（平台层），启动器与**所有 app 共用同一份** ——
+app 侧不用写一行代码就自动拥有。
+
+- **怎么打开**：`sdgoods_app_shell_bind(scr)` 内部已经接好「从顶部下滑」手势
+  （见 `src/sdgoods_app_shell.c` 与 `sdgoods_tap.h`）；启动器主页是自己调 `sdgoods_cc_bind()`。
+- **一级页 3 个圆键**（`sdgoods_cc_open()`；直径 68，圆心 x = 84 / 180 / 276、cy = 169）：
+
+  | 键 | 行为 |
+  |---|---|
+  | `Settings` | 进**设置二级页** |
+  | `About` | 进关于页（设备信息 / 固件版本） |
+  | `Exit` 或 `Power` | 二选一，判据是 `sdgoods_device_is_managed_app()`：**被启动器管理的 app** ⇒ `Exit`（回启动器，**要重启才回得去**）；**启动器宿主 / 单应用主机固件** ⇒ `Power`（直接关机）。⚠️ 不能用「设备模式 == MULTI」判 —— 启动器自己也是 MULTI，但它要的是关机。**关机键固定排最右**（误触代价最大） |
+
+- **设置二级页 `open_set()` 4 个圆键**：`Volume` / `Brightness`（各自进滑块页，可滑动实时调节）、
+  `Data`（插槽 / `RAM Free` / `MEM Free`，全部实测）、`Battery`（`Voltage x.xxV` + `Level nn%`）。
+  > 2026-09-26 起的口径：**音量 / 亮度 / 数据 / 电池都在二级页**，一级页只留设置 / 关于 / 关机。
+- **一级页底部小字**显示设备启动模式（`SINGLE` / `MULTI`，判定口径见 `sdgoods_device_mode.h`）。
+- **手势**：底部横条上滑 ⇒ 直接关掉整个控制中心；从最左边起手左→右滑 ⇒ 返回上一级；
+  电源键短按 ⇒ 先关浮层（`sdgoods_cc_power_short()`，优先于"主页熄屏"）。
+- **浮层打开时 app 会被暂停**：控制中心通过 `sdgoods_app_shell_notify_overlay(true)` 转成 app 的
+  `set_pause_cb` / `set_resume_cb` —— 游戏类不用自己去判"菜单是不是盖在我上面"。
+
+**给 app 用的公开 API 都在 `include/sdgoods_cc.h`**（不要在 app 里自己画一套浮层）：
+
+`sdgoods_cc_open/close/is_open`、`sdgoods_cc_settings_restore`（开机恢复音量/亮度）、
+`sdgoods_cc_brightness_get`、`sdgoods_cc_flush`（立刻把音量/亮度落盘 NVS）、
+`sdgoods_cc_bat_read`（电量百分比，与启动器主页状态行**同源**，不会两边各写一套阈值后漂移）、
+`sdgoods_cc_power_short`，以及**按 app 定制**用的 `sdgoods_cc_set_app_ctx()`：
+
+```c
+/* 应用层在进入 / 离开自己的 app 时调用；平台层不把具体 app 的细节写死进控制中心 */
+sdgoods_cc_set_app_ctx(SDGOODS_CC_CTX_BIRD);      /* 例：小鸟游戏 —— 藏 Data/Battery/About，第 3 键改「Home」 */
+sdgoods_cc_set_app_ctx(SDGOODS_CC_CTX_DEFAULT);   /* 恢复标准控制中心 */
+```
+
+> ⚠️ 音量 / 亮度**只过 NVS**，而且存的是"**用户意图值**"不是瞬时值。开机动画期 / 息屏期
+> `sdgoods_lcd_get_backlight()` 返回 0，把它当用户偏好就会**开机黑屏**；
+> 取用户意图值请用 `sdgoods_cc_brightness_get()`。
+
+---
+
 ## 4. 显示链路
 
 - **面板**：`components/sdgoods_board/lcd/` —— ST77916，QSPI，360×360。
@@ -165,7 +209,7 @@ sdgoods_app_shell_set_resume_cb(on_resume);
 ## 5. 字体与资源
 
 - 中文用**子集字体**（只含源码里扫到的字符）：
-  - `cn_font_14/16.c` —— 全量集（约 970 字），职责是兜底；
+  - `cn_font_14/16.c` —— 全量集（约 1100 字），职责是兜底；
   - `si_yuan_black_icon_14/16.c` —— 更小的 UI 精选子集（91 字），
     缺失字由 `.fallback` 编译期落到 `cn_font_*`。
 - 字形来源是 **Noto Sans SC**（SIL OFL 1.1），生成文件头部带版权声明（OFL 要求，勿删）。

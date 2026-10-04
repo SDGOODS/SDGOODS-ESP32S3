@@ -176,7 +176,7 @@ void ui_app_template_show(void)
 
     /* ★★★ 接入标准应用框架（三行，顺序别改）★★★
        bind 必须在 lv_scr_load 之后 —— 它要往当前屏上挂手势捕获层。 */
-    sdgoods_app_shell_bind(s_scr);                 /* 1. 顶部下滑出菜单（音量+/-/退出/截屏） */
+    sdgoods_app_shell_bind(s_scr);                 /* 1. 顶部下滑出控制中心（设置 / 关于 / 关机或退出） */
     sdgoods_app_shell_set_exit_cb(on_menu_exit);        /* 2. 退出时清理（切屏后才回调） */
     sdgoods_app_shell_set_pause_cb(on_pause);      /* 3. 菜单打开/关闭（可省，不做就传 NULL） */
     sdgoods_app_shell_set_resume_cb(on_resume);

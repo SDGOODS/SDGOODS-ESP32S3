@@ -15,14 +15,18 @@
 /*
  * sdgoods_cc.h —— 控制中心（Control Center）：**设备级统一系统浮层**，启动器与所有 app 共用
  *
- * 从当前屏「顶部下滑」唤出（`sdgoods_app_shell_bind()` 已自动接好手势，见 sdgoods_tap.h）：
- *   - Volume / Brightness（圆形图标按钮）→ 二级滑块页，可滑动实时调节
- *   - Data   → 二级信息页（插槽 / `RAM Free` / `MEM Free`，全部实测）
- *   - Battery→ 二级信息页（`Voltage x.xxV` + `Level nn%`）
- *   - 第 5 个按钮按「本固件是不是被启动器管理的 app」二选一（见 sdgoods_device_mode.h）：
+ * 从当前屏「顶部下滑」唤出（`sdgoods_app_shell_bind()` 已自动接好手势，见 sdgoods_tap.h）。
+ *
+ * 一级页 = **3 个圆键**（`Settings` / `About` / `Exit` 或 `Power`）：
+ *   - Settings → 二级设置页，4 个圆键：
+ *       · Volume / Brightness → 二级滑块页，可滑动实时调节
+ *       · Data                → 二级信息页（插槽 / `RAM Free` / `MEM Free`，全部实测）
+ *       · Battery             → 二级信息页（`Voltage x.xxV` + `Level nn%`）
+ *   - About    → 关于页（设备信息 / 固件版本）
+ *   - 第 3 个键按「本固件是不是被启动器管理的 app」二选一（见 sdgoods_device_mode.h）：
  *       · 被管理 app（从 ota_N 启动）      → **Exit**：返回启动器（重启才回得去）
  *       · 启动器宿主 / 单应用主机固件（factory）→ **Power**：直接断电关机
- *   一级页底部另有小字显示设备启动模式（`Mode SINGLE` / `Mode MULTI`）。
+ *   一级页底部另有小字显示设备启动模式（`SINGLE` / `MULTI`，不带 "Mode" 前缀）。
  *
  * 二级页交互：从底部横条处上滑直接关闭控制中心；从最左边起手左→右滑返回上一级；
  * 电源键短按在任意页先关闭浮层（见 sdgoods_input.c）。
