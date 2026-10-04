@@ -28,12 +28,12 @@
       "id": "sdgoods-new-app",
       "title_zh": "新增应用骨架",
       "title_en": "Scaffold a new app",
-      "summary_zh": "第一步必须先问中英文双名（中文名=市场展示名、英文名=展示名+工程名+app_id，中文名不进设备 UI），再 new_app_project.py 从开源工程派生新应用工程：英文名作 project()（无 SDGOODS_ 前缀）+ 裁成单应用直启（删演示 app、生成 ui_<app>.c/.h、重写 apps_registry.c 与 CMakeLists.txt），可选 --run 自动编译烧录截主页。",
-      "summary_en": "First asks for both names in Chinese and English (Chinese = storefront display name; English = display name + project name + app_id, Chinese never reaches the device UI), then new_app_project.py derives a new app project from the open-source repo: the English name becomes project() (no SDGOODS_ prefix) + trim to a single-app direct-boot firmware, with optional --run to build/flash/screenshot.",
+      "summary_zh": "先走「命名问答」——没给名字就问「项目名（必须英文）」再问「中文名」；只给中文名就问英文项目名；只给英文名就问中文名；全部跳过则直接生成 HelloApp（工程名 HELLOAPP）。中文名=市场展示名（只进 app_meta.json，不进设备 UI）、英文名=展示名+工程名+app_id。再 new_app_project.py 从开源工程派生：英文名作 project()（无 SDGOODS_ 前缀）+ **默认裁成最小体积固件**（删蓝牙 BLE、删 Wi-Fi、删中文字库、界面固定英文，**保留控制中心**；实测 1,680,768 B → 662,944 B）+ 裁成单应用直启（删演示 app、生成 ui_<app>.c/.h、重写 apps_registry.c 与 CMakeLists.txt），可选 --run 自动编译烧录截主页；要完整能力（Wi-Fi/BLE 扫描 + 中文界面）加 --no-trim。",
+      "summary_en": "Runs a naming Q&A first — if no name was given, ask for the project name (English only) then the Chinese name; if only a Chinese name was given, ask for the English project name; if only an English name was given, ask for the Chinese name; if everything is skipped, generate a HelloApp project (project HELLOAPP) directly. Chinese name = storefront display name (only into app_meta.json, never the device UI); English name = display name + project name + app_id. Then new_app_project.py derives from the open-source repo: the English name becomes project() (no SDGOODS_ prefix) + **minimum-size by default** (drops Bluetooth BLE, Wi-Fi and the Chinese font, pins the UI to English, keeps the control center; measured 1,680,768 B -> 662,944 B) + trims to a single-app direct-boot firmware, with optional --run to build/flash/screenshot; add --no-trim for the full capability (Wi-Fi/BLE scanning + Chinese UI).",
       "file": "sdgoods-ai/skills/sdgoods-new-app/SKILL.md",
       "wraps": ["tools/new_app_project.py"],
       "platforms": ["workbuddy", "claude", "cursor", "generic"],
-      "trigger_zh": "生成应用 / 新建 / 开发一个应用 / 派生新工程 / 起中英文名 / 要中文应用名",
+      "trigger_zh": "生成应用 / 新建 / 开发一个应用 / 派生新工程 / 起中英文名 / 要中文应用名 / 最小体积",
       "trigger_en": "generate / scaffold a new app / derive a new project / name a new app in Chinese and English"
     },
     {

@@ -150,18 +150,36 @@ bash sdgoods-ai/install.sh     # 可选：装 AI 开发工具包，AI 助手自�
 
 看到左边这个画面，说明你已经跑通了「生成 → 编译 → 烧录 → 真机验证」整条链路（全程 10 分钟内）；右边的控制中心是平台模板自带的——设置（音量 / 亮度 / 数据 / 电量）、关于页都能用，你的应用自动拥有它们。
 
+> ⭐ **派生出来的工程默认就是「最小体积固件」**：自动删掉蓝牙 / Wi-Fi 与中文字库、界面固定英文，**保留控制中心**（右图那个）。
+> 要完整能力（Wi-Fi/BLE 扫描 + 中文界面）加 `--no-trim`。实测同一个空应用：**1,680,768 B → 662,944 B（省约 60%）**。
+
 **💻 开发者**
 
 ```bash
 git clone https://github.com/SDGOODS/SDGOODS-ESP32S3
 cd SDGOODS-ESP32S3
-python3 tools/new_app_project.py MyApp   # 一键派生独立应用工程，生成在本仓库的上一级目录 ../MYAPP/
-cd ../MYAPP                              # 进入新生成的工程（关键：编译要在新工程里跑，不是在仓库里）
+python3 tools/new_app_project.py HelloApp   # 一键派生独立应用工程，生成在本仓库的上一级目录 ../HELLOAPP/
+cd ../HELLOAPP                               # 进入新生成的工程（关键：编译要在新工程里跑，不是在仓库里）
 idf.py set-target esp32s3
-idf.py -B build build                    # 编译
+idf.py -B build build                        # 编译
 ```
 
-派生出来的 `MYAPP/`（与本仓库同级）是一个**完整可编译、开机直入你的应用**的独立工程：没有主页、没有启动台、没有 demo，一上电就进你的界面。
+（不给名字也行：`python3 tools/new_app_project.py` 直接生成默认的 `HelloApp` / 工程名 `HELLOAPP`。）
+
+派生出来的 `HELLOAPP/`（与本仓库同级）是一个**完整可编译、开机直入你的应用**的独立工程：没有主页、没有启动台、没有 demo，一上电就进你的界面。
+
+> ⭐ **默认产出的是「最小体积固件」**：派生时自动删掉**蓝牙（BLE）与 Wi-Fi**、删掉**中文字库**，界面固定英文，
+> 但**保留控制中心**（右上图那个）。同一个空应用实测：
+>
+> | | 固件体积 | 3 MB 槽位占用 |
+> |---|---|---|
+> | `--no-trim`（完整能力） | 1,680,768 B | 53% |
+> | **默认（最小体积）** | **662,944 B** | **21%** |
+>
+> 省下约 **994 KiB（−60%）**。想要完整能力（Wi-Fi / BLE 扫描 + 中文界面）就加逃生开关：
+> ```bash
+> python3 tools/new_app_project.py HelloApp --no-trim
+> ```
 
 > ★ 本 README 只讲产品与流程。**AI 开始改代码前必须先读 `AGENTS.md`**——那里是编译方式、两层边界、字体流程与几条「不遵守就出 bug」的硬约束。
 
@@ -179,13 +197,16 @@ idf.py -B build build                    # 编译
 | **顶部下滑菜单** | 顶部下滑唤出控制中心：设置（音量 / 亮度 / 数据 / 电量）/ 关于 / 关机或退出 | 平台层自动提供 |
 | **控制中心 / 关于页** | 音量、亮度、设备信息（含固件版本）——开发者无需自己写 | 平台层自动提供 |
 | **平台音效** | 调用 `sdgoods_audio_sfx_flap()` 即播提示音，安全无副作用 | 事件回调里调用 |
-| **中英双语文案** | 用 `SDG_T("中文", "English")` 写文案，用户可在设置里切换语言 | 所有界面字符串 |
+| **中英双语文案** | 用 `SDG_T("中文", "English")` 写文案，按当前语言取词。⚠️ **默认派生工程无中文字库、语言固定英文**，写中文会显示方框；要中文界面用 `--no-trim` 派生 | 所有界面字符串 |
 | **串口一键截屏** | 连电脑即可抓当前画面（调试 / 发布配图都用它） | `tools/screenshot_recv.py` |
 | **每帧推进循环** | `ui_<name>_poll()` 由主循环每轮调用，做动画 / 游戏逻辑 | `poll` 函数 |
 | **生命周期** | pause（菜单盖屏时冻结）/ resume / exit（切走时清理资源）回调 | 对应回调 |
 | **掉电持久化** | 通过 `appdata` 分区做数据存储（平台已留好） | `APP_SDK.md` |
 
-> ⚠️ **唯一不能忘的一条**：界面里只要出现**新的中文文案**，就必须重跑字体子集工具，否则那些字在屏上是方框（tofu）：
+> ⚠️ **中文（tofu 方框）的两条规矩**：
+> · **默认派生工程没有中文字库**（这是「最小体积」的一部分）⇒ 界面文案请**只用 ASCII**。
+>   要中文界面，用 `--no-trim` 重新派生一份（`python3 tools/new_app_project.py <名字> --no-trim`）。
+> · 在**本仓库**、或 `--no-trim` 派生的工程里改了中文文案 → 必须重跑字体子集工具，否则那些字在屏上是方框（tofu）：
 > ```bash
 > python3 tools/fetch_fonts.py   # 首次需要：下载 OFL 源字体
 > python3 tools/gen_fonts.py
@@ -200,18 +221,21 @@ idf.py -B build build                    # 编译
 **第一个修改，从改一句话开始**：把这句话发给 AI——
 
 ```
-把 HelloApp 主页的 "Hello SDGOODS!" 改成 "你好，世界！"（英文 "Hello, World!"），
+把 HelloApp 主页的 "Hello SDGOODS!" 改成 "Hello, World!"，
 重新编译烧进设备，截屏给我看。
 ```
 
 改完屏幕上的字就换了——这就是改应用的全部体验：**用大白话说需求，AI 改代码、编译、烧录、截屏给你看**。
+
+> 💡 默认派生工程**没有中文字库**，所以示例用英文。想要中文界面（`你好，世界！`）：
+> 先用 `--no-trim` 重新派生一份（`python3 tools/new_app_project.py HelloApp --no-trim`），它自带中文字库。
 
 **然后把它改成你想要的应用**：还是把需求发给 AI——
 
 ```
 请把 HelloApp 改造成一个 <你的应用，例如：倒计时器 / 计步器 / 小游戏>。
 需求：<用大白话描述你想做什么、点按/手势做什么、要不要存数据>。
-界面文案用中英双语。改完编译烧进设备，截屏给我看。
+界面文案用英文。改完编译烧进设备，截屏给我看。
 ```
 
 需求越具体越容易一次做对。AI 会自己找到对应文件（界面都在 `main/apps/ui_<名字>.c` 里）改好并重新编译；每句改动都可以带上「**烧到徽章里截屏给我看**」，不用碰设备就能在电脑上看到真机画面。
@@ -260,7 +284,7 @@ AI 会先引导你到平台开发者设置生成一个 `sdg_` 开头的开发者
 
    python3 tools/sdgoods_publish.py mcp-upload \
      --file dist/<name>_app.bin \
-     --name "MyApp" --category tool \
+     --name "HelloApp" --category tool \
      --desc-zh "..." --desc-en "..." \
      --shots shot1.jpg shot2.jpg shot3.jpg shot4.jpg
    ```
@@ -289,7 +313,7 @@ AI 会先引导你到平台开发者设置生成一个 `sdg_` 开头的开发者
 | 我要… | 先读 | 入口 / 关键文件 |
 |---|---|---|
 | 配环境、第一次编译烧录 | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) → [`docs/BUILD.md`](docs/BUILD.md) | `python3 tools/check_env.py` → `tools/build.sh` |
-| **从零做一个自己的应用**（最常用） | [`AGENTS.md`](AGENTS.md) §3b + skill `sdgoods-new-app` | `python3 tools/new_app_project.py MyApp` |
+| **从零做一个自己的应用**（最常用） | [`AGENTS.md`](AGENTS.md) §3b + skill `sdgoods-new-app` | `python3 tools/new_app_project.py HelloApp`（默认最小体积；要 Wi-Fi/BLE/中文界面加 `--no-trim`） |
 | 理解整体分层、运行时、钩子机制 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | `components/sdgoods_board/` ⇄ `main/` |
 | 写应用界面（安全区 / 手势 / 文案 / 生命周期） | [`docs/APP_SDK.md`](docs/APP_SDK.md) + `include/sdgoods_ui.h` | `main/apps/ui_<name>.c` |
 | **改顶部下滑菜单 / 控制中心**（设置·关于·关机/退出） | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §3.5 + [`docs/APP_SDK.md`](docs/APP_SDK.md) §3.2 | `components/sdgoods_launcher/src/sdgoods_cc.c`（`include/sdgoods_cc.h`） |

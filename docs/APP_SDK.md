@@ -142,7 +142,9 @@ sdgoods_app_shell_set_resume_cb(on_resume);    /* 4. 菜单关闭时恢复 */
 - 不在前台立刻 `return`（别白白占主循环）；
 - 内部绝不做阻塞（禁 `vTaskDelay` / 等信号量 / 阻塞读）；周期性逻辑用 `lv_timer_create` 或独立 FreeRTOS 任务。
 
-想从模板快速起项目：`python3 tools/new_app_project.py myapp`，它会基于 `app_template.c` 派生一个独立应用工程并自动注册（见 skill `sdgoods-new-app` 与 `tools/new_app_project.py` 顶部说明）。
+想从模板快速起项目：`python3 tools/new_app_project.py HelloApp`，它会基于 `app_template.c` 派生一个独立应用工程并自动注册（见 skill `sdgoods-new-app` 与 `tools/new_app_project.py` 顶部说明）。
+
+> ⚠️ 默认派生出来的是**最小体积固件**：已删掉蓝牙(BLE) / Wi-Fi 与中文字库、界面固定英文，**保留控制中心**；界面文案请只用 ASCII。要完整能力（Wi-Fi/BLE 扫描 + 中文界面）加 `--no-trim`。
 
 ### 3.1 设备级手势契约（随外壳自动生效，无需额外代码）
 

@@ -8,10 +8,19 @@
     → 改名 <NEWAPP>（**不加 SDGOODS_ 前缀**，沿用 HELLO 约定 `project(HELLO_3)`）
     → 改根 CMakeLists.txt 的 project() + version.txt → 1.0.0
     → 写 app_meta.json（中英文名 + 版本，供发布链读取，不用再问一遍）
+    → **最小体积裁剪**（默认开启，`--no-trim` 关闭）：
+        · 删蓝牙(BLE) 与 Wi-Fi（驱动源 + 头文件 + 两处 CMakeLists 的 SRCS/REQUIRES
+          + sdkconfig 里 4 组开关）
+        · 删中文字库 cn_font_14/16（图标字体的 .fallback 改 NULL；应用外壳 / 截屏
+          改用图标字体——它含全 ASCII）；界面语言随之**固定英文**
+        · **保留控制中心**（components/sdgoods_launcher/src/sdgoods_cc.c）
     → **裁剪成 PLANE 形**：删掉启动台/演示 app（ui_home/ui_scan_page/ui_rec_page/
       ui_other_page/ui_flappy），只留一个从 app_template 派生的起始 app，开机直入该
       app（home_create_show / home_show / apps_show 全指向它）
     → 编译产出独立 .bin（可单应用烧录 / 上架平台）。
+
+⚠️ 「最小体积」是本脚本的**默认行为**。用户要求「新工程默认最小体积、不要中文字库、
+  保留控制中心」；想拿完整能力（Wi-Fi/BLE 扫描 + 中文界面）就加 `--no-trim`。
 
 ⚠️ 不是直接拷贝 PLANE：PLANE 是不开源的内部固件，不能当种子。我们是从**开源的
   SDGOODS-ESP32S3** 派生，再把产物「形状」裁成和 PLANE 一样的单应用直启结构。
@@ -35,10 +44,16 @@ main/apps/apps_registry.c 的 s_apps[] 里加一行、在 main/CMakeLists.txt �
       ② `new_app_project.py --name-zh 贪吃蛇`（只给中文名）
     → **直接报错（退出码 1）并给出建议英文名**，由用户确认。**绝不静默折叠**：
     旧版会把「贪吃蛇」清成工程名 `APP`、把「飞机大战2」清成工程名 `2`，产出坏工程
-    却退出码 0；而 ② 这种写法更隐蔽 —— 它会悄悄退回默认名 `MYAPP`。
+    却退出码 0；而 ② 这种写法更隐蔽 —— 它会悄悄退回默认名 `HELLOAPP`。
+
+命名问答（**AI 侧**，见 skill sdgoods-new-app；本脚本只负责「给什么用什么」）：
+  · 用户没给任何名字 → 先问「项目名（必须英文）」，再问「中文名」
+  · 用户给了中文名   → 问「项目名是什么（要用英文）」
+  · 用户给了英文名   → 问「中文名叫什么」
+  · 用户全部跳过     → **直接生成 HelloApp 工程**（工程名 HELLOAPP，见 DEFAULT_APP_NAME）
 
 默认主页文案（最小应用）：
-  · 不给应用名  →  工程名 MYAPP，屏幕中央显示 "Hello MYAPP!"
+  · 不给应用名  →  工程名 HELLOAPP，屏幕中央显示 "Hello HELLOAPP!"
   · 给应用名(如 ABC)  →  显示 "Hello ABC!"（用**清洗后**的名字，不是输入原文）
   · 用户给了具体需求  →  按需求实现（本脚本只生成最小骨架，AI 再据需求改写 ui_<app>.c）
 
@@ -51,8 +66,11 @@ main/apps/apps_registry.c 的 s_apps[] 里加一行、在 main/CMakeLists.txt �
   #   也可以把中文名当位置参数写，但仍必须给 --name-en：
   #   python3 tools/new_app_project.py 贪吃蛇 --name-en SNAKE
 
-  # 默认：不给名 → 生成显示 "Hello MYAPP!" 的最小应用 MYAPP 工程（父目录）
+  # 默认：不给名 → 生成显示 "Hello HELLOAPP!" 的最小应用 HELLOAPP 工程（父目录）
   python3 tools/new_app_project.py
+
+  # 要完整能力（Wi-Fi/BLE 扫描 + 中文界面）→ 加 --no-trim
+  python3 tools/new_app_project.py ABC --no-trim
 
   # 只预览，不写文件
   python3 tools/new_app_project.py ABC --dry-run
@@ -93,8 +111,9 @@ DEMO_APP_BASENAMES = (
     "ui_flappy",
 )
 
-# 不给名时的默认英文名（会走 dest_folder_name() 清洗 → MYAPP）
-DEFAULT_APP_NAME = "MyApp"
+# 不给名时的默认英文名（会走 dest_folder_name() 清洗 → HELLOAPP）。
+# 用户规定：命名问答全部跳过时「直接生成 HelloApp 的项目」。
+DEFAULT_APP_NAME = "HelloApp"
 
 # main/CMakeLists.txt 里 SRCS 的裁剪锚点：「# --- 导航页 / 工具页 ---」…「"apps/ui_flappy.c"」。
 # 单独提出来是为了让「预检」与「执行」用同一份正则 —— 各写一份迟早会漂移。
@@ -102,6 +121,348 @@ CMAKE_SRCS_RE = re.compile(
     r'[ \t]*# --- 导航页 / 工具页 ---.*?"apps/ui_flappy\.c"\n',
     re.DOTALL,
 )
+
+# ===========================================================================
+# 最小体积裁剪（默认开启；`--no-trim` 关闭）
+#
+# 目标：派生出来的新工程默认就是「最小体积固件」——
+#   · 删掉蓝牙（BLE）与 Wi-Fi（含各自的驱动源、头文件、CMake 依赖、sdkconfig 开关）
+#   · 删掉中文字库（cn_font_14.c / cn_font_16.c，源码合计约 1.74 MB）
+#   · **保留控制中心**（components/sdgoods_launcher/src/sdgoods_cc.c）
+#   · 界面语言随之固定英文（没有中文字库 → 中文会渲染成方框）
+#
+# 🔴 为什么锚点必须集中在这里、且「预检」与「执行」共用同一份：
+#     这些都是「改错就编译不过」的硬锚点 ——
+#       · 图标字体的 .fallback 指向 cn_font_*（**编译期符号引用**，裸删中文字库会链接失败）
+#       · 两处 CMakeLists 的 SRCS / REQUIRES
+#       · main.c 的 wifi/ble init 调用、sdgoods_board.h 的 include
+#     锚点对不上 ⇒ 视为「种子工程结构变了」⇒ `precheck_seed()` 直接 sys.exit 非 0，
+#     且一定发生在**删任何文件之前**（旧版这里只打一行日志、退出码 0，交付一个编不过的工程）。
+# ===========================================================================
+
+# 裁剪时**整份删除**的文件（相对工程根）。删前必须存在 —— 不存在说明锚点已漂移。
+TRIM_DELETE_FILES = (
+    # Wi-Fi / BLE 驱动与头文件（平台层）
+    "components/sdgoods_board/src/sdgoods_wifi.c",
+    "components/sdgoods_board/src/sdgoods_ble.c",
+    "components/sdgoods_board/include/sdgoods_wifi.h",
+    "components/sdgoods_board/include/sdgoods_ble.h",
+    # 中文字库（图标字体保留：控制中心 / 外壳全靠它）
+    "components/sdgoods_board/fonts/cn_font_14.c",
+    "components/sdgoods_board/fonts/cn_font_16.c",
+)
+
+# 裁剪时按正则改写的内容：(相对工程根, 说明, 正则, 替换)。
+# 每条的**正则必须至少命中一次**，否则 sys.exit 非 0（同上：改错就编译不过）。
+# 正则默认在多行模式下匹配（re.M）；替换里可用 \1 等反向引用。
+TRIM_PATCHES = (
+    # ---- ① 图标字体：去掉对 cn_font_* 的编译期引用 ----
+    (
+        "components/sdgoods_board/fonts/si_yuan_black_icon_14.c",
+        "图标字体14：.fallback 去中文 + 删 LV_FONT_DECLARE(cn_font_14)",
+        r'^ \* fallback：本字体只含 UI 精选子集，缺字时由 LVGL 自动回退到 cn_font_14。$',
+        " * fallback：本字体含 UI 精选子集 + 全部可打印 ASCII（--range 0x20-0x7E）。\n"
+        " *   ［派生工程「最小体积」裁剪］中文字库已删除，.fallback = NULL ——\n"
+        " *   缺字（中文等）不再回退，本工程界面文案请只用 ASCII。",
+    ),
+    (
+        "components/sdgoods_board/fonts/si_yuan_black_icon_14.c",
+        "图标字体14：删 LV_FONT_DECLARE(cn_font_14)",
+        r'^LV_FONT_DECLARE\(cn_font_14\);[^\n]*\n',
+        "",
+    ),
+    (
+        "components/sdgoods_board/fonts/si_yuan_black_icon_14.c",
+        "图标字体14：.fallback = &cn_font_14 -> NULL",
+        r'\.fallback = &cn_font_14,',
+        ".fallback = NULL,   /* 派生工程已删中文字库 */",
+    ),
+    (
+        "components/sdgoods_board/fonts/si_yuan_black_icon_16.c",
+        "图标字体16：.fallback 去中文 + 删 LV_FONT_DECLARE(cn_font_16)",
+        r'^ \* fallback：本字体只含 UI 精选子集，缺字时由 LVGL 自动回退到 cn_font_16。$',
+        " * fallback：本字体含 UI 精选子集 + 全部可打印 ASCII（--range 0x20-0x7E）。\n"
+        " *   ［派生工程「最小体积」裁剪］中文字库已删除，.fallback = NULL ——\n"
+        " *   缺字（中文等）不再回退，本工程界面文案请只用 ASCII。",
+    ),
+    (
+        "components/sdgoods_board/fonts/si_yuan_black_icon_16.c",
+        "图标字体16：删 LV_FONT_DECLARE(cn_font_16)",
+        r'^LV_FONT_DECLARE\(cn_font_16\);[^\n]*\n',
+        "",
+    ),
+    (
+        "components/sdgoods_board/fonts/si_yuan_black_icon_16.c",
+        "图标字体16：.fallback = &cn_font_16 -> NULL",
+        r'\.fallback = &cn_font_16,',
+        ".fallback = NULL,   /* 派生工程已删中文字库 */",
+    ),
+
+    # ---- ② 应用外壳：按钮 / 菜单标题 / 音量标签 改用图标字体（含全部 ASCII）----
+    (
+        "components/sdgoods_board/src/sdgoods_app_shell.c",
+        "外壳：删 cn_font_* 声明 + 3 处字体改用图标字体",
+        r'^LV_FONT_DECLARE\(cn_font_(?:14|16)\);\n',
+        "",
+    ),
+    (
+        "components/sdgoods_board/src/sdgoods_app_shell.c",
+        "外壳：&cn_font_14 -> &si_yuan_black_icon_14",
+        r'&cn_font_14',
+        "&si_yuan_black_icon_14",
+    ),
+    (
+        "components/sdgoods_board/src/sdgoods_app_shell.c",
+        "外壳：&cn_font_16 -> &si_yuan_black_icon_16",
+        r'&cn_font_16',
+        "&si_yuan_black_icon_16",
+    ),
+
+    # ---- ③ 截屏浮层：那份 cn_font_16 声明本来就没被用到，直接删 ----
+    (
+        "components/sdgoods_board/src/sdgoods_screenshot.c",
+        "截屏：删未被使用的 LV_FONT_DECLARE(cn_font_16)",
+        r'^LV_FONT_DECLARE\(si_yuan_black_icon_16\);[^\n]*\n'
+        r'^LV_FONT_DECLARE\(cn_font_16\);\n',
+        "LV_FONT_DECLARE(si_yuan_black_icon_16);   /* 浮层文案（本工程无中文字库，全英文） */\n",
+    ),
+
+    # ---- ④ 音频：原来靠「录音时停 Wi-Fi」降射频底噪；没有 Wi-Fi 了，改成空实现 ----
+    (
+        "components/sdgoods_board/src/sdgoods_audio.c",
+        "音频：删 #include \"esp_wifi.h\"",
+        r'^#include "esp_wifi\.h"\n',
+        "",
+    ),
+    (
+        "components/sdgoods_board/src/sdgoods_audio.c",
+        "音频：rf_quiet_for_mic 改为空实现（无 Wi-Fi 可停）",
+        r'static void rf_quiet_for_mic\(bool quiet\)\n'
+        r'\{\n'
+        r'    if \(quiet\) \{\n'
+        r'        \(void\)esp_wifi_stop\(\);\n'
+        r'    \} else \{\n'
+        r'        \(void\)esp_wifi_start\(\);\n'
+        r'    \}\n'
+        r'\}\n',
+        "static void rf_quiet_for_mic(bool quiet)\n"
+        "{\n"
+        "    /* ［派生工程「最小体积」裁剪］本工程没有 Wi-Fi，射频静噪无事可做\n"
+        "     * （原实现是录音期间 esp_wifi_stop() / esp_wifi_start()）。 */\n"
+        "    (void)quiet;\n"
+        "}\n",
+    ),
+
+    # ---- ⑤ BSP 总入口：不再 include 已删除的 wifi/ble 头 ----
+    (
+        "components/sdgoods_board/include/sdgoods_board.h",
+        "sdgoods_board.h：删 sdgoods_wifi.h / sdgoods_ble.h 两个 include",
+        r'^#include "sdgoods_wifi\.h"\n#include "sdgoods_ble\.h"\n',
+        "",
+    ),
+
+    # ---- ⑤b 界面语言：没有中文字库了 ⇒ 固定英文、不再读 NVS 的 lang 键 ----
+    (
+        "components/sdgoods_board/src/sdgoods_i18n.c",
+        "i18n：init 固定英文（保留 NVS 初始化，去掉读 lang 键）",
+        r'void sdg_i18n_init\(void\)\n'
+        r'\{\n'
+        r'.*?\n'
+        r'\}\n'
+        r'\n'
+        r'sdg_lang_t sdg_i18n_get\(void\)',
+        "void sdg_i18n_init(void)\n"
+        "{\n"
+        "    /* NVS 可能已被别的模块初始化过；重复调用是安全的。\n"
+        "       ⚠️ 这一手原来也由 sdgoods_wifi_init() 顺带做过，Wi-Fi 已随「最小体积」\n"
+        "       裁剪删除 —— 所以这里保留 NVS 初始化，它是本工程开机后最早的 NVS 初始化点。 */\n"
+        "    esp_err_t err = nvs_flash_init();\n"
+        "    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {\n"
+        "        ESP_LOGW(TAG, \"NVS 分区需要重建（%s），已擦除\", esp_err_to_name(err));\n"
+        "        ESP_ERROR_CHECK(nvs_flash_erase());\n"
+        "        err = nvs_flash_init();\n"
+        "    }\n"
+        "    if (err != ESP_OK) {\n"
+        "        ESP_LOGW(TAG, \"NVS 不可用（%s）：语言固定英文，不受影响\", esp_err_to_name(err));\n"
+        "    }\n"
+        "\n"
+        "    /* ［派生工程「最小体积」裁剪］本工程已移除中文字库 ⇒ 界面语言**固定英文**。\n"
+        "       刻意不读 NVS 的 lang 键 —— 否则上一台设备残留的 lang=1 会让界面出现方框。 */\n"
+        "    s_lang = SDG_LANG_EN;\n"
+        "\n"
+        "    ESP_LOGI(TAG, \"界面语言固定 = %s（本工程无中文字库）\", sdg_i18n_code());\n"
+        "}\n"
+        "\n"
+        "sdg_lang_t sdg_i18n_get(void)",
+    ),
+    (
+        "components/sdgoods_board/src/sdgoods_i18n.c",
+        "i18n：set/toggle 改为忽略（无中文可切，也不写 NVS）",
+        r'void sdg_i18n_set\(sdg_lang_t lang\)\n'
+        r'\{\n'
+        r'.*?\n'
+        r'\}\n'
+        r'\n'
+        r'void sdg_i18n_toggle\(void\)\n'
+        r'\{\n'
+        r'.*?\n'
+        r'\}\n$',
+        "void sdg_i18n_set(sdg_lang_t lang)\n"
+        "{\n"
+        "    /* ［派生工程「最小体积」裁剪］本工程无中文字库，语言固定英文：\n"
+        "       任何切换请求都被忽略（不写 NVS，也不会把界面切成中文方框）。 */\n"
+        "    (void)lang;\n"
+        "}\n"
+        "\n"
+        "void sdg_i18n_toggle(void)\n"
+        "{\n"
+        "    /* 同上：无中文字库可切。 */\n"
+        "}\n",
+    ),
+
+    # ---- ⑤c main.c：去掉 wifi/ble 初始化与连带注释 ----
+    (
+        "main/main.c",
+        "main.c：删 sdgoods_wifi_init/ble_init 两行 + 改写内存顺序注释",
+        r'    /\* ⚠️ 板载服务（WiFi/BLE/Audio）刻意排在 LVGL/触摸之后.*?'
+        r'整屏 flush 分片分配失败 -> 屏幕不更新（「下滑没有控制中心」「打不开 app0」）。 \*/\n'
+        r'    ESP_ERROR_CHECK\(sdgoods_wifi_init\(\)\);\n'
+        r'    ESP_ERROR_CHECK\(sdgoods_ble_init\(\)\);\n',
+        "    /* ⚠️ 板载服务（Audio）刻意排在 LVGL/触摸之后 —— 内存原因，勿提前：\n"
+        "     *   本工程内部可分配 RAM 只有 ~156KiB（heap_init 日志），I2S 驱动缓冲会吃掉一部分。\n"
+        "     *   LVGL 的绘制缓冲虽然放在 PSRAM（全屏双块），但 PSRAM 不能直接 DMA，每个 SPI\n"
+        "     *   分片仍需要一块**内部 DMA 弹跳缓冲**（见 sdgoods_lcd.h 的弹跳预算说明）。\n"
+        "     *   ［派生工程「最小体积」裁剪］Wi-Fi / BLE 已整体移除：既省下约 1MB 固件体积，\n"
+        "     *   也让内部 RAM 不再被 Wi-Fi 静态 RX 缓冲（esp_wifi_init 时即分配 ~16KB）占用 ——\n"
+        "     *   对显示管线要的那块内部 DMA 连续块是净收益。 */\n",
+    ),
+    (
+        "main/main.c",
+        "main.c：删掉 wifi/phy/coexist/BLE 的日志静音项（那些子系统已不在固件里）",
+        r'    esp_log_level_set\("wifi", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("wifi_init", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("gpio", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("phy_init", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("phy", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("coexist", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("pp", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("net80211", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("esp_netif_handlers", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("BLE_INIT", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("BT_BTC", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("BT_BTM", ESP_LOG_WARN\);\n'
+        r'    esp_log_level_set\("BT_APPL", ESP_LOG_WARN\);\n',
+        "    esp_log_level_set(\"gpio\", ESP_LOG_WARN);\n",
+    ),
+    (
+        "main/main.c",
+        "main.c：界面语言注释改「固定英文」（DEMO 页已随裁剪删除）",
+        r'    /\* 界面语言：出厂默认英文，用户可在 DEMO 页切换（存 NVS，重启保留）。\n'
+        r'       必须在任何界面创建之前调用 —— 首屏是在 sdgoods_ui_home_create_show\(\) 里创建的。 \*/\n',
+        "    /* 界面语言：本工程固定英文（已移除中文字库，没有可切换的界面）。\n"
+        "       必须在任何界面创建之前调用 —— 首屏是在 sdgoods_ui_home_create_show() 里创建的。 */\n",
+    ),
+    (
+        "main/main.c",
+        "main.c：中文字库 fallback 注释改为「.fallback = NULL」",
+        r'    /\* 中文 fallback 已在编译期写入 si_yuan 图标字体的 \.fallback 字段\n'
+        r'       （见 components/sdgoods_board/fonts/si_yuan_black_icon_\*\.c），\n'
+        r'       不可在运行时写 const 字体结构体，否则会触发 ESP32 flash Cache 错误。 \*/\n',
+        "    /* ［派生工程「最小体积」裁剪］中文字库（cn_font_14/16）已删除，图标字体的\n"
+        "       .fallback 已改为 NULL —— 界面文案全部走英文字符串（见 sdgoods_i18n.c）。\n"
+        "       仍然不要在运行时写 const 字体结构体，否则会触发 ESP32 flash Cache 错误。 */\n",
+    ),
+    (
+        "main/main.c",
+        "main.c：文件头「平台能力」一句去掉 WiFi·BLE 扫描",
+        r'\n \* 平台能力（屏 / 触摸 / 电源键 / 音频 / WiFi·BLE 扫描 / 应用框架 / 字体）\n',
+        "\n * 平台能力（屏 / 触摸 / 电源键 / 音频 / 应用框架 / 字体）\n"
+        " * ［派生工程「最小体积」裁剪］Wi-Fi / BLE 已整体移除、中文字库已删除。\n",
+    ),
+
+    # ---- ⑥ 平台层 CMakeLists：删 4 条 SRCS + REQUIRES 去 bt/esp_wifi/esp_netif ----
+    (
+        "components/sdgoods_board/CMakeLists.txt",
+        "board CMakeLists：删 sdgoods_wifi.c / sdgoods_ble.c / cn_font_14.c / cn_font_16.c",
+        r'^[ \t]*"src/sdgoods_wifi\.c"\n[ \t]*"src/sdgoods_ble\.c"\n',
+        "",
+    ),
+    (
+        "components/sdgoods_board/CMakeLists.txt",
+        "board CMakeLists：删 cn_font_14.c / cn_font_16.c 两条 SRCS",
+        r'^[ \t]*"fonts/cn_font_14\.c"\n[ \t]*"fonts/cn_font_16\.c"\n',
+        "",
+    ),
+    (
+        "components/sdgoods_board/CMakeLists.txt",
+        "board CMakeLists：REQUIRES 去 bt / esp_netif / esp_wifi",
+        r'^[ \t]*(?:bt|esp_netif|esp_wifi)[ \t]*\n'
+        r'(?=[ \t]*(?:esp_|freertos|hal|heap|log|nvs_flash|spi_flash|app_|driver|jpegenc|lvgl))',
+        "",
+    ),
+    (
+        "components/sdgoods_board/CMakeLists.txt",
+        "board CMakeLists：语言注释改「固定英文」（DEMO 页已删）",
+        r'^[ \t]*# --- 语言（默认英文，DEMO 页可切中文） ---\n',
+        "    # --- 语言（本工程固定英文：已无中文字库，也没有可切换语言的界面） ---\n",
+    ),
+    (
+        "components/sdgoods_board/CMakeLists.txt",
+        "board CMakeLists：字体注释改「图标字体」（中文字库那两条 SRCS 已删）",
+        r'^[ \t]*# --- 中文字体子集（用 tools/gen_fonts\.py 重新生成） ---\n',
+        "    # --- 图标字体（精选 UI 子集 + 全部可打印 ASCII；本工程已无中文字库） ---\n",
+    ),
+
+    # ---- ⑦ 应用层 CMakeLists：REQUIRES 去 bt/esp_wifi/esp_netif ----
+    (
+        "main/CMakeLists.txt",
+        "main CMakeLists：REQUIRES 去 bt / esp_netif / esp_wifi",
+        r'^[ \t]*(?:bt|esp_netif|esp_wifi)[ \t]*\n'
+        r'(?=[ \t]*(?:driver|esp_event|esp_timer|freertos|hal|heap|log|lvgl|nvs_flash'
+        r'|sdgoods_))',
+        "",
+    ),
+    (
+        "main/CMakeLists.txt",
+        "main CMakeLists：build_version.h 注释里的 ui_home.c 改成通配（该演示页已删）",
+        r'使 apps/ui_home\.c 能 #include "build_version\.h"。',
+        '使 main/apps/*.c 能 #include "build_version.h"。',
+    ),
+
+    # ---- ⑧ sdkconfig.defaults：别再把 BT 打开（否则删掉 sdkconfig 重建又回来了）----
+    (
+        "sdkconfig.defaults",
+        "sdkconfig.defaults：删掉打开 BLE 的那一段",
+        r'# BLE scan \(Bluedroid, BLE-only\)\n'
+        r'CONFIG_BT_ENABLED=y\n'
+        r'CONFIG_BT_BLUEDROID_ENABLED=y\n'
+        r'CONFIG_BT_BLE_ENABLED=y\n'
+        r'# CONFIG_BT_CLASSIC_ENABLED is not set\n'
+        r'CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y\n',
+        "# ［派生工程「最小体积」裁剪］蓝牙 / Wi-Fi 已整体移除：\n"
+        "#   · 固件体积省下约 1MB（Bluedroid + Wi-Fi 协议栈 + PHY）\n"
+        "#   · 内部 RAM 也不再被 Wi-Fi 静态 RX 缓冲占用（对显示管线是净收益）\n"
+        "# 想加回来：删掉 sdkconfig 与 sdkconfig.defaults 里这两组开关的关闭项，\n"
+        "#   再把 components/sdgoods_board/{src,include} 下的 sdgoods_wifi/ble 文件与本表\n"
+        "#   里那些 SRCS / REQUIRES 改动还原（或直接用 --no-trim 重新派生）。\n"
+        "# CONFIG_BT_ENABLED is not set\n",
+    ),
+)
+
+# sdkconfig 单独处理：要把 **每一个** `CONFIG_{BT,ESP_WIFI,ESP_COEX,ESP_PHY}_X=...`
+# 行整体改写成 `# CONFIG_..._X is not set`（sdkconfig 里「未设置」对任何类型都是这个写法）。
+#
+# ⚠️ 为什么必须动 sdkconfig、光改 sdkconfig.defaults 不生效：
+#     sdkconfig 已被 git 跟踪、会随工程一起被复制到新工程；IDF 只在
+#     「sdkconfig 里没有这个符号」时才会去 sdkconfig.defaults 取值。
+#     只改 defaults 的结果是：编译时 CONFIG_BT_ENABLED 仍是 y，蓝牙照编 —— 白裁一场。
+#     实测 sdkconfig 里有 129 行命中这条正则（含 4 个顶层门）。
+SDKCONFIG_OFF_RE = re.compile(
+    r'^CONFIG_(?:BT|ESP_WIFI|ESP_COEX|ESP_PHY)_[A-Z0-9_]+=.*$', re.M)
+
+# 必须是「先全部改写、后统一删除」：任何一条锚点失配都必须在**删掉任何文件之前**
+# 就失败退出，否则会留下一个「源文件已删、引用还在」的编译不过的工程。
+TRIM_SDKCONFIG = ("sdkconfig", "sdkconfig：BT / Wi-Fi / COEX / PHY 相关开关全部置为 not set")
 
 # 只给中文名时用来建议一个英文名。**值必须是 project() 合法的 ASCII 标识符**。
 # 只在「猜得出」时才给建议；猜不出就请用户自己起 —— 不硬造一个假名字糊过去。
@@ -160,10 +521,14 @@ STARTER_C = r'''/*
  *
  * 本工程是「单应用固件」：开机直接进入唯一的应用（见 apps_registry.c），
  * 屏幕中央默认只显示一行问候语 —— 脚本填的是**清洗后的英文名**：
- *   · 不给名   → "Hello MYAPP!"
+ *   · 不给名   → "Hello HELLOAPP!"
  *   · 给了 ABC → "Hello ABC!"
  * 中文名只写进工程根的 app_meta.json（市场展示用），**不会**出现在屏上
- * （设备 UI 用纯 ASCII 问候语，省得每次派生都要重跑字体子集）。
+ * （设备 UI 用纯 ASCII 问候语）。
+ *
+ * ⚠️ 本工程已按「最小体积」裁剪：**没有中文字库**（cn_font_14/16 已删除），
+ *    界面文案请只用 ASCII —— 写中文会显示成方框。想要中文界面，请用
+ *    `python3 tools/new_app_project.py <名> --no-trim` 重新派生一份完整工程。
  * 要写真正的应用，照着这个文件改即可。
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
@@ -300,7 +665,9 @@ REGISTRY_C = r'''/*
  *   1. 复制 main/apps/ui_{lower}.c/.h 成 ui_另一个.c/.h，改名函数 ui_另一个_start/_poll
  *   2. 本文件：加 #include "ui_另一个.h" → 往 s_apps[] 里加一行
  *   3. main/CMakeLists.txt：往 SRCS 里加一行 "apps/ui_另一个.c"
- *   ⚠️ 新界面只要出现**新的中文文案**，就必须重跑 tools/gen_fonts.py，否则屏上显示方框。
+ *   ⚠️ 本工程已按「最小体积」裁剪、**没有中文字库**（cn_font_14/16 已删除，图标字体的
+ *      .fallback 已置 NULL）：界面文案请只用 ASCII。要用中文，得先恢复中文字库 +
+ *      .fallback，或者直接用 `tools/new_app_project.py <名> --no-trim` 重新派生。
  */
 
 #include "apps_registry.h"
@@ -433,7 +800,52 @@ def suggest_en_name(zh_name):
     return None
 
 
-def precheck_seed(seed_dir):
+def check_trim_anchors(root, label):
+    """校验 `root` 工程下「最小体积裁剪」要用到的**全部**锚点；失配即 sys.exit 非 0。
+
+    预检（对种子工程）与执行（对派生副本）**共用同一份规则表**
+    （`TRIM_PATCHES` / `TRIM_SDKCONFIG` / `TRIM_DELETE_FILES`），所以不会出现
+    「预检时过了、执行时锚点又找不到」的漂移 —— 各写一份规则迟早会对不上。
+
+    一次把所有失配项都列出来（而不是撞到第一个就退出），修起来更快。
+    """
+    missing = []
+    for rule in TRIM_PATCHES:
+        rel, desc, pat = rule[0], rule[1], rule[2]
+        need = rule[4] if len(rule) > 4 else 1
+        path = os.path.join(root, rel)
+        if not os.path.exists(path):
+            missing.append("%s —— 文件不存在（%s）" % (rel, desc))
+            continue
+        with open(path, "r", encoding="utf-8") as fh:
+            txt = fh.read()
+        got = len(re.compile(pat, re.M | re.S).findall(txt))
+        if got < need:
+            missing.append("%s —— 锚点命中 %d 处、少于期望的 %d 处（%s）"
+                           % (rel, got, need, desc))
+    rel, desc = TRIM_SDKCONFIG
+    path = os.path.join(root, rel)
+    if not os.path.exists(path):
+        missing.append("%s —— 文件不存在（%s）" % (rel, desc))
+    else:
+        with open(path, "r", encoding="utf-8") as fh:
+            if not SDKCONFIG_OFF_RE.search(fh.read()):
+                missing.append("%s —— 找不到 CONFIG_{BT,ESP_WIFI,ESP_COEX,ESP_PHY}_* "
+                               "开关（%s）" % (rel, desc))
+    for rel in TRIM_DELETE_FILES:
+        if not os.path.exists(os.path.join(root, rel)):
+            missing.append("%s —— 待删文件不存在" % rel)
+    if missing:
+        sys.exit(
+            "✗ %s 无法按「最小体积」规则裁剪：%d 处锚点失配 —— **已中止，没有改动任何文件**。\n"
+            "%s\n\n"
+            "  说明种子工程的结构变了、tools/new_app_project.py 的裁剪规则已失效。\n"
+            "  请先修脚本；或者用 `--no-trim` 跳过裁剪（会得到带 Wi-Fi/BLE/中文字库的完整工程）。"
+            % (label, len(missing), "\n".join("    · " + m for m in missing))
+        )
+
+
+def precheck_seed(seed_dir, trim=True):
     """在**动任何文件之前**确认种子工程能按本脚本的规则裁剪。
 
     为什么必须先做：裁剪规则靠 `main/CMakeLists.txt` 里的一段注释 + 最后一个
@@ -441,6 +853,8 @@ def precheck_seed(seed_dir):
     日志里打一行「! 未匹配到导航页块，跳过 SRCS 改写」然后 **退出码仍是 0**，
     而 5 个 `ui_*.c` 已经被删掉、SRCS 还引用着它们 ⇒ 交给用户的工程**编译不过**，
     却看不出哪里出错。这里提前失败，且**退出码非 0**。
+
+    `trim=True` 时还会把「最小体积裁剪」的全部锚点一并验过（见 check_trim_anchors）。
     """
     cmake = os.path.join(seed_dir, "main", "CMakeLists.txt")
     if not os.path.exists(cmake):
@@ -454,6 +868,65 @@ def precheck_seed(seed_dir):
                 "  请先修 tools/new_app_project.py，**不要**手工继续（否则会得到一个\n"
                 "  CMakeLists 仍引用已删源文件的、编译不过的工程）。"
             )
+    if trim:
+        check_trim_anchors(seed_dir, "种子工程 %s" % seed_dir)
+
+
+def trim_minimal(dst, dry, log):
+    """把派生工程裁成「最小体积」：删 Wi-Fi/BLE、删中文字库、界面固定英文。
+
+    **保留控制中心**（components/sdgoods_launcher/src/sdgoods_cc.c 不动 —— 它只用
+    图标字体 si_yuan_black_icon_14/16，与中文字库无任何耦合）。
+
+    两阶段执行，顺序不能反：
+      阶段一 把**所有**文本改写做完（TRIM_PATCHES + sdkconfig）；任何一条失败就整轮退出，
+             此时一个文件都没删。
+      阶段二 才删文件（TRIM_DELETE_FILES）。
+    反过来的旧式做法（先删、再改）一旦改写失败，留下的就是「源文件已删、引用还在」的
+    编译不过的工程 —— 这正是本仓库反复踩过的「静默跳过」家族。
+    """
+    if dry:
+        for rule in TRIM_PATCHES:
+            log.append("  ~ [裁剪] %s：%s" % (rule[0], rule[1]))
+        log.append("  ~ [裁剪] %s：BT / Wi-Fi / COEX / PHY 开关置为 not set" % TRIM_SDKCONFIG[0])
+        for rel in TRIM_DELETE_FILES:
+            log.append("  - [裁剪] 删除 %s" % rel)
+        log.append("  （dry-run 只在种子工程上预检锚点，不读写任何文件）")
+        return
+
+    # ---- 阶段一：文本改写 ----
+    for rule in TRIM_PATCHES:
+        rel, desc, pat, repl = rule[0], rule[1], rule[2], rule[3]
+        path = os.path.join(dst, rel)
+        with open(path, "r", encoding="utf-8") as fh:
+            txt = fh.read()
+        new = re.sub(pat, repl, txt, flags=re.M | re.S)
+        if new == txt:
+            # 预检本该拦住；走到这里说明副本在复制后被改过。宁可中止，也不交付半改的工程。
+            sys.exit("✗ 裁剪未生效：%s —— %s（锚点已在种子预检里确认，说明副本被改过）"
+                     % (rel, desc))
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(new)
+        log.append("  ~ [裁剪] %s：%s" % (rel, desc))
+
+    rel, desc = TRIM_SDKCONFIG
+    path = os.path.join(dst, rel)
+    with open(path, "r", encoding="utf-8") as fh:
+        txt = fh.read()
+    n = len(SDKCONFIG_OFF_RE.findall(txt))
+    new = SDKCONFIG_OFF_RE.sub(lambda m: "# %s is not set" % m.group(0).split("=")[0], txt)
+    if new == txt:
+        sys.exit("✗ 裁剪未生效：%s —— %s（预检本该拦住）" % (rel, desc))
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(new)
+    log.append("  ~ [裁剪] %s：%d 个 BT/Wi-Fi/COEX/PHY 开关置为 not set" % (rel, n))
+
+    # ---- 阶段二：删文件（所有改写都已成功）----
+    for rel in TRIM_DELETE_FILES:
+        p = os.path.join(dst, rel)
+        if os.path.exists(p):
+            os.remove(p)
+            log.append("  - [裁剪] 删除 %s" % rel)
 
 
 def copy_tree(src, dst, dry, log, counter):
@@ -520,12 +993,18 @@ def patch_project(seed_dir, dst, base, name_zh, dry, log):
     log.append("  ~ app_meta.json -> 中文名 %r / 英文名 %s / 版本 1.0.0" % (name_zh, base))
 
 
-def transform_to_plane_shape(dst, base, greeting, dry, log):
-    """把复制出来的 monorepo 裁成 PLANE 形单应用直启结构。"""
+def transform_to_plane_shape(dst, base, greeting, dry, log, trim=True):
+    """把复制出来的 monorepo 裁成 PLANE 形单应用直启结构（+ 最小体积裁剪）。"""
     lower = base.lower()
     apps_dir = os.path.join(dst, "main", "apps")
 
-    # 1) 先裁剪 main/CMakeLists.txt 的 SRCS —— 刻意放在最前面：它是唯一可能「失败」的一步，
+    # 0) 最小体积裁剪（--no-trim 关闭）—— 放在**最前面**，因为它锚点最多、最容易失配；
+    #    失败时一个文件都还没删（trim_minimal 自己是「先全改、后统一删」两阶段）。
+    #    裁剪内容：删 Wi-Fi/BLE、删中文字库、界面固定英文；**保留控制中心**。
+    if trim:
+        trim_minimal(dst, dry, log)
+
+    # 1) 再裁剪 main/CMakeLists.txt 的 SRCS —— 同样刻意排在「删文件」之前：
     #    锚点对不上时 patch_cmake 直接 sys.exit，此时还**一个文件都没删**。
     #    反过来做（先删 5 个 ui_*.c、再改 SRCS）一旦失败，留下的就是 SRCS 引用已删文件的
     #    编译不过的工程 —— 旧版正是这个顺序 + 只打日志不报错。
@@ -745,7 +1224,7 @@ def main():
     ap = argparse.ArgumentParser(description="派生新的独立 app 工程（从本仓库复制改名，产出 PLANE 形单应用固件）")
     ap.add_argument("name", nargs="?", default=None,
                     help="英文名（可选）= 工程名 = 设备端 app_id，必须 ASCII。"
-                         "不给→默认生成显示 'Hello MYAPP!' 的最小应用 MYAPP 工程；"
+                         "不给→默认生成显示 'Hello HELLOAPP!' 的最小应用 HELLOAPP 工程；"
                          "给了(如 ABC)→显示 'Hello ABC!'。工程名不加 SDGOODS_ 前缀。"
                          "若这里写中文名，必须另给 --name-en")
     ap.add_argument("--name-zh",
@@ -756,6 +1235,9 @@ def main():
     ap.add_argument("--dest-dir", help="新工程父目录（默认：种子工程的同级目录）")
     ap.add_argument("--run", action="store_true",
                     help="生成后若检测到设备则编译+烧录（不备份），并视情况截主页")
+    ap.add_argument("--no-trim", action="store_true",
+                    help="【默认是「最小体积」】跳过裁剪：保留蓝牙/Wi-Fi 与中文字库，"
+                         "得到与种子工程同等能力的完整工程（体积大 ~1MB+）")
     ap.add_argument("--dry-run", action="store_true", help="只打印将要做什么，不写文件/不编译")
     args = ap.parse_args()
 
@@ -818,8 +1300,10 @@ def main():
     if os.path.exists(dest):
         sys.exit("目标已存在，终止: %s" % dest)
 
+    trim = not args.no_trim
+
     # ④ 预检：种子工程必须能被本脚本裁剪。**放在复制/删除之前** —— 见 precheck_seed() 的说明。
-    precheck_seed(seed_dir)
+    precheck_seed(seed_dir, trim=trim)
 
     log = []
     counter = [0]
@@ -827,12 +1311,15 @@ def main():
     print("[new_app_project] 目标工程    : %s/  (project=%s, 单应用直启形, 主页=%s)" %
           (folder, base, greeting))
     print("[new_app_project] 名称        : 中文展示名=%s ｜ 英文名(app_id)=%s" % (name_zh, base))
+    print("[new_app_project] 体积        : %s" % (
+        "最小体积（已删蓝牙/Wi-Fi + 中文字库；保留控制中心）"
+        if trim else "完整（--no-trim：保留蓝牙/Wi-Fi 与中文字库）"))
 
     copy_tree(seed_dir, dest, args.dry_run, log, counter)
     if args.dry_run:
         log.insert(0, "  + 复制 %d 个文件（已跳过 .git / dist / build*）" % counter[0])
     patch_project(seed_dir, dest, base, name_zh, args.dry_run, log)
-    transform_to_plane_shape(dest, base, greeting, args.dry_run, log)
+    transform_to_plane_shape(dest, base, greeting, args.dry_run, log, trim=trim)
 
     for l in log:
         print(l)
