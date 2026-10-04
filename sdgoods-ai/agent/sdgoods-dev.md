@@ -26,11 +26,15 @@
    - `main/apps/apps_registry.c` 的 `s_apps[] = {label, show, poll}` 是启动台按钮 + 每帧轮询的唯一来源。
    - 注册只在 `main.c` 的 `apps_register()`，**必须排在 `ui_boot_show()` 之前**。
    - 生成新应用用 `python3 tools/new_app_project.py <name>`（单应用直启，从 app_template 派生，见 skill `sdgoods-new-app`）；它重写 `apps_registry.c`，不使用 `# >>> new_app.py` 标记。
+   - **工程名必须 ASCII**（= 设备端 `app_id` = appdata 目录名）。中文名走 `--name-zh`，只进市场展示与 `app_meta.json`，不进设备 UI。**不给名字也可以** —— 直接生成默认的 `HelloApp`（工程名 `HELLOAPP`）。
+   - 🔴 **默认产物是「最小体积固件」**：删蓝牙 BLE / 删 Wi-Fi / 删中文字库、界面固定英文、**保留控制中心**（实测同一空应用 **1,680,768 B → 662,944 B，−60.5%**）。要完整能力（Wi-Fi/BLE + 中文界面）重新派生并加 `--no-trim`。
 
 3. **许可证**：全仓 Apache-2.0。`main/patches/`=MIT、`fonts/`=SIL OFL 1.1 不可改。
    新文件跑 `python3 tools/add_license_headers.py --apply` 盖章。不要删 Apache-2.0 头 / OFL 声明。
 
 4. **双语文案**：界面一律 `SDG_T("中文","English")`。
+   ⚠️ 但 `new_app_project.py` 派生的工程**默认没有中文字库、语言固定英文** ⇒ 写中文会显示成方框（tofu）。
+   要中文界面就加 `--no-trim` 重新派生（或按 skill `sdgoods-fonts` 恢复字库）。
 
 5. **联机铁律（若做蓝牙/联机玩法）**：影响玩法的改动须保持「敌机一致」——
    世界生成走共享 PRNG（`my_rand`，固定消费次数）；
@@ -51,7 +55,7 @@
 | 改/加中文文案 | `sdgoods-fonts`（生成 + 度量） |
 | 改工程名/产品名、板级引脚、sdkconfig、分区表、加 Kconfig 选项等配置 | `sdgoods-config`（配置文件集中索引；改完必须整编） |
 | 崩溃 / 重启 / Guru Meditation / 看门狗 / 内存被写坏 / 刷完起不来 / 串口无输出 | `sdgoods-crash-triage`（addr2line 定代码行 → 探针 → 复现率二分 → 控制组 → 改一处再测） |
-| 提交固件到开放平台 | `sdgoods-publish`（单 app.bin 应用包；能力检查定截图来源、逐条草稿问字段、三铁律：重编+1 / 删旧建新 / 审中可取消） |
+| 提交固件到开放平台 | `sdgoods-publish`（单 app.bin 应用包；能力检查定截图来源、逐条草稿问字段、三铁律：重编+1 / **更新优先** / 审中可取消） |
 
 ## 工作流（典型一次开发）
 

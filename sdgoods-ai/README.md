@@ -26,7 +26,7 @@
 | `sdgoods-fonts` | 改中文后重跑 `gen_fonts.py` + `font_metrics.py` | 漏字=方框，圆屏弦宽校验 |
 | `sdgoods-config` | 固件配置文件集中索引（工程名/产品名、`board_pins.h`、`sdkconfig.defaults`、各 `Kconfig`、分区表边界、改后整编铁律） | 一张表说清「配置项在哪、能不能改」，避免改错文件 |
 | `sdgoods-crash-triage` | 定位间歇性崩溃/内存被写坏/刷完不启动（addr2line 定代码行 → 只读探针 → 复现率二分 → 控制组 → 改一处再测） | 含 LVGL 定时器链表探针、串口复现率骨架、读到 ROM banner 后彻底静默的分层排除法 |
-| `sdgoods-publish` | 提交固件到开放平台 | 单 app.bin 应用包（平台自动补引导层）；能力检查定截图来源、逐条草稿问字段、三铁律（重编+1 / 删旧建新 / 审中可取消） |
+| `sdgoods-publish` | 提交固件到开放平台 | 单 app.bin 应用包（平台自动补引导层）；能力检查定截图来源、逐条草稿问字段、三铁律（重编+1 / **更新优先** / 审中可取消） |
 
 Skill 正文是平台无关的 Markdown，仅在安装时按目标平台落到不同位置、并生成对应形态的
 领域 Agent（Claude 的 `agents/` subagent、Cursor 的 `rules/` rule）。

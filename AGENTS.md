@@ -110,7 +110,7 @@ platform/                    ★ 平台托管层（开发者勿改、勿提交�
                                 bootloader.bin / partition-table.bin
 
 tools/                      开发 / 发布脚本
-    new_app_project.py     派生独立应用工程（PLANE 形单应用直启，见 §3 与 skill sdgoods-new-app）
+    new_app_project.py     派生独立应用工程（PLANE 形单应用直启 + **默认裁成最小体积固件**，见 §3 与 skill sdgoods-new-app）
     gen_fonts.py            生成中文子集字体（新增中文文案后必跑）
     pack_app.py             打包单应用固件（平台提审用）
     flash_local.sh          ★ 本地调试一键烧录（自动用 platform/prebuilt 引导层）
@@ -130,7 +130,7 @@ tools/                      开发 / 发布脚本
 | 我要… | 先读 | 入口 / 关键文件 |
 |---|---|---|
 | 配环境、第一次编译烧录 | `docs/ENVIRONMENT.md` → `docs/BUILD.md` | `python3 tools/check_env.py` → `tools/build.sh` |
-| **从零做一个自己的应用** | §3b 本节 + skill `sdgoods-new-app` | `python3 tools/new_app_project.py MyApp` |
+| **从零做一个自己的应用** | §3b 本节 + skill `sdgoods-new-app` | `python3 tools/new_app_project.py HelloApp`（不给名也行，默认生成 `HelloApp`；**默认已裁成最小体积**，要完整能力加 `--no-trim`） |
 | 理解整体分层、运行时、钩子机制 | `docs/ARCHITECTURE.md` | `components/sdgoods_board/` ⇄ `main/` |
 | 写应用界面（安全区 / 手势 / 文案 / 生命周期） | `docs/APP_SDK.md` + `include/sdgoods_ui.h` | `main/apps/ui_<name>.c` |
 | **改顶部下滑菜单 / 控制中心** | `docs/ARCHITECTURE.md` §3.5 + `docs/APP_SDK.md` §3.2 | `components/sdgoods_launcher/src/sdgoods_cc.c` |
@@ -259,6 +259,20 @@ sdgoods_ui_set_nav(&nav);           /* nav = { home_create_show, home_show, apps
 ### 3b. 从零开发你自己的应用并上架（推荐路径）
 **不要**在本仓库里加 —— 用 `tools/new_app_project.py` 派生一个独立工程（PLANE 形单应用直启，
 开机直接进你的 app，无启动台/演示），再从 `main/apps/ui_<name>.c` 改起。详见 skill `sdgoods-new-app`。
+
+命令与命名：
+
+```bash
+python3 tools/new_app_project.py HelloApp            # 指定工程名（必须 ASCII，无 SDGOODS_ 前缀）
+python3 tools/new_app_project.py                     # 连名字都不给也行 ⇒ 默认 HelloApp
+python3 tools/new_app_project.py SNAKE --name-zh 贪吃蛇 # 中文名只进 app_meta.json，不进设备 UI
+python3 tools/new_app_project.py HelloApp --no-trim  # 要完整能力（Wi-Fi/BLE + 中文界面）
+```
+
+⚠️ **派生工程默认是「最小体积固件」**：已删掉蓝牙 BLE、Wi-Fi 与中文字库，界面固定英文，**保留控制中心**。
+同一空应用实测 **1,680,768 B（`--no-trim`）→ 662,944 B（默认）**，3 MB 槽位占用 53% → 22%。
+代价是**没有中文字库** ⇒ 界面写中文会显示成方框（tofu）；要用中文请加 `--no-trim` 重新派生
+（或按 skill `sdgoods-fonts` 恢复字库）。
 
 新应用要接的框架（`app_template.c` 里已写好）：
 

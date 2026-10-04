@@ -89,6 +89,12 @@
 
 1. 打开「谷仓 SDGOODS 开放平台」→ **上传固件**。
 2. 填名称、分类、中英文简介、版本、适用硬件、标签。
+   💡 名称与版本别急着手打：**草稿来源优先级** = ① 工程根的 `app_meta.json`
+   （`name_zh` = 市场展示名、`name_en` = 工程名 / `app_id`、`version`）→ ② 平台上的旧记录
+   → ③ AI 按 app 内容生成。`new_app_project.py` 派生工程时已把中英文名落进这个文件，
+   发布链直接读即可、**不用再问一遍**（见 skill `sdgoods-publish`）。
+   ⚠️ 若 `app_meta.json` 的 `name_en` 与固件实际的 `project()` 不一致，**以固件为准**
+   （`pack_app.py` 校验时会报出来）。
 3. **截图**：可以本地选图，也可以**把设备用 USB 连上电脑，点「从设备截图」**
    ——网页通过浏览器 Web Serial 向设备发 `?` 探测能力、再发 `s` 抓图（详见下方「能力探测」）。
 4. 选**纯应用镜像** `build/SDGOODS_EBADGE.bin`（**不带地址**；建议先用 `tools/pack_app.py`
