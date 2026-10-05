@@ -25,7 +25,7 @@ shot 截首页（无设备/无截图则改由 AI 生图）→ 最后再选手动
   4. shot            连设备截「首页」图并存入 screenshot/（真机截图；无设备/无截图时由 SKILL 走 AI 生图）
   5. release         手动发布：在 release/ 目录放好 bin + 截图 + MANIFEST.json 模板，供你自行上传
   6. ports           列出候选串口（给 flash / shot 分支用）
-  7. version         读取仓库 version.txt（最新版本号真相源；每次构建自动 +1）
+  7. version         读取仓库 version.txt（最新版本号真相源；**编译前须手动 +1**，构建不自动改）
   8. published       发布前检查：拉取「我的固件」里与本工程同名的记录（判断是否已发布过）
 
 「AI 生成文案/图片、询问用户、调用 MCP 直传」等交互步骤由 agent 在对话里完成，
@@ -447,7 +447,14 @@ def cmd_ports(args):
 
 # --------------------------------------------------------------------------- version
 def cmd_version(args):
-    """读取仓库根 version.txt —— 构建时由 gen_app_info.py 自动 +1，是「最新版本号」真相源。"""
+    """读取仓库根 version.txt —— 「最新版本号」真相源。
+
+    ⚠️ 构建**不会**自动 +1（此处曾描述为"构建时自动 +1"，是**过时错描述**）：
+       components/sdgoods_launcher/tools/gen_app_info.py 只把 version.txt **原样透传**为
+       SDGOODS_APP_VERSION，好让它与 esp_app_desc.version **同源恒等**（早先这里 +1 ⇒
+       关于页与弹框差 1，已修）。⇒ 改版本号必须在**编译之前**手动改 version.txt。
+    进位规则：**末位只到 99，满 99 进中位、末位归 0**（2.0.99 -> 2.1.0）。
+    """
     vf = os.path.join(REPO, "version.txt")
     ver = "1.0.0"
     if os.path.isfile(vf):
@@ -461,13 +468,15 @@ def cmd_version(args):
     obj = {
         "version": ver,
         "source": "version.txt",
-        "note": "每次 idf.py build 末位自动 +1（components/sdgoods_launcher/tools/gen_app_info.py）。"
+        "note": "version.txt 是唯一真相源；构建只**透传**、不自动 +1"
+                "（改版本号须在编译前手动改 version.txt；末位只到 99，满 99 进中位：2.0.99 -> 2.1.0）。"
                 "发布时版本号请用这个值，不要沿用旧记录里的版本。",
     }
     _emit(args.json, obj)
     print("当前版本号：%s（来源 version.txt）" % ver)
     if not args.json:
-        print("提示：构建后该值已 +1；重新发布时请作为「最新版本号」使用，覆盖旧记录的版本。")
+        print("提示：该值只在手动改过 version.txt 后才会变（构建不会替你做 +1）；"
+              "重新发布时请作为「最新版本号」使用，覆盖旧记录的版本。")
     return 0
 
 
