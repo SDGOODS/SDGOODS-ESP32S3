@@ -227,6 +227,20 @@ $IDF_PY -m esptool --chip esp32s3 -p $PORT --before default_reset --after no_res
   （注意：`xtensa-esp-elf` 目录下才是编译器工具链，`xtensa-esp32s3-elf` 是另一套目标名，
    glob 路径写错时 zsh 会直接 "no matches found" 中止整条命令。）
   另外**静态断言里的数字不会出现在对象文件里**（编译期就没了），别拿它当判据。
+- 🔴🔴 **`nm` 在 ELF 上查不到新符号，多半是 `--gc-sections` 回收，不是「没编进去」（2026-10-05 踩）**：
+  IDF 默认 `-ffunction-sections` + 链接器 `--gc-sections` ⇒ **没有任何调用者的公共函数会被整段删掉**。
+  典型场景：把平台层显示/工具接口同步进 app 工程后，`nm <elf> | grep sdgoods_lcd_te_` **一条都不命中**
+  —— 因为它们只被**启动器独有**的串口调试键（`{te!` / `{dma!` / `{band0!`）调用，app 侧没有那些键。
+  **判据分两步，顺序不能反**：
+  ```bash
+  NM=~/.espressif/tools/xtensa-esp-elf/*/xtensa-esp-elf/bin/xtensa-esp32s3-elf-nm
+  # ① 先查 .obj —— 出现 "T 符号名" 就证明编译过了
+  $NM <build>/esp-idf/<comp>/CMakeFiles/__idf_<comp>.dir/<src>.c.obj | grep ' T sdgoods_lcd_te_enable$'
+  # ② 再查 ELF 里同文件里的 **static 行为码** —— 小写 t = 本地符号，它在就说明功能真进了镜像
+  $NM <build>/<proj>.elf | grep -E ' (t|T) (te_align_if_big|flush_bands_locked)$'
+  ```
+  ① 有 + ② 有 ⇒ 功能码在跑，只是「调试访问器」被回收 —— **这是正常结果，别为此去关 `--gc-sections`**。
+  ① 有 + ② 全无 ⇒ 才需要怀疑行为码被整段优化（可能已 inline 进调用方，再看反汇编）。
 - **反汇编验证本身会假阴性（2026-09-21 踩）**：objdump 打的是**十进制**形如 `movi a13, 112`，
   而 macOS 的 BSD grep 里 `\b` 不可靠 ⇒ 写成
   `grep -E 'movi[[:space:]]+a[0-9]+, (0x70|112)\b'` 会**明明存在却一条都不命中**，
