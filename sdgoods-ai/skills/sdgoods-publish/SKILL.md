@@ -366,7 +366,9 @@ env -u CODEBUDDY_SAFE_DELETE_SANDBOX -u CODEBUDDY_BROKERED_FS_HOOK_ENABLED -u CO
 
 ⚠️ **改码必重编 · 版本号铁律（用户硬性规定，无例外、不询问跳过）**：
 - 只要动了**源码**，就必须**重新编译**出新的 `build_pub` 产物，不能用旧 bin 顶替发布。
-- 重新编译 → **版本号必须 +1**（`version.txt` 改高一位）。三仓同源：二进制内 `esp_app_desc.version` 与关于页 `SDGOODS_APP_VERSION` 都来自 `version.txt`（已统一透传、不再差 1），改一处即两者同步。
+- 重新编译 → **版本号必须 +1**。
+- 🔴 **进位规则（用户 2026-10-05 明确）**：**每次编译末位 +1**；末位**只到 99**，满 99 后再 +1 就**进中位、末位归 0** —— `2.0.99` → **`2.1.0`**（不是 `2.0.100`）。**用 `tools/bump_version.py` 改，别手算**（99 那一步极易写错）：`python3 tools/bump_version.py`（`--self-test` 先跑进位用例、`--dry-run` 只看不写、`--set x.y.z` 修手误）。真相源 = 工程根 `version.txt`：`gen_app_info.py` 透传为 `SDGOODS_APP_VERSION`，CMake `project(VERSION)` 读**同一文件** ⇒ 二进制内 `esp_app_desc.version` 与关于页显示**同源恒等**（历史上曾差一轮，已修），改一处即两者同步。
+- 🔴 **核验版本号别只看体积**：`2.1.1` 与 `2.1.2` **同长度** ⇒ 镜像字节数**一模一样**，"体积没变"完全不能说明"版本没变"。必须验字符串：`strings -a <bin> | grep -E '^2\.[0-9]+\.[0-9]+$'`，正确结果是**恰好两处新版本号**（`esp_app_desc.version` + 代码段 `SDGOODS_APP_VERSION`），且**旧值零残留**；真机侧再看启动日志的 `app_init: App version: X.Y.Z`。
 - 若**检测到设备已连接**（`ls /dev/cu.usbmodem*` 有输出），重编后**必须**确保设备上是最新固件（见 ④ 截图规则里的「最新固件比对」），并在发布前按 ④ 重截**最新**画面。不重刷、不重截就发布 = 平台上挂的是过时固件/旧截图。
 - **发布前必核对**：`pack_app.py` 只打包**不重编**，`dist/<项目>_app.json` 里的 `version`/`buildTime` 是**上次编译嵌入的旧值**——必须与 `version.txt` 一致才允许发布（实测踩过：bin=1.0.41 vs version.txt=1.0.42，差点把旧版本号发上去）。
 - **build_pub 半截恢复**：后台构建被杀（SIGTERM）在 cmake configure 中途 ⇒ `build_pub` 无 `project_description.json`，后续 `idf.py build` 直接报错。**删 `build_pub/CMakeCache.txt` 强制重新 configure 即可**（对象缓存保留，远快于全清重建）。
