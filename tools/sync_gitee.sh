@@ -25,8 +25,18 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # 确保工作树干净，避免误伤未提交改动
-if ! git diff --quiet -- README.md README_EN.md; then
-  echo "⚠️  README.md / README_EN.md 有未提交改动，请先提交或还原再跑本脚本。" >&2
+#
+# 🔴 必须查**整个工作区**（已暂存 + 未暂存），不能只查 README 那两个文件：
+#    第 3 步是 `git reset --hard HEAD~1`，它抹掉的是**任何**未提交改动，不只 README。
+#    旧的窄守卫（只 `git diff --quiet -- README.md README_EN.md`）会给出**假安全感** ——
+#    注释写着"避免误伤未提交改动"，实际只挡住两个文件，别的文件静默被毁
+#    （2026-10-05 复核发现：本仓库当时就有 4 个显示层文件处于 M 状态）。
+#    未跟踪文件（`??`）**不算**：`reset --hard` 不会删它们，所以不该因此拦住推送。
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "⚠️  工作区有未提交改动（已暂存或未暂存）。" >&2
+  echo "    本脚本第 3 步是 'git reset --hard HEAD~1'，会把这些改动**全部抹掉**。" >&2
+  echo "    请先 commit 或 git stash，再运行本脚本。当前状态：" >&2
+  git status --short >&2
   exit 1
 fi
 
@@ -54,6 +64,7 @@ python3 tools/_rewrite_readme_remote.py gitee
 #
 # ⚠️ 另一个坑：第 3 步是 reset --hard，会**丢掉所有未提交的工作区改动**（包括对本脚本
 #    的编辑自己）。改本脚本后务必先 commit 再运行，否则改动会被自己抹掉。
+#    ⇒ 顶部已加"整个工作区必须干净"的预检，本步骤若仍能走到说明那一刻确实是干净的。
 echo "→ 提交临时替换并推送到 Gitee ..."
 git add README.md README_EN.md
 git commit -q -m "docs: gitee mirror README (仓库地址改为 Gitee)"

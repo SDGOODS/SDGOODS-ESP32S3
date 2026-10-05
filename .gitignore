@@ -38,6 +38,11 @@ shot_*.jpg
 shot_*.png
 shots/
 
+# ---- 本机验证取证目录（按日期分目录放截图/日志，属开发过程产物，不进仓库）----
+# 🔴 注意 `shots/` 只匹配**目录名恰为 shots** 的路径，`verify_shots/` 不在其中，
+#    所以必须单独列一条，否则 `git status` 会一直挂着一个 `??`。
+tools/verify_shots/
+
 # ---- 字体工具 ----
 # lv_font_conv（node_modules）与本地产物
 node_modules/
