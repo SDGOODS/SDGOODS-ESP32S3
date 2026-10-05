@@ -633,6 +633,31 @@ python3 scripts/publish_recovery_pkg.py \
 真机验收：用浏览器 Web Serial 走一次市场「一键恢复」流程，
 确认步骤 3 是「清空设备数据 32.0 MB」而不是「已跳过」，且刷完启动器起来、4 槽全空。
 
+### 更新「默认文件」（`SystemAsset`）的本地副本
+
+平台「默认文件」那四份资产的**本地副本目录**（维护者工作区里的那个，路径见文末附录）
+需与 `build_launcher/` 的产物保持一致；上传到后台「默认文件」页要**官方账号手动**做，
+平台侧 AI 没有入口。
+
+| 文件 | 来源（`<本仓>/build_launcher/`） | 地址 |
+|---|---|---|
+| `bootloader.bin` | `bootloader/bootloader.bin` | `0x0` |
+| `partition-table.bin` | `partition_table/partition-table.bin` | `0x8000` |
+| `launcher.bin` | `SDGOODS_LAUNCHER.bin`（出厂 app，落 factory 槽） | `0x10000` |
+| `otadata.bin` | `ota_data_initial.bin` | `0x310000` |
+
+🔴 **只同步真变了的，别整目录照抄**：
+- `partition-table` / `otadata` 常与构建产物 **SHA256 完全相同** ⇒ 不用动；
+- bootloader 与构建产物的差异**往往只是编译时间戳** —— `cmp -l A B | wc -l` 数出几十字节
+  就是它，无功能差异。用户常见口径是「**直接复制 launcher 就好**」⇒ 只动 launcher。
+- 🔴 **同步前先确认这版是「出厂版」而不是「带诊断探针的调试版」**：
+  `strings -a launcher.bin | grep -cF '<探针串>'` 必须为 0。
+  ⚠️ 复核 pattern **别用裸的 `int=%u`** ⇒ 会命中 `sdgoods_devlink.c` 的 `heap_int=%u` 假阳性，
+  要带上下文（如 `touch: %s (`、`short press latched`）。
+  **功能状态日志**（`lock:` / `hint:` / `slow read`）**留着**，别一起摘；摘日志时当心
+  **有第二用途的变量**（`s_int_edges` 还驱动忙窗口、`prev` 还判"真按下沿"）。
+- 覆盖前把旧版归档到 `.archive-YYYYMMDD/`，便于回退。
+
 ## 固件下架 / 删除（MCP 已支持，不必再走网站 JWT）
 
 | 想做 | 调 | arguments |
