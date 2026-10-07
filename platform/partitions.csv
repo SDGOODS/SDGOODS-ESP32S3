@@ -7,17 +7,54 @@
 # 也不要提交对它的改动；本地调试用的预编译镜像在 platform/prebuilt/ 下。
 # 本文件仅作为构建所需的「源」，内容必须与平台官方分区表严格一致。
 # ============================================================================
-# 谷仓次元屏多应用分区表（固定表 + 动态指派，详见 docs/MULTI_APP_DYNAMIC_SLOTS.md）
-#   launcher  = 启动器（factory@0x10000），等价于旧固件的单应用镜像落点，迁移安全
-#   otadata   = IDF 原生选槽记录（决定「下次启哪个槽」）
-#   ota_0..3  = 4 个固定 app 槽（各 3MB），运行时由 launcher 动态指派 app
-#   appdata   = 高 16MB 的 app 持久数据区（按 app_id 隔离），平台刷机绝不碰这里
-nvs,         data, nvs,      0x9000,    0x6000,
-phy_init,    data, phy,      0xF000,    0x1000,
-launcher,    app,  factory,  0x10000,   0x300000,
-otadata,     data, ota,      0x310000,  0x2000,
-ota_0,       app,  ota_0,    0x320000,  0x300000,
-ota_1,       app,  ota_1,    0x620000,  0x300000,
-ota_2,       app,  ota_2,    0x920000,  0x300000,
-ota_3,       app,  ota_3,    0xC20000,  0x300000,
-appdata,     data, fat,      0x1000000, 0x1000000,
+# 谷仓次元屏 2.0 分区表（动态槽）
+#
+#   1.0 = 4 个固定槽（ota_0..ota_3 各 3MB，可用约 2.9MB）
+#   2.0 = 16 条动态槽项（ota_0..ota_15）：槽由启动器在设备上按需分配
+#
+#   ⚠️ 本表与 1.0 表在低区的落点**完全一致** —— nvs / phy_init / launcher /
+#      otadata / appdata 全部原地不动，ota_0 起点仍是 0x320000 ⇒ 升级安全。
+#
+#   launcher  = 启动器宿主（app/factory @0x10000）。本地调试时你的 app 也烧在这里。
+#   otadata   = IDF 原生选槽记录（决定「下次启哪个槽」），本方案恒留 factory。
+#   ota_0..15 = 16 条槽项：offset / size 由启动器运行时按 best-fit 改写。
+#               size = 0 ⇒「已预置、未分配」（IDF 的 try_load_partition() 对
+#               size == 0 直接返回 false ⇒ 该槽永不启动，安全）。
+#               为什么预置满 16 条而不是 4 条：esp_ota_get_app_partition_count()
+#               从 ota_0 起「遇缺口即停」，有洞时引导层与 app 侧口径不一致
+#               ⇒ 槽序算错 ⇒ 静默启动到错误的槽。预置满 ⇒ 恒为 16。
+#               🔴 本表里绝不能再出现 app/test(subtype 0x20)：OTA_MIN + 16 正好
+#                  撞上它，数到第 17 条会踩 assert 直接崩。
+#   pt_bak    = 槽区末端(0x0FF0000)的备份分区表，引导层自愈时从它恢复（1 扇区）。
+#               subtype 故意用 data/undefined(0x06)：data/ota 会被 gen_esp32part
+#               判成「multiple otadata partitions」，直接让构建失败。
+#   appdata   = 高 16MB 的 app 持久数据区（按 app_id 隔离），平台刷机绝不碰这里。
+#
+#   槽区几何：0x320000 .. 0x0FF0000 = 12.8125 MiB；每槽尾部保留 56 KiB 放主页封面。
+#
+#   ℹ️ 构建时 IDF 的 check_sizes.py 会打 16 行「(overflow …) size 0x-1」警告 ——
+#      **属正常**：size = 0 的槽是「已预置、未分配」的占位，不是「装不下」。
+#      （`0x-1` 是 gen_esp32part 里 `self.size or -1` 的显示怪癖，二进制里确实是 0。）
+#      exit code 仍为 0 —— 因为 factory(3 MiB) 装得下，所以只告警不报错。
+nvs,         data, nvs,       0x9000,    0x6000,
+phy_init,    data, phy,       0xF000,    0x1000,
+launcher,    app,  factory,   0x10000,   0x300000,
+otadata,     data, ota,       0x310000,  0x2000,
+ota_0,       app,  ota_0,     0x320000,  0x0,
+ota_1,       app,  ota_1,     0x320000,  0x0,
+ota_2,       app,  ota_2,     0x320000,  0x0,
+ota_3,       app,  ota_3,     0x320000,  0x0,
+ota_4,       app,  ota_4,     0x320000,  0x0,
+ota_5,       app,  ota_5,     0x320000,  0x0,
+ota_6,       app,  ota_6,     0x320000,  0x0,
+ota_7,       app,  ota_7,     0x320000,  0x0,
+ota_8,       app,  ota_8,     0x320000,  0x0,
+ota_9,       app,  ota_9,     0x320000,  0x0,
+ota_10,      app,  ota_10,    0x320000,  0x0,
+ota_11,      app,  ota_11,    0x320000,  0x0,
+ota_12,      app,  ota_12,    0x320000,  0x0,
+ota_13,      app,  ota_13,    0x320000,  0x0,
+ota_14,      app,  ota_14,    0x320000,  0x0,
+ota_15,      app,  ota_15,    0x320000,  0x0,
+pt_bak,      data, undefined, 0x0FF0000, 0x1000,
+appdata,     data, fat,       0x1000000, 0x1000000,
