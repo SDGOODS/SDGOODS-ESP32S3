@@ -62,15 +62,15 @@
     },
     {
       "id": "sdgoods-fonts",
-      "title_zh": "中文子集字体",
-      "title_en": "Chinese subset fonts",
-      "summary_zh": "改中文后重跑 gen_fonts.py（扫描字符集、生成两套 OFL 字体）+ font_metrics.py（离线核对圆屏宽度与缺字），漏字=方框。",
-      "summary_en": "After changing Chinese text, rerun gen_fonts.py (scan charset, build two OFL fonts) + font_metrics.py (offline circle-screen width & missing-glyph check). Missing glyph = tofu box.",
+      "title_zh": "中文子集字体 + 运行时语言包",
+      "title_en": "Chinese subset fonts + runtime font pack",
+      "summary_zh": "改中文后重跑 gen_fonts.py（扫描字符集、生成两套 OFL 字体）+ font_metrics.py（离线核对圆屏宽度与缺字），漏字=方框；运行时另跑 gen_fontpack.py 产 zh.sdgpack 语言包（缺字会被设备正确挡住并保持英文）。",
+      "summary_en": "After changing Chinese text, rerun gen_fonts.py (scan charset, build two OFL fonts) + font_metrics.py (offline circle-screen width & missing-glyph check). Missing glyph = tofu box. For runtime language packs, also run gen_fontpack.py to build zh.sdgpack (a pack missing glyphs is correctly rejected by the device, which stays in English).",
       "file": "sdgoods-ai/skills/sdgoods-fonts/SKILL.md",
-      "wraps": ["tools/gen_fonts.py", "tools/font_metrics.py", "tools/fetch_fonts.py"],
+      "wraps": ["tools/gen_fonts.py", "tools/font_metrics.py", "tools/fetch_fonts.py", "tools/gen_fontpack.py"],
       "platforms": ["workbuddy", "claude", "cursor", "generic"],
-      "trigger_zh": "字体 / 方框 / 缺字 / 超宽 / tofu",
-      "trigger_en": "Chinese text / fonts / tofu / missing glyph"
+      "trigger_zh": "字体 / 方框 / 缺字 / 超宽 / tofu / 语言包 / fontpack / sdgpack / 中文字库下载",
+      "trigger_en": "Chinese text / fonts / tofu / missing glyph / language pack / fontpack / sdgpack"
     },
     {
       "id": "sdgoods-config",

@@ -23,7 +23,7 @@
 | `sdgoods-new-app` | `new_app_project.py` 从开源工程派生单应用直启工程（改名 + **默认最小体积：删蓝牙/Wi-Fi/中文字库、保控制中心** + 可选 --run 烧录截屏） | 种子=本开源仓；不含 SDGOODS_ 前缀；要完整能力加 `--no-trim` |
 | `sdgoods-build-flash` | `tools/build.sh`（封装 env 坑）一键构建/烧录/监视 | 底层仍是 `idf.py build`+`flash`，但 env 坑（unset 三变量、保留 SESSION_ID、不 rm -rf build）已固化进脚本，AI/开发者一行即可 |
 | `sdgoods-screenshot` | 串口一键截屏 + 自动打开 PNG 给 AI「看图」 | 单张约 2~25s，UI 改动必做 |
-| `sdgoods-fonts` | 改中文后重跑 `gen_fonts.py` + `font_metrics.py` | 漏字=方框，圆屏弦宽校验 |
+| `sdgoods-fonts` | 改中文后重跑 `gen_fonts.py` + `font_metrics.py`（编译期子集）；运行时语言包另跑 `gen_fontpack.py` 产 `zh.sdgpack` | 漏字=方框，圆屏弦宽校验；缺字的包会被设备正确挡住并保持英文 |
 | `sdgoods-config` | 固件配置文件集中索引（工程名/产品名、`board_pins.h`、`sdkconfig.defaults`、各 `Kconfig`、分区表边界、改后整编铁律） | 一张表说清「配置项在哪、能不能改」，避免改错文件 |
 | `sdgoods-crash-triage` | 定位间歇性崩溃/内存被写坏/刷完不启动（addr2line 定代码行 → 只读探针 → 复现率二分 → 控制组 → 改一处再测） | 含 LVGL 定时器链表探针、串口复现率骨架、读到 ROM banner 后彻底静默的分层排除法 |
 | `sdgoods-publish` | 提交固件到开放平台 | 单 app.bin 应用包（平台自动补引导层）；能力检查定截图来源、逐条草稿问字段、三铁律（重编+1 / **更新优先** / 审中可取消） |

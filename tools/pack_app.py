@@ -23,7 +23,7 @@
     python3 tools/pack_app.py --json             # 结构化输出（给 AI 助手、CI 用）
     python3 tools/pack_app.py --no-emit          # 只校验，不写 dist/
 
-校验项（任一不过即拒绝）：
+校验项（**1–4 任一不过即拒绝**；第 5 项只提示、不拒绝，包照常导出）：
 
 | # | 判据 | 为什么 |
 |---|---|---|
@@ -31,7 +31,7 @@
 | 2 | `0x0` 首字节 == `0xE9` | ESP 镜像魔数（bootloader 也是 `0xE9`，所以还要看第 3 项） |
 | 3 | `0x20` == `0xABCD5432` | app 描述结构 `esp_app_desc_t`，只有应用镜像才有 |
 | 4 | `0x0C` chip_id == `0x0009` | ESP32-S3（防止把别的芯片的固件传上来） |
-| 5 | 体积 ≤ 槽上限（默认 2.9 MB，槽物理 3 MB 留余量） | 超了会写穿到相邻槽，把别的应用弄坏 |
+| 5 | 体积 ≤ 多应用单槽**保守线**（默认 2.9 MB） | 超了**不影响上架**；能否装进多应用槽**取决于目标设备剩余空间**（2.0 自建槽），不保证 |
 | 6 | 应用身份不是模板默认名（`SDGOODS_EBADGE` 等） | 否则 app_id 撞车、数据目录互串（急着跳过加 `--allow-template-name`，第三方不该用） |
 
 退出码：`0` 通过；`1` 校验失败；`2` 用法/文件错误。
@@ -70,12 +70,25 @@ APP_DESC_OFFSET = 0x20                                  # sizeof(image_header)+s
 # project_name 相对 esp_app_desc_t 起点的偏移 48(0x30) ⇒ 绝对 0x50（实测核对过：
 # SDGOODS_EBADGE.bin @0x50 = "SDGOODS_EBADGE"，HELLO_3.bin @0x50 = "HELLO_3"）。
 OFF_PROJECT_NAME = 48
-# 应用槽的**安全**上限。槽物理上是 3 MB，但必须留余量：
+# 多应用模式下一个应用槽能装多少 —— **只决定「能装哪个模式」，不拦提交**。
+#
+# 🔴 2.0 语义变更（2026-10-07，与平台侧 firmwarePolicy.ts / deviceCapacity.ts 同批）：
+#    2.9 MB 已从「多应用模式单槽上限」**降级为「保守兜底线」**。2.0 的槽是**设备自己建的**、
+#    大小随 app 走（真机上已出现 0xE7000 的槽）⇒「能不能装」取决于
+#    **目标设备槽区里最大的那块连续空闲空间 ≥ app 字节 + 56 KiB(槽尾封面保留)**，
+#    不是一个全平台常量。真正的判据在平台侧 server/src/lib/deviceCapacity.ts。
+#
+#    ⇒ 本地这个数的**唯一职责**：当平台还拿不到设备布局（老固件 / 空设备）时，
+#      两边用同一个保守数，免得「本地过不了、平台能传」把人绕晕。
+#    ⇒ 所以**超了不等于装不进**：2.0 设备上很可能照样装得下（best-fit 按 app 大小现建槽）。
+#      文案必须说清这一点 —— 再说死「只能单应用模式安装」就是错的。
+#
+# 槽物理上是 3 MB（1.0 固定表），但必须留余量：
 #   · app 分区不是百分百干净（末尾残留、对齐填充都算在 sizeBytes 里）
 #   · 紧跟着就是下一个槽，写穿会把**别人的 app** 弄坏
+# 超过这条线**不影响上传、过审、上架**。
 # ⚠️ 这个值必须与平台侧一致（server/src/lib/firmwarePolicy.ts 的 SLOT_APP_MAX_BYTES = 2.9MB）。
-#    两者漂移的表现很阴：作者**在本地校验通过**、上传过审上架，用户点刷机才被告知
-#    装不进槽，而提交记录看起来全是绿的。
+#    两者漂移的表现很阴：作者**在本地被拦下**、以为自己的 app 有问题，其实平台照样收。
 DEFAULT_SLOT_BYTES = int(2.9 * 1024 * 1024)
 
 # 模板工程的**默认名** —— 开发者克隆后忘了改 project() 时，产出的就是这些。
@@ -259,15 +272,23 @@ def verify_app_bin(path, max_bytes=DEFAULT_SLOT_BYTES, allow_template_name=False
             % (chip_id, CHIP_NAMES.get(chip_id, "未知"))
         )
 
-    # ⑤ 体积不能超过槽上限
+    # ⑤ 体积只决定「能装哪个模式」，**不拦提交/上架**
+    # 单应用模式把 app 直接写进出厂区（0x10000，整 3MB），不受这条线约束；
+    # 只有多应用模式装槽才受限（写穿会弄坏相邻槽 ⇒ 平台那一路会拒绝安装）。
+    # ⇒ 这里只给 warning：包照样导出、照样传平台、能过审上架。
     if max_bytes and size > max_bytes:
-        res["errors"].append(
-            "体积超限：%s 超过槽上限 %s。超出的部分会写进相邻槽，把别的应用弄坏。"
+        res["warnings"].append(
+            "体积超出多应用模式的**保守上限**：%s > %s。这个包**仍可上传、过审、上架**。"
+            "注意这条线是**保守兜底**（平台拿不到设备布局时才用它）—— 2.0 设备的应用槽是"
+            "**按那台设备的剩余空间现建的**，所以这个包**很可能照样装得进**它的多应用槽，"
+            "但**不保证**（1.0 的固定 3 MB 槽几乎没有余量，超线基本就是装不进）。"
+            "想稳妥地不超线，请精简素材/资源后重新编译。"
             % (_human(size), _human(max_bytes))
         )
     elif max_bytes and size > max_bytes * 0.9:
         res["warnings"].append(
-            "体积已达槽上限的 %.0f%%（%s / %s），再加素材就会超限。"
+            "体积已达多应用模式保守上限的 %.0f%%（%s / %s）；再加素材就只剩"
+            "「指望目标设备剩余空间够大」这条路了（见上面关于 2.0 动态槽的说明）。"
             % (100.0 * size / max_bytes, _human(size), _human(max_bytes))
         )
 
@@ -358,8 +379,12 @@ def format_report(res, emitted=None, outdir=None):
 
     used = ""
     if res.get("maxBytes"):
-        used = "，槽上限 %s（用掉 %.0f%%）" % (
-            _human(res["maxBytes"]), 100.0 * res["sizeBytes"] / res["maxBytes"])
+        if res["sizeBytes"] > res["maxBytes"]:
+            used = ("；已超多应用模式的**保守上限** %s —— 能否装进多应用槽取决于"
+                    "目标设备的剩余空间，不保证") % _human(res["maxBytes"])
+        else:
+            used = "，多应用槽保守上限 %s（用掉 %.0f%%）" % (
+                _human(res["maxBytes"]), 100.0 * res["sizeBytes"] / res["maxBytes"])
     lines.append("✔ 应用包校验通过：%s" % res["fileName"])
     lines.append("")
     lines.append("  体积      %s%s" % (_human(res["sizeBytes"]), used))
@@ -399,7 +424,7 @@ def build_parser():
     p.add_argument("-o", "--outdir", default="dist", help="导出目录（默认 dist/，相对仓库根）")
     p.add_argument("--name", help="导出文件名（默认 <项目名>_app.bin）")
     p.add_argument("--max-size", type=int, default=DEFAULT_SLOT_BYTES,
-                   help="槽上限字节数（默认 2.9MB，与平台侧 SLOT_APP_MAX_BYTES 一致；槽物理 3MB 需留余量）")
+                   help="多应用模式单槽上限字节数（默认 2.9MB，与平台侧 SLOT_APP_MAX_BYTES 一致；超过只提示、不拒绝。槽物理 3MB 需留余量）")
     p.add_argument("--no-emit", action="store_true", help="只校验，不导出")
     p.add_argument("--allow-template-name", action="store_true",
                    help="允许 app 身份仍是模板默认名（第三方不该用；官方发布 demo 时才需要）")
