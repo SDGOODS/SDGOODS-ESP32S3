@@ -1,6 +1,6 @@
 ---
 name: sdgoods-fonts
-description: 谷仓次元屏中文子集字体：新增/修改中文文案后必须重跑生成，否则屏上显示方框(tofu)。封装 tools/gen_fonts.py（扫描源码字符集、生成 cn_font_*/si_yuan_black_icon_* 两套 OFL 字体）与 tools/font_metrics.py（离线核对圆屏文本宽度与缺字，避免烧板试错）。Use when Chinese text changes / 字体 / 方框 / 缺字 / 超宽 / tofu in the badge UI.
+description: 谷仓次元屏中文子集字体 + 运行时语言包。① 编译期：新增/修改中文文案后必须重跑 tools/gen_fonts.py，否则屏上显示方框(tofu)；封装 tools/gen_fonts.py（扫描源码字符集、生成 cn_font_*/si_yuan_black_icon_* 两套 OFL 字体）与 tools/font_metrics.py（离线核对圆屏文本宽度与缺字，避免烧板试错）。② 运行时：tools/gen_fontpack.py 产 zh.sdgpack 语言包（含 lv_font_conv/tools-fonts 前置、--lang-name 必需、干净树产包、缺字被拒 ESP_ERR_NOT_SUPPORTED 的处置）。Use when Chinese text changes / 字体 / 方框 / 缺字 / 超宽 / tofu / 语言包 / fontpack / sdgpack / 中文字库下载 in the badge UI.
 agent_created: true
 ---
 
@@ -135,3 +135,66 @@ python3 tools/font_metrics.py --strings "你的新文案" --size 14
 - 生成文件头带 OFL 版权声明，**不得删**。
 - `cn_font_*` / `si_yuan_black_icon_*` 前缀的文件被 `gen_fonts.py` 跳过扫描（避免字符集只增不减），不要手改这些文件。
 - CJK 长串（无空格）LVGL 不会自动断行；度量工具宁严勿松，真超了会报超宽让你改。
+
+---
+
+## 运行时语言包（`gen_fontpack.py` → `zh.sdgpack`）—— 与上面是**两条独立的路**
+
+上面的 `gen_fonts.py` 烘的是**编译期子集**（界面固定文案）；`gen_fontpack.py` 产的是
+**运行时下载的语言包**（设备侧落 `/appdata/<app_id>/font/`，由平台层 `sdgoods_fontpack.c`
+校验+加载）。**改了中文文案，两条都要重跑**（判据/方案见工程 `docs/LANGUAGE_PACK_PLAN.md`）。
+
+### 产包（2026-10-06 实测流程；两条前置都会伪装成别的问题）
+
+1. **源字体** `<工程>/tools/fonts/NotoSansSC-Regular.ttf`。报
+   `源字体不存在…先跑一次 tools/fetch_fonts.py` 时注意：**工程里根本没有 `fetch_fonts.py`**
+   ⇒ 从同工作区的任一兄弟工程 `cp` 过来即可（几份字体 sha256 完全相同）。
+2. **`lv_font_conv`**：脚本用 `shutil.which()` 找它，若不在 `PATH` 上会报
+   `找不到 lv_font_conv` ⇒ 传 `--bin <全路径>`（或设 `LV_FONT_CONV` 环境变量）。
+   本机具体路径见文末「附：本机环境」。
+
+```bash
+python3 tools/gen_fontpack.py --lang-name '中文（简体）' \
+    --scan . --scan <兄弟工程1> --scan <兄弟工程2> \
+    --bin "<lv_font_conv 全路径>"
+python3 tools/gen_fontpack.py --check build_fontpack/zh.sdgpack   # ⇒ 必须「判定：覆盖」
+```
+
+### 🔴 四条纪律（每条都真踩过）
+
+- **`--lang-name` 是必需参数**：漏了它 `zh.manifest.json` 的 `langName` 退化成 `"zh"`，
+  而那一项是要显示给用户看的。
+- **必需表与包都只在干净树生成**：临时诊断探针若在 `main/`，同一条命令扫出 **406** 而非 **383**
+  个码点（多出的全是探针日志文案）—— 必需表怕污染会**误判缺字**，包怕污染只是**多花体积**。
+- **必需表只扫本固件**（`--required-scan` 默认=本工程），**产包才用跨工程并集**。两者不可合并。
+- **固件文案变了 ⇒ 必需表涨 ⇒ 旧包被设备"正确挡住"**：报
+  `包不覆盖本固件必需集：缺 N 个，第一个 U+XXXX（字）` → `ESP_ERR_NOT_SUPPORTED`，
+  设备**保持英文且不留半成品**。**这不是 bug，修法是重产包**（缺字检查是**单向**的：只查 `必需 ⊆ 包`）。
+- **🔴 升级顺序：先换包（平台上传新 .sdgpack）、再烧新固件**。顺序反了：设备已烧进新必需表、
+  平台上还是旧包 ⇒ 每次开机自检「缺 N/M」**拒用整个语言包 → 整片回落英文**，直到包换上为止
+  （2026-10-06 弹窗中文化实测：新字 6 个不在旧包，烧完即全英文）。设备侧补救：`{fnd:zh!` 强制重拉、
+  `{fnl:zh!` 立即加载（不必重启）。
+- 排查工具：工程 `tools/fontpack_lab/`（`verify_551.py` 17 步真机验收；
+  ⚠️ 串口路径里出现 `R`/`S`/`s`/`X`/`?` 会被 BSP 控制台**当命令吃掉**——`R` 会让设备当场重启，
+  命令终结符是 `!` 不是 `}`）。
+
+### 展示名（平台下发的 app 名）—— 字形来源已定稿
+
+**口径**：展示名**默认用工程名**；中文模式下**若有中文名、且字形画得出来**才用中文，否则英文。
+
+- 判据**不是**「当前语言是不是 zh」，而是逐码点问字体。理由：语言是 zh 但包缺/坏/缺字时
+  设备会**回落英文**，此时画中文名 = 一整行方框 ⇒ 只能问字体"这个字画得出来吗"。
+- 它顺带保证了**零回归**：没装包（或包没覆盖那个字）时判据为假 ⇒ 自动落回工程名。
+- 🔴 **判据必须带 `is_placeholder`**：`LV_USE_FONT_PLACEHOLDER=y` 时 LVGL 顶层另有一条
+  "某一层字体自带 placeholder"的分支会**返回 true** ⇒ 只判返回值可能把"一屏方框"判成"能画"。
+  凡"查某个字在不在字体里"的代码（含逐码点自检）都适用这条。
+  ⚠️ 但传给它的 `lv_font_glyph_dsc_t` **必须初始化**（`= { 0 }`）：缺字时该结构体
+  **根本不会被写**，读它的字段就是未初始化读。
+- 🔴 **展示名的几处出口必须同进同出**（推荐列表 / 选槽弹窗 / 下载中 / 装完"四处同名"）——
+  只改一处会出现"下载中叫 A、装完变 B"，用户会以为装成了两个 app。
+- ⚠️ 平台展示名**既不在必需码点表、也不在语言包里**（运行时才知道）⇒ 只有包**恰好覆盖**
+  那个名字时才显示得出中文。要提升覆盖率，得把平台的应用名目录并进产包
+  （`gen_fontpack.py --extra-chars-file`，工具已支持但**尚未接进流程**）。
+- ⚠️ 动字体别名头（把编译期 `#define` 改成运行时指针）时，**必须同时删掉那些
+  `LV_FONT_DECLARE(<字体名>)` 声明** —— 它展开成 `extern const lv_font_t <宏>;`，
+  宏变成解引用之后就是**语法错误**；而普通调用点（`&<字体名>`）一行都不用动。

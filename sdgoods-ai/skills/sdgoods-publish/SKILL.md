@@ -350,6 +350,17 @@ refresh_token / 邮箱验证码**，`~/.sdgoods/credentials.json` 里的登录�
 ### 0. 预检
 - cyb2-dev-site docker 栈在跑（api 127.0.0.1:8080）。先调 `list_categories` 探活并取合法 slug。
 - 设备串口：`ls /dev/cu.usbmodem*`（端口会变，MAC 绑定）。
+- 🔴 **条件项：只要这次动到「启动器固件」或「出厂资产（默认文件 / SystemAsset）」，先跑分区表同源自检**
+  （任务 #298；**只发普通 app.bin 时不需要** —— 那跟分区表无关，别加噪声）：
+  ```bash
+  cd <平台仓>/cyb2-dev-site
+  SDGOODS_WORKSPACE=<固件工作区根> IDF_PATH=$HOME/esp/esp-idf \
+    node scripts/check-partition-sources.mjs --strict     # 退出码 0 通过 / 1 真失败 / 3 无法判定
+  ```
+  判据 = **7 份 `partitions.csv` 数据行逐字节同源 + 6 份 `platform/prebuilt/partition-table.bin`
+  逐字节等于平台资产 + 形状必须是 2.0**。红了先修再往下走。
+  ⚠️ **退出码 3 = 这条判据「没跑」，不是通过**（本机没有固件工作区时会这样）。
+  ⚠️ 提交那道 `pre-commit` 闸门也会判同一套 —— 但**别等到提交那一刻才发现**。
 
 ### 1. 编译（见 skill `sdgoods-build-flash`）
 ```bash
@@ -637,7 +648,19 @@ python3 scripts/publish_recovery_pkg.py \
 
 ### 更新「默认文件」（`SystemAsset`）的本地副本
 
-平台「默认文件」那四份资产的**本地副本目录**（维护者工作区里的那个，路径见文末附录）
+🔴 **本节是「分区表同源」最容易断链的一步 —— 动之前先跑自检**（任务 #298）：
+```bash
+cd <平台仓>/cyb2-dev-site
+SDGOODS_WORKSPACE=<固件工作区根> IDF_PATH=$HOME/esp/esp-idf \
+  node scripts/check-partition-sources.mjs --strict    # 必须 exit 0；3 = 没跑，不是通过
+```
+理由：这一步改的是**平台下发给所有设备的出厂分区表**，而同一张表还躺在 7 个项目里
+（1 真身 + 6 派生）。2026-10-07 实测就是这么漂的 —— 平台换成 2.0 了，6 个派生工程还停在 1.0，
+**没有任何东西在判**。现在 `pre-commit` 会在你提交出厂资产时阻断，但**别等提交那一刻**。
+⚠️ 覆盖边界：`HELLOAPP` / `2046` / `CALC` **不是 git 仓** ⇒ 它们的表 hook 永远拦不到，
+   只能靠上面这条命令（它会一起看 7 份）。
+
+平台「默认文件」那**五份**资产的**本地副本目录**（维护者工作区里的那个，路径见文末附录）
 需与 `build_launcher/` 的产物保持一致；上传到后台「默认文件」页要**官方账号手动**做，
 平台侧 AI 没有入口。
 
@@ -645,6 +668,7 @@ python3 scripts/publish_recovery_pkg.py \
 |---|---|---|
 | `bootloader.bin` | `bootloader/bootloader.bin` | `0x0` |
 | `partition-table.bin` | `partition_table/partition-table.bin` | `0x8000` |
+| `pt-bak.bin` | **与 partition-table 逐字节相同的副本**（2.0 自愈用） | `0x0FF0000` |
 | `launcher.bin` | `SDGOODS_LAUNCHER.bin`（出厂 app，落 factory 槽） | `0x10000` |
 | `otadata.bin` | `ota_data_initial.bin` | `0x310000` |
 

@@ -165,6 +165,17 @@ $IDF_PY -m esptool --chip esp32s3 -p $PORT --before default_reset --after no_res
   但会损失一次启动日志。反之**擦 otadata 必须带 `hard_reset`**（否则新状态要等下次复位才生效）。
 
 ## 三、验证（不要只看「烧录成功」）
+
+### 3.0 开机/返回耗时测量（`tools/boot_timing.py`，启动器工程）
+改了启动链路（壁纸 / 字体包 / Wi-Fi init / boot_show）之后，**用数字说话**：
+```bash
+python3 tools/boot_timing.py --mode sw    # 软复位 = 「应用返回 launcher」同一条路径（ESP_RST_SW）
+python3 tools/boot_timing.py --mode cold  # 硬复位，播开机 GIF
+python3 tools/boot_timing.py --mode wake  # 合成短按进深睡（{pwr1!→250ms→{pwr0!），需人工按键唤醒
+```
+判据用**固件自带的毫秒戳**（行内 `(1234)`），不要用抓包时刻（USB 攒包会把一批行打成同一时刻）。
+阶段锚点 = `HEAP[...]` 探针行（v2.1.12 起自带 `t=.. ms (+..)`）。⚠️ 深睡后 USB 端口整个消失，
+唤醒只能人工按电源键；唤醒后端口要等重新枚举，日志开头可能抓不到。
 1. **串口日志**：`idf.py -B build_fixNN monitor` 或 pyserial（用带 pyserial 的解释器）；打开时 `dtr/rts=True` 避免复位。看 `BUILD=` 横幅、`ERROR`/`Guru`/`abort()`。
    - ⚠️ **USB-Serial-JTAG 打开串口不复位芯片**：设备 crash-loop 时开串口能看到日志（因为它在不停重启）；崩溃修好后设备启动一次即 idle，此时开串口 `read` 得到 **0 字节**（bootloader 早已打完）。要抓 fresh boot：**pyserial `setDTR` 脉冲复位**（2026-09-18 实测本板有效，RTS 脉冲无效）：`ser.setDTR(False); sleep(0.05); ser.setDTR(True); sleep(0.1); ser.setDTR(False)`——串口保持打开，复位的 bootloader 日志立刻就能抓到（一个脚本内完成，不会像 esptool read_mac 那样因端口关闭→重开的间隙错过快速启动的日志）。
    - ⚠️ **但 DTR 脉冲并非每次生效**（2026-09-19 补）：同一台机器上会出现"前几轮有效、后几轮失效"。
@@ -380,6 +391,19 @@ $IDF_PY -m esptool --chip esp32s3 -p $PORT --before default_reset --after no_res
 - **槽里装的是哪版镜像要用「内容特征串」判定，不能用 `app_desc` 的 version/date**：
   IDF 会复用缓存的 app_desc 对象，重编后的镜像可能仍是同一个日期。
   做法 = `read_flash` 900KB + 搜本轮改动引入的唯一字符串（例：`hw_info ready: adc=ok`）。
+- 🔴 **`.bin` 的整体 md5 也不能当「代码有没有变」的判据** —— **只在注释里增删一行**就会让它全变（2026-10-07 实测踩到）：
+  IDF 默认带 `-gdwarf-4 -ggdb` ⇒ 行号一移，该文件的 `.debug_line` 就变 ⇒ **ELF 变**
+  ⇒ 镜像 `app_desc` 里的 `app_elf_sha256` 变 ⇒ 连带镜像校验字节与尾部 SHA256 一起变。
+  实测把「注释清理」前后的两版各编一次，**1902400 字节里只差 65 字节**，全部落在
+  **app_desc 的 elf_sha256（0x20 段内 0xB0..0xCF，32 B）+ 镜像校验字节（末尾 8 B 填充的最后一个）
+  + 尾部 SHA256（32 B）**；`.text` / `.rodata` **零差异**。
+  ⇒ 判「代码有没有变」要**逐字节看差异落在哪**，别比 md5；真要判代码等价，**剥掉注释比源码**最稳：
+  ```python
+  # 两边都剥注释后应逐字节相同 ⇒ 纯注释改动（本例 25703 == 25703）
+  ```
+  ⇒ 反过来也有用：**同一份源码重复编，镜像是逐字节可复现的**（同 build 目录、app_desc 对象被缓存时），
+    所以「重编一次 md5 就变」本身不代表源码变了。⚠️ 但别把「上一版 .bin」覆盖掉再想比对 ——
+    想留参照就先 `cp` 到 `/tmp`（本项目恰好靠**从源码反向还原**才把参照找回来）。
 - **safe-delete broker 是 Python sitecustomize shim，独立于 Bash 沙箱**（2026-09-23 踩，生成新工程时）：
   ① shell 的 `rm -rf` 也被它拦（>50 文件即 `SAFE_DELETE_BULK_CONFIRM_REQUIRED`），
     **`dangerouslyDisableSandbox` 关不掉它** —— 别指望「绕过沙箱」就绕过 broker。
