@@ -52,6 +52,7 @@
 #include "esp_log.h"
 #include "sdgoods_board.h"   /* 平台层全部能力：屏 / 触摸 / 音频 / 框架 / 栅格常量 */
 #include "sdgoods_gesture.h"  /* 应用级手势回调（sdgoods_app_on_gesture / sdgoods_app_on_tap） */
+#include "sdgoods_tap.h"      /* sdgoods_tap_bind：点按位移守卫（按下滑走不触发 / 不误触） */
 
 LV_FONT_DECLARE(si_yuan_black_icon_16);
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -113,9 +114,13 @@ static void on_my_tap(void *ud)
 /* ---------------------------------------------------------------------------
  * 3) 界面
  * ------------------------------------------------------------------------- */
-static void on_btn_click(lv_event_t *e)
+/* 中央圆键的点按上下文：sdgoods_tap_bind 要求调用方提供静态存储（不动态分配 ⇒ 无失败路径）。
+ * ⚠️ 名字带 tpl 前缀：sdgoods_cc.c 里也有一个同名静态池 s_btn_ctx（12 项），
+ *    不加前缀会让 `nm` 输出里两个同名本地符号难以分辨。 */
+static sdgoods_tap_ctx_t s_tpl_btn_ctx;
+static void on_btn_click(void *ud)
 {
-    (void)e;
+    (void)ud;
     s_count++;
     if (s_cnt_lbl) {
         char buf[32];
@@ -164,7 +169,9 @@ void ui_app_template_show(void)
     lv_obj_set_style_border_width(btn, 0, 0);
     lv_obj_set_style_shadow_width(btn, 0, 0);
     lv_obj_align(btn, LV_ALIGN_CENTER, 0, 40);
-    lv_obj_add_event_cb(btn, on_btn_click, LV_EVENT_CLICKED, NULL);
+    /* 走平台原语而不是裸 LV_EVENT_CLICKED：只有确认是点按才触发（见文件上方 2.5 节）。
+     * 这是模板，复制出去的应用都照这个写法 —— 千万不要退回裸 CLICKED。 */
+    sdgoods_tap_bind(btn, &s_tpl_btn_ctx, on_btn_click, NULL);
 
     lv_obj_t *blbl = lv_label_create(btn);
     lv_label_set_text(blbl, SDG_T("点我", "Tap me"));

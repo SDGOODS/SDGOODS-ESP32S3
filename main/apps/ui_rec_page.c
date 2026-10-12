@@ -23,6 +23,7 @@
 #include "sdgoods_i18n.h"    /* SDG_T：界面文案中英切换 */
 #include "ui_home.h"
 #include "sdgoods_swipe_back.h"
+#include "sdgoods_tap.h"     /* sdgoods_tap_bind：点按位移守卫（按下滑走不触发 / 不误触） */
 
 LV_FONT_DECLARE(si_yuan_black_icon_16);
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -36,6 +37,9 @@ typedef enum {
 static lv_obj_t *s_scr;
 static lv_obj_t *s_btn;
 static lv_obj_t *s_btn_lbl;
+/* 「开始」圆键的点按上下文：sdgoods_tap_bind 要求调用方提供静态存储
+ * （不动态分配 ⇒ 没有失败路径），生命周期覆盖整屏。 */
+static sdgoods_tap_ctx_t s_start_ctx;
 static TaskHandle_t s_task;
 static volatile rec_state_t s_state;
 static volatile rec_state_t s_ui_state;
@@ -74,9 +78,12 @@ static void worker(void *arg)
     vTaskDelete(NULL);
 }
 
-static void on_start(lv_event_t *e)
+/* 「开始」键回调。签名是 sdgoods_tap_cb_t（void(*)(void*)）而不是 lv_event_cb_t：
+ * 由 sdgoods_tap_bind 绑定，**只有确认是点按**（按下期间最大位移 ≤ SDGOODS_TAP_SLOP）
+ * 才会被调用 —— 裸 LV_EVENT_CLICKED 没有这道守卫，按在 Start 上滑走再松手也会开始录音。 */
+static void on_start(void *ud)
 {
-    (void)e;
+    (void)ud;
     if (s_state != REC_IDLE || s_task) {
         return;
     }
@@ -147,7 +154,7 @@ void ui_rec_page_show(void)
     lv_obj_set_style_bg_opa(s_btn, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(s_btn, 0, 0);
     lv_obj_set_style_shadow_width(s_btn, 0, 0);
-    lv_obj_add_event_cb(s_btn, on_start, LV_EVENT_CLICKED, NULL);
+    sdgoods_tap_bind(s_btn, &s_start_ctx, on_start, NULL);
 
     s_btn_lbl = lv_label_create(s_btn);
     lv_obj_set_style_text_font(s_btn_lbl, &si_yuan_black_icon_14, 0);

@@ -25,6 +25,7 @@
 #include "ui_flappy.h"        /* 首页「小鸟」按钮直接启动小鸟游戏 */
 #include "sdgoods_wifi.h"     /* sdgoods_wifi_list：WIFI 扫描页数据源 */
 #include "sdgoods_ble.h"      /* sdgoods_ble_list：蓝牙扫描页数据源 */
+#include "sdgoods_tap.h"      /* sdgoods_tap_bind：点按位移守卫（按下滑走不触发 / 不误触） */
 
 LV_FONT_DECLARE(si_yuan_black_icon_16);
 LV_FONT_DECLARE(si_yuan_black_icon_14);
@@ -46,12 +47,20 @@ void ui_nav_back(void)
 static lv_obj_t *s_home_scr;
 static uint32_t  s_lang_seq;   /* 建屏时的语言版本号；和当前不一致就重建 */
 
+/* 六格各自的「点按上下文」。sdgoods_tap_bind 要求**调用方提供静态存储**
+ * （不动态分配 ⇒ 没有失败路径，不会出现「内存不足导致按钮彻底失效」）；
+ * 生命周期覆盖整屏，重建主页时用同一份重新 bind（旧对象已随屏销毁）。 */
+static sdgoods_tap_ctx_t s_cell_ctx[6];
+
 /* 按钮回调：user_data 传的是**语言无关的键**（"rec" / "wifi" / "ble" / "other" / "bird" / "lang"），
    不是按钮文字 —— 否则切到英文后按钮文字变了，strcmp 就再也对不上。
-   新增按钮请照这个规矩加键。 */
-static void on_btn(lv_event_t *e)
+   新增按钮请照这个规矩加键。
+   🔴 签名是 sdgoods_tap_cb_t（void(*)(void*)）而不是 lv_event_cb_t：本回调由
+      sdgoods_tap_bind 绑定，**只有确认是点按**（按下期间最大位移 ≤ SDGOODS_TAP_SLOP）
+      才会被调用；裸 LV_EVENT_CLICKED 没有这道位移守卫（见 make_round_btn 的注释）。 */
+static void on_btn(void *ud)
 {
-    const char *key = (const char *)lv_event_get_user_data(e);
+    const char *key = (const char *)ud;
     if (!key) {
         return;
     }
@@ -79,9 +88,10 @@ static void on_btn(lv_event_t *e)
     }
 }
 
-/* key == NULL 表示这颗按钮没有功能（占位用） */
+/* key == NULL 表示这颗按钮没有功能（占位用）。ctx 由调用方给（静态，见 s_cell_ctx）。 */
 static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
-                                const char *text, const char *key)
+                                const char *text, const char *key,
+                                sdgoods_tap_ctx_t *ctx)
 {
     lv_obj_t *btn = lv_btn_create(parent);
     lv_obj_set_size(btn, SDG_UI_BTN_SIZE, SDG_UI_BTN_SIZE);
@@ -93,7 +103,15 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
     lv_obj_set_style_shadow_width(btn, 0, 0);
 
     if (key) {
-        lv_obj_add_event_cb(btn, on_btn, LV_EVENT_CLICKED, (void *)key);
+        /* 🔴 必须走平台原语，不要用裸 lv_obj_add_event_cb(..., LV_EVENT_CLICKED, ...)：
+         *   裸 CLICKED 在「按下 → 滑走 → 松手」时照样触发（没有位移守卫）。真机实测：
+         *   平台自检键 '5'（从格内上滑 75px）本来只该验证「滑动掠过不算点按」，
+         *   用裸 CLICKED 时会直接把「录音」页打开 —— 这就是误触。
+         *   sdgoods_tap_bind 逐周期跟踪按下期间最大位移，只有 ≤ SDGOODS_TAP_SLOP(24)
+         *   才回调；并自动给对象加 PRESS_LOCK（按下期间锁定所有权，不被中途接管）。
+         *   ⚠️ 同理：改用本绑定后，从底部起手上滑的回调不会落到格子里，
+         *      底部捕获带（sdgoods_swipe_up）的归口也更干净。 */
+        sdgoods_tap_bind(btn, ctx, on_btn, (void *)key);
     } else {
         lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICKABLE);
     }
@@ -138,12 +156,12 @@ void ui_home_create(void)
            录音   WIFI   蓝牙
            其他   小鸟   语言
        「语言」按钮显示当前语言（中文界面="中文"，英文界面="English"），点一下切换并重建主页。 */
-    make_round_btn(s_home_scr, SDG_UI_BTN1_X, SDG_UI_BTN1_Y, SDG_T("录音", "Rec"),     "rec");
-    make_round_btn(s_home_scr, SDG_UI_BTN2_X, SDG_UI_BTN2_Y, "WIFI",                   "wifi");
-    make_round_btn(s_home_scr, SDG_UI_BTN3_X, SDG_UI_BTN3_Y, SDG_T("蓝牙", "BLE"),     "ble");
-    make_round_btn(s_home_scr, SDG_UI_BTN4_X, SDG_UI_BTN4_Y, SDG_T("其他", "More"),    "other");
-    make_round_btn(s_home_scr, SDG_UI_BTN5_X, SDG_UI_BTN5_Y, SDG_T("小鸟", "Bird"),    "bird");
-    make_round_btn(s_home_scr, SDG_UI_BTN6_X, SDG_UI_BTN6_Y, SDG_T("中文", "English"), "lang");
+    make_round_btn(s_home_scr, SDG_UI_BTN1_X, SDG_UI_BTN1_Y, SDG_T("录音", "Rec"),     "rec",   &s_cell_ctx[0]);
+    make_round_btn(s_home_scr, SDG_UI_BTN2_X, SDG_UI_BTN2_Y, "WIFI",                   "wifi",  &s_cell_ctx[1]);
+    make_round_btn(s_home_scr, SDG_UI_BTN3_X, SDG_UI_BTN3_Y, SDG_T("蓝牙", "BLE"),     "ble",   &s_cell_ctx[2]);
+    make_round_btn(s_home_scr, SDG_UI_BTN4_X, SDG_UI_BTN4_Y, SDG_T("其他", "More"),    "other", &s_cell_ctx[3]);
+    make_round_btn(s_home_scr, SDG_UI_BTN5_X, SDG_UI_BTN5_Y, SDG_T("小鸟", "Bird"),    "bird",  &s_cell_ctx[4]);
+    make_round_btn(s_home_scr, SDG_UI_BTN6_X, SDG_UI_BTN6_Y, SDG_T("中文", "English"), "lang",  &s_cell_ctx[5]);
 
     lv_obj_t *footer = lv_obj_create(s_home_scr);
     lv_obj_set_size(footer, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
