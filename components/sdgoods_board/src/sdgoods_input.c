@@ -17,6 +17,7 @@
 #include "sdgoods_power.h"
 #include "sdgoods_app_shell.h"
 #include "sdgoods_hooks.h"
+#include "sdgoods_tap.h"        /* SDGOODS_TAP_SLOP：滚动阈值必须与点按判据同源（见下） */
 
 #include "driver/gpio.h"
 #include "driver/i2c.h"
@@ -125,6 +126,32 @@ esp_err_t sdgoods_touch_init(void)
     lv_indev_drv_init(&s_indev_drv);
     s_indev_drv.type = LV_INDEV_TYPE_POINTER;
     s_indev_drv.read_cb = touchpad_read;
+    /* 🔴🔴 2026-10-05：把**滚动阈值**抬到和点按判据同一个数（LVGL 默认只有 10）。
+     *
+     * 病根（用户报「点击列表 / 底部那一排的按钮时，经常点了没反应」）：LVGL 在按下期间按
+     *   `scroll_sum += vect` 累计指针位移，一旦 `|scroll_sum| >= driver->scroll_limit`
+     *   就选出一个 `scroll_obj`（lv_indev_scroll.c:278 / :340-352）。而松手时
+     *   `indev_proc_release()` 只在 `scroll_obj == NULL` 的分支里发 **LV_EVENT_CLICKED**
+     *   （lv_indev.c:974-982）⇒ 只要这一摸被判成"滚动"，**CLICKED 整个不派发**。
+     *
+     * 谁会被它吃掉：所有**裸挂 LV_EVENT_CLICKED** 的控件，尤其是「放在可滚动容器里」的那些
+     *   （横向/纵向列表、底部整排按钮所在的可滚行）。手指点按时只要有一点抖动（含触摸起手
+     *   那一两帧的坐标跳变），累计 ≥10px 就把 scroll_obj 抢过去 ⇒ 动作永远不触发，
+     *   而且**没有任何日志** —— 正是"有时候点了没反应"。
+     *
+     * 为什么取 SDGOODS_TAP_SLOP（24）而不是别的数：
+     *   平台层判「这一次到底是点按还是滑动」用的就是这 24px（主页应用格、CC 按钮、
+     *   列表行的位移守卫全是它）。两者不等时会出现**自相矛盾的区间**：位移 10..24px
+     *   既"够滚动"（CLICKED 被吞）又"不够滑动"（守卫认为该当点按处理）⇒ 这一段位移里的
+     *   所有点按都凭空消失。**让两者相等，这个矛盾区间就不存在了。**
+     *   ⚠️ 改这里必须连着 sdgoods_tap.h 的 SDGOODS_TAP_SLOP 一起看，别只改一个。
+     *   ⚠️ 副作用只有一条：横滑翻页要滑满 24px 才开始跟手（原来 10px）。这是**想要的**
+     *      ——10px 太过敏，正常点按的抖动就足以把翻页抢走；24px 仍在"手指一动就翻"的
+     *     手感范围内，而且滑动本身有吸附，最终落位一样。
+     *   ⚠️ LVGL 8.3 **没有** `lv_indev_set_scroll_limit()`，只能像这样在注册前写进
+     *      `s_indev_drv`：`lv_indev_drv_register()` 只存指针、不覆盖这个字段，
+     *      而 `find_scroll_obj()` 每帧运行时读 `indev_act->driver->scroll_limit`。 */
+    s_indev_drv.scroll_limit = SDGOODS_TAP_SLOP;
     s_indev = lv_indev_drv_register(&s_indev_drv);
 
     return ESP_OK;

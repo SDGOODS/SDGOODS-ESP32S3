@@ -76,6 +76,12 @@ typedef enum {
     CC_ICON_INFO,  /* 关于 */
     CC_ICON_HOME,  /* 返回主页（小鸟游戏上下文下的第 5 键） */
     CC_ICON_SET,   /* 设置（二级设置页入口，把声音/亮度/数据/电池收进去） */
+    CC_ICON_MUTE,  /* 静音（2026-10-02 新增）。**它不在控制中心的图标池里** —— 唯一用处是
+                    * 音量滑块页下方那枚静音键，且那枚键自带缓冲 s_mute_icon_buf，
+                    * 不占 CC_ICON_SLOTS（为什么必须自带，见 make_mute_btn 上方的注释）。
+                    * ⚠️ 刻意**排在枚举末尾**（不是插在 CC_ICON_VOL 后面）：枚举值虽然不落盘、
+                    *    插在中间也不会坏事，但排在末尾能保证既有成员的值一个都不动，
+                    *    「改一个图标语义」时不会被误判成「图标串味」。 */
 } cc_icon_t;
 
 /* 图标缓冲槽位数：一级控制中心最多 3 个图标（设置/关于/电源）+ 设置二级页最多 4 个
@@ -211,6 +217,68 @@ static void cc_icon_draw(lv_obj_t *canvas, cc_icon_t kind)
         break;
     }
 
+    case CC_ICON_MUTE: {
+        /* 静音（2026-10-02）：**与 CC_ICON_VOL 完全同形**（音箱主体 + 锥盆 + 两道声波弧，
+         * 三个几何逐字照抄，就是为了两者形影一致）+ 一道斜杠。
+         *
+         * 🔴 沿革（一天内改了两轮，两次都是真机/预演看图后否掉的，别再退回去）：
+         *   ① 第 1 版 =「喇叭 + 短斜杠、**不画声波**」：斜杠取 (13,39)→(35,9)，端点太靠内
+         *      ⇒ 中段整段埋在锥盆里、只露出两小截，走向又与锥盆斜边接近 ⇒ 放大看是
+         *      「一个被掰歪的喇叭」，读不出"静音"。
+         *   ② 第 2 版 =「喇叭 + 角对角长斜杠 (7,41)→(41,7)、仍不画声波」：斜杠本身清楚了，
+         *      但用户口径是「logo 右边也要有 2 条弧，这样比较协调」⇒ 静音态与有声态
+         *      轮廓不一致，看着像两个不同的图标。
+         *   ③ 本版（定稿）= 有声态原样 + 斜杠。难点从"斜杠够不够长"变成"斜杠会不会
+         *      与声波黏成一坨"，于是把斜杠**向左侧平移、并略微加陡**成 (3,44)→(35,6)。
+         *
+         * 🔴 斜杠走向为什么要偏左（这是本 case 唯一需要想清楚的一步，有量化依据）：
+         *    声波弧心 (27,24)、两道弧的外半径 13 / 19。**任何穿过图标中心的 45° 斜杠，
+         *    其到弧心的垂距都只有 2px 出头**（(7,41)-(41,7) 实测 2.12px）⇒ 斜杠是从
+         *    弧的**洞里**穿过去的，不会真的与弧带相交，但会在**右上角**贴着最外弧的上端点
+         *    (40.4,10.6) 收尾 —— 实测末端距该点仅 **2.9 渲染px**，经 JPEG 抗锯齿后就是
+         *    一条"钩子"，那一版预演图里肉眼可见糊在一起。
+         *    改 (3,44)→(35,6) 后：末端距最外弧上端点 **5.8 渲染px**，两者清楚分开；
+         *    而斜杠本身仍有 **≈39 渲染px** 长（几乎贯穿整个画布对角线），左下、右上
+         *    各露出一大截 ⇒ 「划过去的斜杠」依旧一眼可读，同时两道声波完整保留。
+         * 越界核对（线宽 5 ⇒ 端点各向外扩半个线宽的垂直分量）：左下角 (1.1,45.6)、
+         *    右上角 (36.9,7.6)，全在 48×48 内。
+         * ⚠️ 线宽用**本 case 局部**的 dsc，不碰共用的 line（width=4），
+         *    也不给斜杠加圆头 —— canvas 假显示环境下 draw_sw_line 的圆头路径画不出来
+         *    （CC_ICON_BRI 踩过）。 */
+        lv_draw_rect_dsc_t spk_m;
+        lv_draw_rect_dsc_init(&spk_m);
+        spk_m.bg_color = lv_color_white();
+        spk_m.bg_opa = LV_OPA_COVER;
+        spk_m.radius = 2;
+        spk_m.border_width = 0;
+        lv_canvas_draw_rect(canvas, 8, 17, 9, 14, &spk_m);   /* 音箱主体（同 CC_ICON_VOL） */
+
+        lv_point_t mtri[4];
+        mtri[0].x = 17; mtri[0].y = 18;
+        mtri[1].x = 17; mtri[1].y = 30;
+        mtri[2].x = 27; mtri[2].y = 36;
+        mtri[3].x = 27; mtri[3].y = 12;
+        lv_canvas_draw_polygon(canvas, mtri, 4, &spk_m);     /* 锥盆 */
+
+        /* 两道声波弧：与 CC_ICON_VOL **逐字相同**（含 rounded=1）。
+         * 注意这里改的是共享的 arc 画笔 —— 在 CC_ICON_VOL 里它也被就地改成 rounded=1，
+         * 而 cc_icon_draw() 每次都重新 lv_draw_arc_dsc_init()，所以是安全的。 */
+        arc.rounded = 1;
+        lv_canvas_draw_arc(canvas, 27, 24, 13, 320, 40, &arc);
+        lv_canvas_draw_arc(canvas, 27, 24, 19, 315, 45, &arc);
+
+        lv_draw_line_dsc_t slash;
+        lv_draw_line_dsc_init(&slash);
+        slash.color = lv_color_white();
+        slash.width = 5;
+        slash.opa = LV_OPA_COVER;
+        lv_point_t sp[2];
+        sp[0].x = 3;  sp[0].y = 44;
+        sp[1].x = 35; sp[1].y = 6;
+        lv_canvas_draw_line(canvas, sp, 2, &slash);          /* 斜杠（最后画，压在最上层） */
+        break;
+    }
+
     case CC_ICON_DATA: {
         /* 三条递增竖条（柱状图）：表示「数据 / 存储」 */
         lv_draw_rect_dsc_t bar;
@@ -297,6 +365,13 @@ static void cc_icon_draw(lv_obj_t *canvas, cc_icon_t kind)
 
 static const char *TAG = "cc";
 
+/* 🔴 平台主题色（2026-10-02 加）。用途 = **滑块页的滑块配色**：
+ *    用户口径「亮度和声音的滑块颜色要改为主题色」。
+ *    ⚠️ 宏放在文件头（TAG 之后）：滑块页（open_slider）排在后面的二级页之前，
+ *       宏必须比使用点先见；同一翻译单元内只要求"使用点之前可见"，移动是安全的，
+ *       但**源位置不能留副本**，否则 -Werror 下直接 `"CC_COLOR_THEME" redefined`。 */
+#define CC_COLOR_THEME          0xA1E307
+
 /* 一级浮层（控制中心）与二级浮层（滑块页 / 数据页）；二者可同时存在（覆盖在控制中心之上）。 */
 static lv_obj_t *s_cc = NULL;
 static lv_obj_t *s_slider = NULL;
@@ -312,6 +387,48 @@ static lv_obj_t *s_set = NULL;    /* 设置二级页（声音/亮度/数据/电�
 /* 滑块页的当前应用到回调与数值标签（同一时刻仅一个滑块页，用静态量足够） */
 static void (*s_apply)(int) = NULL;
 static lv_obj_t *s_val_label = NULL;
+
+/* 音量页**滑块本身**的句柄：静音键要反写它（见 vol_apply）。亮度页也留着，只是没人用。 */
+static lv_obj_t *s_slider_sl = NULL;
+/* 本页是不是「带静音键的那一页」：只有音量页为 true（亮度没有静音语义）。
+ * 它决定 slider_event_cb 末尾要不要顺手同步静音图标与「上次非零音量」。 */
+static bool s_slider_mute = false;
+
+/* ---- 音量页「静音」键（2026-10-02 用户需求）---------------------------------
+ * 用户原话：「在调节音量下面增加一个静音按钮，用图标表示，点击音量设置为 0，
+ *            再点击恢复之前的音量值」。
+ * 落点 = **音量滑块页**（open_slider(…, with_mute=true)）里滑块正下方那枚圆形图标键；
+ *        亮度页不加。
+ *
+ * 🔴 为什么不复用 make_round_btn()（这是本节最容易踩的一脚）：
+ *    它的图标取自 s_cc_icon_buf、点按上下文取自 s_btn_ctx，而这两个池都是
+ *    「一次控制中心会话内**单调递增**」的（s_cc_icon_n / s_btn_ctx_n 只在
+ *    sdgoods_cc_open() 归零）。滑块页却是**可以被反复打开 / 关闭**的二级页 ——
+ *    每开一次就多吃一格，第 4 次起 `slot >= CC_ICON_SLOTS` 被 clamp 回最后一格
+ *    ⇒ 静音图标会原地覆盖设置页「设备」键的图标；点按上下文同理会被两个按钮共用
+ *    （正是 s_btn_ctx 注释里记着的那个老 bug：多点几次就点谁都触发最后一个动作）。
+ *    ⇒ 所以本键**自带**缓冲与上下文（下面几个 static），不管开关多少次都只用自己那一份。
+ *    ⇒ 约定：**各页各用各的池**（网络页自带 s_wifi_ctx、滑块页自带 s_mute_ctx）。 */
+#define MUTE_BTN_D    68    /* 圆键直径：与一级页 / 设置页的圆键同源（圆内几何已验证） */
+#define MUTE_BTN_CY  250    /* 键心 y：滑块中心 180、高 24 ⇒ 占 168..192；键占 216..284
+                             * ⇒ 距滑块 24px、距底部横条（334）50px。
+                             * 圆内核对：最远点 |OC| = sqrt(0²+70²)=70，+ r34 = 104 < 180 ✓ */
+
+/* 恢复音量时的兜底值：只有「本次开机以来音量一直是 0（NVS 里存的也是 0），
+ * 用户点静音键想恢复声音」这一种情况会用到 —— 此时没有"之前的音量"可恢复，
+ * 给一个能听见的默认值。取 10 = 音频组件的出厂默认。 */
+#define CC_VOL_UNMUTE_FALLBACK  10
+
+static lv_obj_t *s_mute_btn = NULL;      /* 静音键本体（随滑块页一起销毁） */
+static lv_obj_t *s_mute_cv  = NULL;      /* 键里的图标画布（切状态时重画它） */
+static bool      s_muted    = false;     /* 当前是否静音（= 音量 0）。只为「状态没变就别重画」 */
+static int       s_vol_pre_mute = CC_VOL_UNMUTE_FALLBACK;  /* 「之前的音量值」 */
+/* 本键专用的点按上下文（理由见上）。静态 ⇒ 没有失败路径；对象销毁后重新绑定时
+ * sdgoods_tap_bind() 会把每个字段重写一遍，可以反复复用。 */
+static sdgoods_tap_ctx_t s_mute_ctx;
+/* 本键专用的图标缓冲，48×48×4 = 9216 B。**不放进 s_cc_icon_buf**（理由见上），
+ * 也不动态分配。同一时刻只有一页滑块 ⇒ 一份足够。 */
+static lv_color32_t s_mute_icon_buf[CC_ICON_SZ * CC_ICON_SZ];
 
 /* 前向声明：二级页从底部小横条上滑直接返回主页时调用 */
 void sdgoods_cc_close(void);
@@ -601,6 +718,101 @@ uint8_t sdgoods_cc_brightness_get(void)
 
 /* ---- 二级滑块页 ----------------------------------------------------------- */
 
+/* 把静音图标刷成 muted_now 对应的样子（喇叭 / 带斜杠的喇叭）。
+ * 🔴 状态没变就**什么都不做**：拖动音量时本函数每帧都会被调到，无脑重画 48×48 画布
+ *    纯属浪费（本工程刚做过一轮「下载期 UI 卡顿」治理 ⇒ 别在这儿再开一个抖动源）。
+ * 重画后不必手动 lv_obj_invalidate()：cc_icon_draw() 第一件事就是 lv_canvas_fill_bg()，
+ * 它内部会标脏（lv_canvas.c:513）。 */
+static void mute_sync_icon(bool muted_now)
+{
+    if (s_muted == muted_now) {
+        return;
+    }
+    s_muted = muted_now;
+    if (s_mute_cv) {
+        cc_icon_draw(s_mute_cv, muted_now ? CC_ICON_MUTE : CC_ICON_VOL);
+    }
+}
+
+/* 音量页「改音量」的唯一出口：音频 + 滑块位置 + 数值标签 + 静音图标 + 防抖落盘，
+ * 一条链走完。静音键点按走这里；滑块**拖动**那条路走 slider_event_cb（它本来就每帧
+ * 被 LVGL 自己叫着，不需要也不该再回头调本函数，否则会自己改自己的滑块）。
+ *
+ * ⚠️ lv_slider_set_value() 内部只到 lv_bar_set_value()，**不会**发 VALUE_CHANGED
+ *    （lv_bar.c:570 那条路径只做 invalidate；发事件的是**拖动**路径 lv_slider.c:248）
+ *    ⇒ 这里不会把 slider_event_cb 再叫一遍，也就不存在「设两次音量」的递归。 */
+static void vol_apply(int vol)
+{
+    sdgoods_audio_set_volume(vol);
+    if (s_slider_sl) {
+        lv_slider_set_value(s_slider_sl, vol, LV_ANIM_OFF);
+    }
+    if (s_val_label) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d%%", vol);
+        lv_label_set_text(s_val_label, buf);
+    }
+    mute_sync_icon(vol == 0);
+    save_timer_arm();
+}
+
+/* 静音键被点按：音量 >0 ⇒ 记住它并置 0；音量 ==0 ⇒ 恢复「之前的音量值」。
+ * 「之前的值」= 最近一次见到的非零音量（拖动滑块、或上一次点静音时记下的），
+ * 是文件级 static ⇒ 关掉页面再打开、甚至切去别的二级页再回来都还记着。 */
+static void tap_mute(void *ud)
+{
+    (void)ud;
+    const int cur = sdgoods_audio_get_volume();
+    int next;
+    if (cur > 0) {
+        s_vol_pre_mute = cur;
+        next = 0;
+    } else {
+        next = (s_vol_pre_mute > 0) ? s_vol_pre_mute : CC_VOL_UNMUTE_FALLBACK;
+    }
+    /* 日志带 saved：真机核验「恢复的是不是之前那个值」时，单看一行就能判。 */
+    ESP_LOGI(TAG, "mute btn: %s -> vol=%d%% (saved=%d%%)",
+             (cur > 0) ? "mute" : "unmute", next, s_vol_pre_mute);
+    vol_apply(next);
+}
+
+/* 建静音键（**只在音量滑块页**调，见 MUTE_BTN_* 那一段注释）。
+ * 🔴 必须在 sdgoods_swipe_up_bind() **之前**建：那条底部捕获带会
+ *    lv_obj_move_background() 把自己压到最底（sdgoods_swipe_up.c），
+ *    只要先建键，键就自然压在带子之上、不会被吃掉点击。 */
+static void make_mute_btn(lv_obj_t *parent)
+{
+    s_muted = (sdgoods_audio_get_volume() == 0);   /* 打开页面时按**实际**音量定初始态 */
+
+    s_mute_btn = lv_obj_create(parent);
+    lv_obj_set_size(s_mute_btn, MUTE_BTN_D, MUTE_BTN_D);
+    lv_obj_set_pos(s_mute_btn, 180 - MUTE_BTN_D / 2, MUTE_BTN_CY - MUTE_BTN_D / 2);
+    lv_obj_set_style_radius(s_mute_btn, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(s_mute_btn, lv_color_hex(0x2C2C2E), 0);
+    lv_obj_set_style_bg_opa(s_mute_btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(s_mute_btn, 0, 0);
+    lv_obj_set_style_shadow_width(s_mute_btn, 0, 0);
+    lv_obj_set_style_pad_all(s_mute_btn, 0, 0);
+    lv_obj_set_style_bg_color(s_mute_btn, lv_color_hex(0x3A3A3C), LV_STATE_PRESSED);
+    lv_obj_clear_flag(s_mute_btn, LV_OBJ_FLAG_SCROLLABLE);
+
+    s_mute_cv = lv_canvas_create(s_mute_btn);
+    lv_canvas_set_buffer(s_mute_cv, s_mute_icon_buf, CC_ICON_SZ, CC_ICON_SZ,
+                         LV_IMG_CF_TRUE_COLOR_ALPHA);
+    lv_obj_set_style_bg_opa(s_mute_cv, LV_OPA_TRANSP, 0);
+    cc_icon_draw(s_mute_cv, s_muted ? CC_ICON_MUTE : CC_ICON_VOL);
+    lv_obj_center(s_mute_cv);
+    /* 与 make_round_btn 同源的三步：pivot 锁画布中心 + 开抗锯齿 + zoom 208（≈81%）。
+     * 按钮直径不变、图标小一点更透气，视觉上与一级页 / 设置页的圆键完全一致。 */
+    lv_img_set_pivot(s_mute_cv, CC_ICON_SZ / 2, CC_ICON_SZ / 2);
+    lv_img_set_antialias(s_mute_cv, true);
+    lv_img_set_zoom(s_mute_cv, 208);
+    /* 关掉画布的可点击，否则点击被画布吃掉、键本体收不到（同 make_round_btn 的注释）。 */
+    lv_obj_clear_flag(s_mute_cv, LV_OBJ_FLAG_CLICKABLE);
+
+    sdgoods_tap_bind(s_mute_btn, &s_mute_ctx, tap_mute, NULL);
+}
+
 static void slider_event_cb(lv_event_t *e)
 {
     int v = lv_slider_get_value(lv_event_get_target(e));
@@ -613,35 +825,55 @@ static void slider_event_cb(lv_event_t *e)
     if (s_apply) {
         s_apply(v);
     }
+    /* 音量页：让静音图标与「上次非零音量」跟着**手动**调节走 ——
+     * 拖到 0 就是事实上的静音（图标切成带斜杠），从 0 拖上去则自动解除静音态。
+     * 这样「点静音键」和「直接拖到 0」两条路在 UI 上表现一致，不会有"图标说着有声、
+     * 实际音量是 0"这种自相矛盾的中间态。
+     * ⚠️ 更新 s_vol_pre_mute 只认**非零**值：拖到 0 时不该把"之前的值"抹成 0，
+     *    否则静音键就再也恢复不出声音了。 */
+    if (s_slider_mute) {
+        if (v > 0) {
+            s_vol_pre_mute = v;
+        }
+        mute_sync_icon(sdgoods_audio_get_volume() == 0);
+    }
     save_timer_arm();   /* 防抖落盘 */
 }
 
 static void slider_back(void)
 {
     if (s_slider) {
-        lv_obj_del(s_slider);
+        lv_obj_del(s_slider);   /* 静音键是它的子对象，随它一起销毁 */
         s_slider = NULL;
     }
+    /* 🔴 四个句柄必须跟着置空：它们是**文件级 static**，会活过这一页。
+     *    不置空的话，下次进亮度页时 slider_event_cb 里的 `if (s_slider_mute)` 仍为真、
+     *    mute_sync_icon() 还会去重画一个**已释放**的画布 ⇒ 野指针。
+     *    （vol_apply 也有 `if (s_slider_sl)` 的反写，同样靠这里置空。） */
+    s_slider_sl   = NULL;
+    s_mute_btn    = NULL;
+    s_mute_cv     = NULL;
+    s_slider_mute = false;
 }
 
 /* min = 滑块可拖到的**最小值**（含）：音量传 0（静音是有效值），亮度传 CC_BRI_MIN（1，
- * 见 CC_BRI_MIN 的说明 —— 拖到 0 会存成「用户偏好 0」⇒ 下次开机黑屏且屏上无法自救）。 */
-static void open_slider(const char *title, int min, int init, void (*apply)(int))
+ * 见 CC_BRI_MIN 的说明 —— 拖到 0 会存成「用户偏好 0」⇒ 下次开机黑屏且屏上无法自救）。
+ * with_mute = 本页是否要在滑块下方加那枚静音键（**只有音量页传 true**）。 */
+static void open_slider(const char *title, int min, int init, void (*apply)(int), bool with_mute)
 {
-    if (s_slider) {
-        lv_obj_del(s_slider);
-        s_slider = NULL;
-    }
+    slider_back();          /* 顺带把上一页的句柄（含静音键那几个）全部清干净 */
     s_apply = apply;
     s_slider_title = title ? title : "?";
+    s_slider_mute = with_mute;
     /* 打开时的**实时值**（亮度页传的是 sdgoods_lcd_get_backlight()）。
      * 为什么要打这一行：`slider[...] value -> N%` 只在**拖动时**触发，所以「当前实际亮度
      * 是多少」在串口上是取不到的 —— 而「从 app 返回启动器后亮度变成 80」这类问题，
      * 唯一的机器可读判据就是它。没有它就只能靠肉眼看截图。 */
     /* 亮度页打上下限：真机排查「拖到最左端会不会黑屏」时，日志里必须能看出
-     * 这页的滑块是从 1 起的（init 还可能因为息屏/开机动画是 0，别把它当下限的证据）。 */
-    ESP_LOGI(TAG, "slider page '%s' opened, init=%d%% (live), range=%d..100",
-             s_slider_title, init, min);
+     * 这页的滑块是从 1 起的（init 还可能因为息屏/开机动画是 0，别把它当下限的证据）。
+     * mute= 是加静音键时补的：串口上要能一眼判出「这一页有没有静音键」。 */
+    ESP_LOGI(TAG, "slider page '%s' opened, init=%d%% (live), range=%d..100, mute=%d",
+             s_slider_title, init, min, with_mute ? 1 : 0);
 
     lv_obj_t *scr = lv_scr_act();
     s_slider = lv_obj_create(scr);
@@ -682,6 +914,28 @@ static void open_slider(const char *title, int min, int init, void (*apply)(int)
     lv_slider_set_range(sl, min, 100);
     lv_slider_set_value(sl, init < min ? min : init, LV_ANIM_OFF);
     lv_obj_add_event_cb(sl, slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    s_slider_sl = sl;   /* 留句柄：音量页的静音键要反写它（见 vol_apply） */
+
+    /* 滑块配色 = **平台主题色**（用户口径：「亮度和声音的滑块颜色要改为主题色」）。
+     * 两个滑块页（音量 / 亮度）共用这一处创建代码 ⇒ 改一处两页同时生效。
+     *
+     * 默认主题给 slider 挂的是三**段**样式（components/lvgl/.../lv_theme_default.c:851-863）：
+     *   · LV_PART_MAIN      （轨道 / 底槽）  ← styles->bg_color_primary_muted（bg 主题色、opa 20%）
+     *   · LV_PART_INDICATOR （已选填充）    ← styles->bg_color_primary      （bg 主题色、opa 100%）
+     *   · LV_PART_KNOB      （旋钮）        ← styles->knob                  （bg 主题色、opa 100%）
+     * 主题样式挂在 obj 的 **theme style** 上，优先级低于 local style ⇒ 我们的 set_style 覆盖得住；
+     * 但**三段必须都显式覆盖**，漏一段就留一块 LVGL 默认蓝（0x2196F3）在屏上。
+     * 轨道 opa 保持 20%（与默认同一视觉重量，只换色调）—— 拉满会比原来抢眼，不取。 */
+    lv_obj_set_style_bg_color(sl, lv_color_hex(CC_COLOR_THEME), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa  (sl, LV_OPA_20,                    LV_PART_MAIN);
+    lv_obj_set_style_bg_color(sl, lv_color_hex(CC_COLOR_THEME), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(sl, lv_color_hex(CC_COLOR_THEME), LV_PART_KNOB);
+
+    /* 音量页独有的「静音」键：滑块正下方一枚圆形图标键。⚠️ 位置必须在
+     * sdgoods_swipe_up_bind() 之前（见 make_mute_btn 的注释：捕获带会 move_background）。 */
+    if (with_mute) {
+        make_mute_btn(s_slider);
+    }
 
     /* 底部小横条：提示「从底部往上滑返回主页」 */
     make_bottom_hint(s_slider);
@@ -733,13 +987,13 @@ static void apply_backlight(int v)
 static void open_vol_async(void *p)
 {
     (void)p;
-    open_slider("Volume", 0, sdgoods_audio_get_volume(), sdgoods_audio_set_volume);
+    open_slider("Volume", 0, sdgoods_audio_get_volume(), sdgoods_audio_set_volume, true);
 }
 
 static void open_bri_async(void *p)
 {
     (void)p;
-    open_slider("Brightness", CC_BRI_MIN, sdgoods_lcd_get_backlight(), apply_backlight);
+    open_slider("Brightness", CC_BRI_MIN, sdgoods_lcd_get_backlight(), apply_backlight, false);
 }
 
 static void pwr_off_async(void *p)
@@ -1138,7 +1392,7 @@ static void debug_open_slider_async(void *p)
     (void)p;
     sdgoods_cc_close();
     sdgoods_cc_open();
-    open_slider("Volume", 0, sdgoods_audio_get_volume(), sdgoods_audio_set_volume);
+    open_slider("Volume", 0, sdgoods_audio_get_volume(), sdgoods_audio_set_volume, true);
 }
 
 /* which=4：**亮度**滑块页（2026-09-19 新增）。
@@ -1150,7 +1404,7 @@ static void debug_open_bri_async(void *p)
     (void)p;
     sdgoods_cc_close();
     sdgoods_cc_open();
-    open_slider("Brightness", CC_BRI_MIN, sdgoods_lcd_get_backlight(), apply_backlight);
+    open_slider("Brightness", CC_BRI_MIN, sdgoods_lcd_get_backlight(), apply_backlight, false);
 }
 
 void sdgoods_cc_debug_open(int which)
