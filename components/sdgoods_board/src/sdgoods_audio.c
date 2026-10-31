@@ -26,6 +26,7 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "sdgoods_wifi.h"      /* 重启射频后要把最大发射功率重新压回 8.5 dBm */
 
 #define RATE_HZ      16000u
 #define SAMPLES      (RATE_HZ * AUDIO_RECPLAY_SEC)
@@ -116,6 +117,21 @@ static const float g_tetris_bass_f[BGM_NOTES] = {
     65.41f, 65.41f, 65.41f, 65.41f
 };
 
+/* 宝可梦风格：原创芯片循环，明亮上行的 I–V–vi–IV 进行（C–G–Am–F），
+ * 即经典热血动画/宝可梦片头那种「积极冒险」的听感，但为原创编排、不照搬受版权旋律。 */
+static const float g_pokemon_lead_f[BGM_NOTES] = {
+    523.25f, 659.25f, 783.99f, 659.25f,   /* C 大调：C5 E5 G5 E5 */
+    392.00f, 493.88f, 587.33f, 493.88f,   /* G 大调：G4 B4 D5 B4 */
+    440.00f, 523.25f, 659.25f, 523.25f,   /* a 小调：A4 C5 E5 C5 */
+    349.23f, 440.00f, 523.25f, 440.00f    /* F 大调：F4 A4 C5 A4 */
+};
+static const float g_pokemon_bass_f[BGM_NOTES] = {
+    130.81f, 196.00f, 130.81f, 196.00f,   /* C3 / G3 */
+    98.00f,  146.83f, 98.00f,  146.83f,   /* G2 / D3 */
+    110.00f, 164.81f, 110.00f, 164.81f,   /* A2 / E3 */
+    87.31f,  130.81f, 87.31f,  130.81f    /* F2 / C3 */
+};
+
 static void pa_set(bool on)
 {
     const int want = on ? BOARD_AUDIO_PA_EN_ACTIVE_LEVEL : (1 - BOARD_AUDIO_PA_EN_ACTIVE_LEVEL);
@@ -147,6 +163,16 @@ static void rf_quiet_for_mic(bool quiet)
         (void)esp_wifi_stop();
     } else {
         (void)esp_wifi_start();
+        /* 🔴 重新 start 之后必须把最大发射功率补设回 8.5 dBm。
+         *    理由：`esp_wifi_stop()` 的文档（IDF esp_wifi.h:417）明说会 **frees station
+         *    control block**，而 `esp_wifi_set_max_tx_power()` 的值正是映射进 station 的
+         *    country 配置（同文件 attention 2）—— IDF 从未承诺这个值跨 stop/start 保留。
+         *    我们不去赌它保留：补设一次是幂等的（同一个值再设一遍无副作用），
+         *    代价一次 API 调用，换来"录过一次音之后射频不会悄悄回到 20 dBm"。
+         *    真要漏掉这一步，现场症状是：录完音再连热点开始认证超时，而冷启动一切正常
+         *    —— 极难复现、极难归因。
+         *    失败只告警（函数内部已打），不因功率没压住就不让 wifi 起来。 */
+        (void)sdgoods_wifi_apply_tx_power();
     }
 }
 
@@ -416,6 +442,10 @@ static esp_err_t gen_bgm(audio_bgm_theme_t theme)
     case AUDIO_BGM_THEME_TETRIS:
         lead_f = g_tetris_lead_f;
         bass_f = g_tetris_bass_f;
+        break;
+    case AUDIO_BGM_THEME_POKEMON:
+        lead_f = g_pokemon_lead_f;
+        bass_f = g_pokemon_bass_f;
         break;
     case AUDIO_BGM_THEME_FLAPPY:
     default:

@@ -115,3 +115,13 @@ bool sdgoods_power_consume_wake_skip_gif(void);
 
 /** True while the screen is in the suspended (low-power) state. */
 bool sdgoods_power_is_suspended(void);
+
+/**
+ * App hook invoked by the platform right BEFORE it cuts board power
+ * (sdgoods_power_off) or enters deep sleep (sdgoods_power_enter_deep_sleep),
+ * so the running app can persist its state. The platform provides a weak empty
+ * default; an app overrides it with a strong definition (e.g. PIXMON writes its
+ * save file here). It is called synchronously before the power is actually cut,
+ * so the app must finish and flush any writes (e.g. fclose) before returning.
+ */
+void sdgoods_app_pre_poweroff(void);

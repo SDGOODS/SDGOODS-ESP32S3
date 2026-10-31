@@ -33,6 +33,12 @@
 
 static const char *TAG = "power";
 
+/* 弱符号：app 可在「关机 / 深睡前」存档（强定义覆盖此空实现）。
+ * 平台层不依赖任何 app，故默认空实现。PIXMON 在 ui_pixmon.c 提供强定义
+ * （写 appdata 存档）。调用点见 sdgoods_power_off / sdgoods_power_enter_deep_sleep，
+ * 都在「真正掉电 / 入深睡前」同步调用，保证 fclose 落盘后才切电。 */
+__attribute__((weak)) void sdgoods_app_pre_poweroff(void) { }
+
 /* 轻量低功耗状态：主页短按电源键进入，再短按恢复。
  * 仅关背光 + 让 LVGL 渲染循环暂停（见 sdgoods_lvgl_loop），不切断板级供电。 */
 static bool s_suspended = false;
@@ -127,6 +133,8 @@ void sdgoods_power_enter_deep_sleep(void)
 
     sdgoods_power_set_wake_skip_gif(true);   /* 标记：本次深睡唤醒应跳过开机动画 */
 
+    sdgoods_app_pre_poweroff();              /* 掉电前让 app 存档（强定义才生效，默认空） */
+
     esp_sleep_enable_ext0_wakeup(BOARD_KEY_GPIO, BOARD_KEY_ACTIVE_LEVEL);
     esp_deep_sleep_start();
     /* 不会返回；唤醒后从复位向量冷启动 */
@@ -211,6 +219,10 @@ void sdgoods_power_off(void)
     /* 明确清除「跳过开机动画」标志：本次是真实关机意图，下次上电（无论真断电冷启
        还是板级未断电落到下方深睡兜底）都应播开机动画，而非像主页短按深睡那样跳过。 */
     sdgoods_power_set_wake_skip_gif(false);
+
+    /* 真实断电前让 app 存档（强定义才生效，默认空）。fclose 落盘后才释放电池闩，
+       保证写 FAT 的过程中不会被物理断电打断、写坏目录项。 */
+    sdgoods_app_pre_poweroff();
 
     /* Release the self-holding battery latch -> hard power cut.
        BOARD_BAT_CONTROL_LATCH_LEVEL is the level that keeps power on, so the

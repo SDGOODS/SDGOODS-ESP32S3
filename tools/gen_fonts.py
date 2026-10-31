@@ -67,6 +67,16 @@ FONTS_DIR = os.path.join(ROOT, "components", "sdgoods_board", "fonts")
 SCAN_DIRS = [
     os.path.join(ROOT, "main"),
     os.path.join(ROOT, "components", "sdgoods_board"),
+    # 🔴 2026-10-10 补上：**控制中心（sdgoods_cc.c）与 app SDK 在这一层**，
+    #    而它恰恰是全工程中文文案**最多**的一个文件（设置 / 网络 / 设备 / 语言 / 关于
+    #    各页的标题、按钮、提示全在里面）。漏扫它的后果不是"少收几个字"：
+    #      · 常见字（重 / 置 / 删 / 除…）因为在 main/ 里也出现过，侥幸被收进来；
+    #      · **只在这里出现过的字就永远是方框** —— 而且 --check 也查不出来，
+    #        因为 check 的"源码字符集"同样漏扫了它（两个 bug 互相掩盖）。
+    #    真机实例：控制中心「请耐心等待」的「耐」字就是这么漏的（屏上是方框）。
+    #    顺带把历史上那 23 个一直缺的字（佐侥俩兑剥劈吓吭唐巧幸挺熟甲砖窜筛肌胶荒诀迷麻）
+    #    一起收进来了 —— 它们本就来自这一层的文案。
+    os.path.join(ROOT, "components", "sdgoods_launcher"),
 ]
 # 生成物所在目录不参与扫描：否则「上一轮生成的字」会被当成源码字，字符集只增不减
 SKIP_DIRS = {os.path.normpath(FONTS_DIR), os.path.normpath(os.path.join(ROOT, "main", "patches"))}
@@ -75,6 +85,15 @@ SKIP_PREFIX = ("cn_font_", "si_yuan_black_icon_")
 DEFAULT_FONT = os.path.join(ROOT, "tools", "fonts", "NotoSansSC-Regular.ttf")
 
 # 半角 + 全角常用标点
+# ⚠️ 这里**故意不加**全角 `？！`（U+FF1F / U+FF01），与 tools/gen_fontpack.py 的 PUNCT
+#    **有意不一致** —— 理由是这套产物（cn_font_* / si_yuan_black_icon_*，落在
+#    components/sdgoods_board/fonts/）**已不再编译进 launcher 固件**（见
+#    components/sdgoods_board/CMakeLists.txt 与 sdgoods_fonts.h 顶部说明）；
+#    中文上屏现在全走**运行时语言包**（tools/gen_fontpack.py）。
+#    改了这里的 PUNCT 就得连带重产那四个 .c，而它们谁都不影响 ⇒ 只会让 `--check`
+#    多报两个字（25 vs 23）、白造一堆 diff。**需要全角 `？！` 的是语言包那条链路**，
+#    那边的 PUNCT 已于 2026-10-13 补齐（背景见 tools/verify_shots/
+#    queued_del_font_2026-10-13/README.md）。
 PUNCT = """!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~”“、。，：；（）—‘’·…《》【】"""
 
 # 不在 CJK 区段也不在 ASCII 范围的特殊符号，必须显式列出：

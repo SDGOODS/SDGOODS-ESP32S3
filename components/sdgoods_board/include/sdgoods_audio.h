@@ -34,6 +34,7 @@ typedef enum {
     AUDIO_BGM_THEME_FLAPPY = 0,   /* 欢快 C 大调 */
     AUDIO_BGM_THEME_PLANE,        /* 激昂上行 */
     AUDIO_BGM_THEME_TETRIS,       /* 经典俄方块旋律 */
+    AUDIO_BGM_THEME_POKEMON,      /* 宝可梦风格原创芯片循环（明亮上行 I–V–vi–IV 进行） */
     AUDIO_BGM_THEME_DEFAULT = AUDIO_BGM_THEME_FLAPPY,
 } audio_bgm_theme_t;
 

@@ -88,7 +88,8 @@ config SDGOODS_MY_FEATURE
 | 选槽**按 subtype**，不看地址：bootloader `bs->ota[subtype & 0x0F]`；设备侧 `esp_partition_find_first(APP, OTA_0+idx)` | `src/bootloader_utility.c:194`、`slot_manifest.c:68` |
 | `ota_slot = (ota_seq−1) % app_count`，`app_count` = OTA app 条目**个数** | `bootloader_utility.c:195,364` |
 | `esp_ota_set_boot_partition` 里 `SUB_TYPE_ID(subtype) >= ota_app_count` 即拒 | `app_update/esp_ota_ops.c:560-563` |
-| 🔴 **没有「镜像必须小于所在分区」的检查**（只查 `part->size > 16MB`）⇒ 单应用模式 app 落 `0x10000` 实际能长到 ≈15.94 MiB（会物理覆盖 otadata + 全部 4 槽） | `src/esp_image_format.c:165` |
+| 🔴🔴 **有**「镜像必须小于所在分区」的检查（**2026-10-09 更正**：本行原记「没有」是错的，当时只看了 `:165`）→ `full_image_len > part_len` ⇒ `FAIL_LOAD`，`part_len` = **表里该段声明的 `size`** ⇒ **单应用模式 app 落 `0x10000` 能装多大 = 表里 `factory` 段的声明值**（今天 `0x300000` = 3.0 MiB），不是"物理有空间就能长到 15.94 MiB" | `src/esp_image_format.c:963-967`；由 `image_load():175` **无条件**调用 |
+| 表里**没有 otadata 分区**是被支持的形态：`ota_info.offset == 0` ⇒ 直接启动 factory | `src/bootloader_utility.c:383-385` |
 | 跨 16MB 取指需 `CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH`（实验特性，真机已验证可行） | `MULTI_APP_DYNAMIC_SLOTS.md` §12.7/§12.8 |
 
 **两条设计红线**
@@ -107,9 +108,19 @@ config SDGOODS_MY_FEATURE
 >   node scripts/check-partition-sources.mjs --strict      # 0 通过 / 1 真失败 / 3 无法判定
 > bash scripts/install-git-hooks.sh --check                # 看 hook 装没装
 > bash scripts/negctl-partition-hook.sh                    # 验证闸门本身还灵不灵（对照实验）
+> bash scripts/negctl-backend-defaults.sh                  # 判据 ⑦（后端默认素材）的对照实验
 > ```
-> ⚠️ **退出码 3 = 没跑，不是通过**（本机没有固件工作区时）。hook 在 3 下**放行但大声告警**
+> 🔴 **现行八条判据**（2026-10-09）：① 数量 ② 7 份数据行同源 ③ 形状=**大表** + **不许混代**
+> ③b 无 `app/test` ④ 6 份预编译表 == 平台资产 ⑤ CSV↔bin 复现 ⑥ 预编译引导层 == 平台资产
+> ⑦ **后端默认素材目录（`sdgoods/` 那一层；后台「默认文件」页手动上传用的那份）的
+> 表本体两件 == 平台资产**（第 8 个源；它**不在**固件工作区里，靠 `--backend <dir>` /
+> `$SDGOODS_BACKEND_DEFAULTS` 或按约定找；精确路径见平台仓 `UPLOAD_MANIFEST.md`）。
+> ⚠️ **退出码 3 = 没跑，不是通过**，两个成因：① 本机没有固件工作区；
+> ② **⑦ 找不到（或找到 ≥2 份）那个素材目录** —— 脚本会打「后端默认素材:（未找到…）」，
+> 用 `--backend <dir>` 点名即可。hook 在 3 下**放行但大声告警**
 > —— 拦了只会让人学会 `--no-verify`，于是真正漂移那天也会被跳过。
+> ⚠️ **⑦ 刻意只判表本体两件**：`launcher`/`otadata`/`bootloader` 在发布窗口内与平台资产
+> **合法地不一致**，判了必然误报 ⇒ 那三件仍需手工 `cmp`（见 `UPLOAD_MANIFEST.md`）。
 > ⚠️ **覆盖边界**：固件侧 7 个工程里只有 4 个是 git 仓（LAUNCHER / -ESP32S3 / -gitee / -PLANE），
 > **HELLOAPP / 2046 / CALC 不是 git 仓** ⇒ 它们永远不会通过 hook 被拦，只能靠上面这条命令手动跑。
 

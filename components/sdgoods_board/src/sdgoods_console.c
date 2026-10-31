@@ -243,6 +243,29 @@ static uint8_t     s_bin_sha[32];
 static int64_t     s_bin_last_us = 0;
 static uint8_t     s_bin_rx[BIN_RX_BUF_SZ];
 
+/* SLIP 帧开关（2026-10-31）：本串口同时承载「ASCII 调试键」和「主机的 SLIP 协议帧」，
+ * 而两者的字节空间是重叠的 —— 识别器必须把它们分开，否则 ROM 同步探测包里的
+ * **32 个 `0x55` 会被当成 32 次调试键 'U'**。
+ *
+ * 🔴 现场（用户在启动器上先踩到的）：主机刷机前会先发 ROM 的同步探测包试连，
+ *    那一刻设备还在跑；同一批字节一边被刷机预告识别器吃掉，一边又进了下面的
+ *    ASCII 命令解析 ⇒ `'U'` 被执行（启动器里是「合成手势点按一轮」，真机日志
+ *    `tap #0..#30` 跑满一轮）⇒ **界面被点/拖乱**，再重绘就叠在屏上的画面上。
+ *    app 侧没有那层预告画面，但**同样会被点乱**（只是不容易被注意到）。
+ *
+ * 判据（协议事实，不是自定暗号）：esptool 的每条命令都是 SLIP 帧 `C0 … C0`
+ *    ⇒ **两个 0xC0 之间的字节一律不是命令**。裸调试键是 ASCII（< 0xC0），
+ *    不受影响；`'U'` 这种裸字节仍照旧生效。
+ * ⚠️ 只在 `BIN_OFF`（普通命令模式）下生效：二进制注入模式（BIN_HDR/BIN_BODY）
+ *    自己定义语义，正文里可能就有 0xC0，绝不能在那里翻转状态。 */
+static bool        s_slip_in = false;
+static uint32_t    s_slip_skipped = 0;   /* 本帧里被跳过的字节数（只用于那一行日志） */
+static int64_t     s_slip_last_us = 0;   /* 最近一次收到帧内字节的时刻（半帧超时用） */
+/* 帧计数 + **限流**：真刷机时主机要发成千上万个 SLIP 帧（2 MB 级的镜像约 500+ 帧）。
+ * 每帧打一行日志，在 115200 下每行约 7 ms ⇒ 白白多花好几秒，还会把真正有用的行冲走。
+ * 所以只打首次、之后每 200 帧打一次（保留可观测性又不淹日志）。 */
+static uint32_t    s_slip_frames = 0;
+
 static void bin_reply(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void bin_reply(const char *fmt, ...)
 {
@@ -260,6 +283,10 @@ static void bin_off(void)
     s_bin_total  = 0;
     s_bin_left   = 0;
     s_bin_hdr_len = 0;
+    /* 二进制注入期间 SLIP 边界状态机是停用的（见 s_slip_in 定义处）⇒ 退出时复位，
+     * 否则万一残留 true，之后的裸调试键会被一路吞掉、表现为「命令没反应」。 */
+    s_slip_in      = false;
+    s_slip_skipped = 0;
 }
 
 /* 'X'：进入接收模式（先校验组件是否链接上） */
@@ -401,6 +428,18 @@ static void console_rx_task(void *arg)
         uint32_t n = usb_serial_jtag_ll_rxfifo_data_available()
                    ? usb_serial_jtag_ll_read_rxfifo(s_bin_rx, sizeof(s_bin_rx)) : 0;
         if (n == 0) {
+            /* 🕒 半帧超时（防一个"命令全部失灵"的死角）：
+             *   手机 WebUSB 通道会丢字节。若恰好丢掉一帧的**尾部 0xC0**，`s_slip_in`
+             *   就卡在 true ⇒ 之后所有裸调试键都被当成"帧内数据"吞掉，
+             *   表现为「'?' / 's' / 'R' 完全没反应」，而且日志里一行都不出 —— 极难定位。
+             *   真刷机时帧间隔再长，帧也是**完整**的（结尾必有 0xC0）⇒ 不会误触。
+             *   200 ms 的取值：115200 下 45 字节帧只要 ~4 ms，空闲 200 ms 必然是残帧。 */
+            if (s_slip_in && (esp_timer_get_time() - s_slip_last_us) / 1000 > 200) {
+                ESP_LOGW(TAG, "slip frame timed out -> %u byte(s) dropped, command parser reset",
+                         (unsigned)s_slip_skipped);
+                s_slip_in      = false;
+                s_slip_skipped = 0;
+            }
             if (s_bin_st != BIN_OFF) {
                 /* 注入中：空闲超时即回滚；否则短忙等。
                  * ⚠️ 不能用 vTaskDelay(pdMS_TO_TICKS(50))（那是普通模式的做法）：10ms 的
@@ -436,6 +475,30 @@ static void console_rx_task(void *arg)
             }
 
             /* ---- 普通命令模式 ---- */
+            /* SLIP 帧边界：帧内字节不是命令（理由见 s_slip_in 定义处）。
+             * 🔴 必须放在最前面：下面 'U' 那一格会触发合成手势，把界面点乱。 */
+            if (b == 0xC0) {
+                const bool was_in = s_slip_in;
+                s_slip_in = !s_slip_in;
+                s_slip_last_us = esp_timer_get_time();   /* 起始也要刷新：否则可能一进帧就判超时 */
+                if (was_in) {
+                    /* 帧尾：正好把 ROM 探测包整帧吃干净。日志**限流**（理由见 s_slip_frames）。 */
+                    s_slip_frames++;
+                    if (s_slip_frames == 1 || (s_slip_frames % 200) == 0) {
+                        ESP_LOGI(TAG, "slip frame end #%u -> %u byte(s) skipped as protocol data",
+                                 (unsigned)s_slip_frames, (unsigned)s_slip_skipped);
+                    }
+                    s_slip_skipped = 0;
+                } else {
+                    s_slip_skipped = 0;
+                }
+                continue;
+            }
+            if (s_slip_in) {
+                s_slip_skipped++;
+                s_slip_last_us = esp_timer_get_time();
+                continue;
+            }
             if (b == '?') {
                 /* 能力查询：静音日志避免与回传行交错，回传 SDGOODS-CAPS: 一行 */
                 esp_log_level_set("*", ESP_LOG_NONE);
