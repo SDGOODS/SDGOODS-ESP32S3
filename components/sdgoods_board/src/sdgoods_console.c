@@ -155,6 +155,37 @@ __attribute__((weak)) void sdgoods_console_ext_cmd(char c)
         sdgoods_cc_debug_open(which);
         break;
     }
+    /* '6' / '7' / '9'：点按**非中央**的三个位置（2026-11-01 新增）。
+     * 为什么需要：'1' 只点屏心，于是「app 的点按到底覆盖到哪」长期没人量过，
+     * 全靠读源码猜 —— 而这次猜错了，见下面三条几何事实（都已在源码里核对）：
+     *   · 顶部 TOP_ZONE = 50：sdgoods_app_shell_bind() 建的捕获层 **move_foreground**
+     *     ⇒ 屏幕最上面 50px 归设备导航（下划出控制中心），app 的点按拿不到；
+     *   · 底部 SWIPE_UP 带（212x128 @ (74,232)）**只在控制中心各页**绑（sdgoods_cc.c），
+     *     app 屏上根本没有这条带；
+     *   · 左缘 SWIPE_BACK 带同理，只有 CC 绑。
+     *   ⇒ 所以别拿 CC 的几何去推 app 的盲区：底部 / 左缘到底能不能点，必须实测。
+     * '9' 是**阴性对照**：它落在 TOP_ZONE 里，期望 app 的点按回调**收不到**。
+     *   若 '1'/'6'/'7' 都触发而 '9' 不触发，才说明「点按覆盖整屏减掉顶部 50px」成立。 */
+    case '6':   /* 点按底部 (180,300)：落在 SWIPE_UP 带几何范围内，验证 app 是否被吃 */
+        ESP_LOGI(TAG, "'6': synth tap bottom (180,300)");
+        sdgoods_tap_synth(LCD_WIDTH / 2, 300, 0, 0, 1);
+        break;
+    case '7':   /* 点按左缘 (20,180)：落在 SWIPE_BACK 带几何范围内（x 0..55） */
+        ESP_LOGI(TAG, "'7': synth tap left edge (20,180)");
+        sdgoods_tap_synth(20, LCD_HEIGHT / 2, 0, 0, 1);
+        break;
+    /* '8' / '9' 成对夹住 TOP_ZONE 的边界（2026-11-01 实测：
+     *   TOP_ZONE = 50，捕获层尺寸 LCD_WIDTH x 50 @ (0,0) ⇒ 覆盖 y 0..49。
+     *   55 应能触发 app 的点按，45 应被外壳吃掉 —— 两个都测才有说服力，
+     *   只测一个无法区分「边界在 50」和「整个上半屏都被吃」）。 */
+    case '8':   /* 正控：点按顶部 (180,55)，刚好**在** TOP_ZONE 之下 ⇒ app 预期收到 */
+        ESP_LOGI(TAG, "'8': synth tap just below TOP_ZONE (180,55)");
+        sdgoods_tap_synth(LCD_WIDTH / 2, 55, 0, 0, 1);
+        break;
+    case '9':   /* 阴性对照：点按顶部 (180,45)，落在 TOP_ZONE(0..49) ⇒ app 预期收不到 */
+        ESP_LOGI(TAG, "'9': synth tap inside TOP_ZONE (180,45) [negative control]");
+        sdgoods_tap_synth(LCD_WIDTH / 2, 45, 0, 0, 1);
+        break;
     case 'h':   /* 合成点按「控制中心 · Home」键（小鸟上下文位于 (276,169)）：验证「点 Home 返回主页」。
                  * 仅当 CC 已开且处于小鸟上下文时生效；标准上下文该位置无按钮，属安全空操作。 */
         ESP_LOGI(TAG, "'h': synth tap on CC Home button (276,169)");
