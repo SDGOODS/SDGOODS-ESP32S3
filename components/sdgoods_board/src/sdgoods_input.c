@@ -21,7 +21,9 @@
 
 #include "driver/gpio.h"
 #include "driver/i2c.h"
+#include "esp_log.h"            /* 写盘窗口 / 慢读退避必须出声：那是验收时唯一的正面证据 */
 #include "esp_sleep.h"          /* esp_sleep_get_wakeup_cause：深睡 EXT0 唤醒后吃掉「唤醒按」 */
+#include "esp_timer.h"          /* esp_timer_get_time：写盘窗口与慢读计时用的单调时钟 */
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
@@ -29,10 +31,88 @@
 #include "board_pins.h"
 #include "sdgoods_lcd.h"
 
+#define TAG                 "touch"
 #define CST816_ADDR        0x15
 #define CST816_REG_DATA    0x02
 #define CST816_RST_LOW_MS  11
 #define CST816_TRON_MS     50
+
+/* 单次读 I2C 的超时。🔴 2026-10-31 从 50 提到 **90**：flash 写盘期间实测最坏 78.7 ms
+ * （正常 ~200 µs）。这一道不是"防崩溃"（防崩溃靠下面的写盘窗口 + 慢读退避），
+ * 而是撞上了也**别触发 FSM 复位** —— `i2c_master_cmd_begin()` 一旦超时会进
+ * `i2c_hw_fsm_reset()` / `i2c_master_clear_bus()`，后者是不 yield 的 50 ms 忙等，
+ * 连续几趟就把中断关够 300 ms ⇒ 中断看门狗 panic。 */
+#define CST816_RD_TIMEOUT_MS  90
+
+/* `sdgoods_touch_flash_window_end()` 之后再静默多久才放开触摸。
+ * 40 ms 的来源：一次正常 I2C 读 ~200 µs、写盘期间实测 35~78 ms —— 取"最短的那一档"
+ * 做收尾余量，既能盖住 FATFS 目录项更新，又不会让用户觉得松手后屏还在发呆。 */
+#define SDGOODS_TOUCH_FLASH_GRACE_MS 40
+
+/* ---- 慢读自适应退避 ------------------------------------------------------
+ * 为什么除了"写盘窗口"还要这一道：写盘窗口得由**每个**写盘方自觉声明，漏一处就漏一处；
+ * 而慢读是**已经发生的事实** —— 只要连续读慢就把轮询间隔拉开，等于"总线越忙越少敲它"，
+ * 对没被声明的写盘路径同样有效。两者一正一反，缺一个都不够。
+ * ⚠️ 阈值 20 ms：正常一次 6 字节读 ~200 µs，20 ms 只会在"真的被抢"时才触发。
+ * ⚠️ 恢复是**立刻**的（一次正常就清零），否则退避会自己锁死在慢档。 */
+#define TOUCH_SLOW_US         20000
+#define TOUCH_SLOW_STEP_MS    20      /* 每多一次连续慢读，多让这么多 */
+#define TOUCH_SLOW_MAX_MS     300     /* 让路上限：再慢也不能把触摸拖到不可用 */
+
+/* 静默截止时刻：**单调毫秒**时间戳（int32，差值比较 ⇒ 天然扛 49 天回绕）。
+ * 写盘窗口与慢读退避**共用这一个状态**：只用"截止时刻"表达，不设"谁持牌"的布尔 ——
+ * 少一个状态就少一种漏 `_end()` 的死法；两个来源都只"往后推"，谁晚听谁的。 */
+static volatile int32_t s_quiet_until_ms;
+
+/* 静默期间要不要**先补一次 RELEASED**：写盘窗口 = 要（正按着也得让 UI 松手，
+ * 否则窗口一开用户的手指就从 UI 的视角消失了）；慢读退避 = 不要（那是我们主动
+ * 少读几帧，不能把"正按着"误判成"松手"，否则长按会被切断）。
+ * ⚠️ 只允许置 true，绝不允许置 false —— 慢读退避不能抹掉写盘窗口的这次松手。 */
+static volatile bool s_quiet_release;
+
+static uint32_t s_win_pauses;      /* 写盘窗口真的让路了：几个 LVGL 周期（验收正面证据） */
+static uint32_t s_backoff_pauses;  /* 慢读退避跳过：几个 LVGL 周期 */
+static uint32_t s_slow_run;        /* 连续慢读次数（只在 touchpad_read 单线程里读写） */
+
+static inline int32_t touch_now_ms(void)
+{
+    return (int32_t)(esp_timer_get_time() / 1000);
+}
+
+/* 把静默截止时刻往后推到 `until`（**只延不缩**：后到的、更早的截止不许把前面改早）。 */
+static void touch_quiet_push(int32_t until, bool release)
+{
+    if (release) {
+        s_quiet_release = true;
+    }
+    if ((until - s_quiet_until_ms) > 0) {
+        s_quiet_until_ms = until;
+    }
+}
+
+/* 截止时刻是否还没到（`until - now > 0`；int32 差值比较 ⇒ 回绕安全）。 */
+static bool touch_quiet_busy(void)
+{
+    return (s_quiet_until_ms - touch_now_ms()) > 0;
+}
+
+void sdgoods_touch_flash_window(int ms)
+{
+    if (ms <= 0) {
+        ms = 1;
+    }
+    if (ms > SDGOODS_TOUCH_FLASH_WIN_MAX_MS) {
+        ms = SDGOODS_TOUCH_FLASH_WIN_MAX_MS;
+    }
+    touch_quiet_push(touch_now_ms() + ms, true);
+}
+
+void sdgoods_touch_flash_window_end(void)
+{
+    /* 不立刻清零：fwrite/rename 返回之后，flash 关 cache 的"回程"（含 FATFS 的
+     * 目录项更新）还有几十毫秒。留 GRACE 再放开，比精确卡着更稳。 */
+    touch_quiet_push(touch_now_ms() + SDGOODS_TOUCH_FLASH_GRACE_MS, false);
+}
 
 static lv_indev_drv_t s_indev_drv;
 static lv_indev_t     *s_indev = NULL;   /* 注册后保存指针 indev 句柄（备用） */
@@ -45,7 +125,7 @@ static lv_point_t       s_touch_point = {0, 0};
 static esp_err_t cst816_read(uint8_t reg, uint8_t *data, size_t len)
 {
     return i2c_master_write_read_device((i2c_port_t)BOARD_I2C_PORT, CST816_ADDR,
-                                        &reg, 1, data, len, pdMS_TO_TICKS(50));
+                                        &reg, 1, data, len, pdMS_TO_TICKS(CST816_RD_TIMEOUT_MS));
 }
 
 static void map_raw_to_lvgl(uint16_t raw_x, uint16_t raw_y, uint16_t *out_x, uint16_t *out_y)
@@ -65,8 +145,55 @@ static void map_raw_to_lvgl(uint16_t raw_x, uint16_t raw_y, uint16_t *out_x, uin
 static void touchpad_read(lv_indev_drv_t *drv, lv_indev_data_t *data)
 {
     (void)drv;
+
+    /* 🔴🔴 静默判断必须在**第一次 I2C 事务之前** —— 这是整个防护的落点。
+     * 放后面（读完了再判）= 事务已经发出去了，写盘期间照样会撞、照样 panic。 */
+    if (touch_quiet_busy()) {
+        if (s_quiet_release) {
+            /* 写盘窗口的第一次：正按着也补一次松手，否则 UI 卡在按下态。 */
+            s_quiet_release = false;
+            data->state = LV_INDEV_STATE_RELEASED;
+            s_touch_state = LV_INDEV_STATE_RELEASED;
+            s_win_pauses++;
+            /* 必须出声：这是真机验收时唯一的正面证据（`--e2e` 日志里搜这句）。
+             * 只在第 1 次和每 20 次打，避免写盘期间刷屏把串口拖慢。 */
+            if (s_win_pauses == 1 || (s_win_pauses % 20) == 0) {
+                ESP_LOGI(TAG, "flash write window -> touch paused (x%u)",
+                         (unsigned)s_win_pauses);
+            }
+            return;
+        }
+        /* 慢读退避：**沿用上次状态**，一个事务都不发。不能在这里补 RELEASED ——
+         * 那会把"正按着"误判成"松手"，长按 / 游戏按住会被切断。 */
+        data->state = s_touch_state;
+        data->point = s_touch_point;
+        s_backoff_pauses++;
+        return;
+    }
+
+    const int64_t t0 = esp_timer_get_time();
     uint8_t buf[5] = {0};
-    if (cst816_read(CST816_REG_DATA, buf, sizeof(buf)) != ESP_OK) {
+    const esp_err_t rd = cst816_read(CST816_REG_DATA, buf, sizeof(buf));
+    const int32_t cost_us = (int32_t)(esp_timer_get_time() - t0);
+
+    /* 慢读自适应退避：连续慢就自己把后面的几帧让开（对没声明写盘窗口的路径兜底）。 */
+    if (cost_us >= TOUCH_SLOW_US) {
+        if (s_slow_run < 1000) {
+            s_slow_run++;
+        }
+        int32_t backoff = (int32_t)s_slow_run * TOUCH_SLOW_STEP_MS;
+        if (backoff > TOUCH_SLOW_MAX_MS) {
+            backoff = TOUCH_SLOW_MAX_MS;
+        }
+        touch_quiet_push(touch_now_ms() + backoff, false);
+        ESP_LOGW(TAG, "slow read: %d us (run=%u, backoff=%d ms%s)", (int)cost_us,
+                 (unsigned)s_slow_run, (int)backoff,
+                 rd == ESP_OK ? "" : " -> ESP_ERR");
+    } else {
+        s_slow_run = 0;   /* 一次正常立刻清零，否则退避会自己锁死在慢档 */
+    }
+
+    if (rd != ESP_OK) {
         data->state = LV_INDEV_STATE_RELEASED;
         s_touch_state = LV_INDEV_STATE_RELEASED;
         return;

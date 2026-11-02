@@ -439,6 +439,53 @@ DEMO →「其他」页的 `数据: ...` 一行显示的就是它实测出来的
 - **`app_id` 必须稳定**：用 `project_name`（与你在平台上的工程一致）当目录名。
   改名会让旧数据变成孤儿、下次开机被清掉。
 
+### 4.1 🔴 写 appdata 之前必须开「触摸静默窗口」
+
+**这是硬要求，不是优化。** 漏了会让设备**偶发重启**，而且不报警、不报错：
+
+```c
+#include "sdgoods_input.h"
+
+sdgoods_touch_flash_window(300);   // ① 开窗：告诉触摸层「接下来别碰 I2C」，参数=预计写多久(ms)
+...                                //     fopen / fwrite / fclose / rename / remove ...
+sdgoods_touch_flash_window_end();  // ② 收窗：内部还会再留 40 ms 收尾
+```
+
+**为什么**（2026-10-07 / 10-31 真机各抓到一次，`addr2line` 都落在 `cst816_read`）：
+
+```
+Guru Meditation Error: Core 0 panic'ed (Interrupt wdt timeout on CPU0)   rst:0xc
+```
+
+写 SPI flash 会**整片关 cache + 关中断**（在 FAT 上落一行字就可能触发擦除与磨损均衡 =
+几十毫秒）。触摸 I2C 的中断服务代码在 flash 里 ⇒ 写盘期间取指停摆 ⇒ 触摸事务拖过读超时
+⇒ 进 IDF 的 `i2c_master_clear_bus()`（**不 yield 的 50 ms 忙等**）⇒ 连续几趟把中断关够
+`CONFIG_ESP_INT_WDT_TIMEOUT_MS`（300 ms）⇒ 中断看门狗 panic ⇒ **设备重启**。
+写盘期间单次触摸读实测 33~78 ms（正常 ~200 µs），日志特征 `touch: slow read: ... us`。
+
+**真机实测（256 KiB 连写，同一份代码开/关窗口对照）**：
+
+| | `slow read` | `touch paused` | Guru / panic |
+|---|---|---|---|
+| 开窗口 | **0** | 4 次 | 0 |
+| 关窗口 | **48 次**（33.1~37.3 ms） | — | 0（靠退避兜住了） |
+
+**用法上的四个要点**：
+- 参数是「预计要写多久」，平台层**只延不缩**（多个写盘方先后声明，谁晚听谁的），
+  上限 3000 ms —— 万一漏了 `_end()` 也不会把触摸永久关死。
+- 🔴 **写大文件要分片**：几百 KB 的下载**每片各调一次**，别拿一次 3000 ms 糊整段，
+  否则窗口尾段是空的、用户点了没反应。
+- ⚠️ **失败路径也要 `_end()`**：`fopen` 返回 NULL 的那条分支最容易漏，见
+  `main/app_data_store.c` 的写法。
+- ⚠️ 窗口内触摸层**一个 I2C 事务都不发**，并会先补一次 `RELEASED`（正按着也被松手，
+  免得 UI 卡在按下态）⇒ 写盘后第一次真实触摸有 ~40 ms + 一个 LVGL 周期的延迟。
+  这是拿「点按迟钝 40 ms」换「设备不重启」，值得。
+- 触摸层另有**慢读自适应退避**（连续读慢就自己拉长轮询间隔）兜底漏声明的写盘方，
+  两者一正一反、缺一不可 —— 但**别指望兜底**：上表里关窗口那 48 次慢读就是这么来的。
+
+自查：`python3 tools/verify_touch_flash_window.py`（源码形状，17 条判据）；
+真机验收看日志里有没有 `touch: flash write window -> touch paused`、以及有没有 `slow read`。
+
 ---
 
 ## 5. 最小可上架示例

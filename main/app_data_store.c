@@ -23,6 +23,7 @@
 #include "sdgoods_app_sdk.h"   /* sdgoods_appdata_begin / _available */
 #include "sdgoods_nvs.h"       /* sdgoods_nvs_ensure：平台层统一的 NVS 保障 */
 #include "sdgoods_lcd.h"       /* LCD_SPI_MAX_TRANSFER_SIZE / LCD_SPI_TRANS_QUEUE_SZ：弹跳预算 */
+#include "sdgoods_input.h"     /* sdgoods_touch_flash_window：写盘期间让触摸别敲 I2C（见下） */
 
 #include "esp_app_desc.h"      /* ⚠️ 是 esp_app_desc.h，不是 esp_app_format.h ——
                                      esp_app_desc_t 与 esp_app_get_description() 都在这里，
@@ -75,14 +76,30 @@ static bool try_appdata(void)
         fclose(f);
     }
     n++;
+    /* 🔴🔴 写 appdata **必须**先开「触摸静默窗口」，写完再 end —— 这两行不是仪式感。
+     *
+     * 为什么：写 SPI flash 会**整片关 cache + 关中断**（FAT 上落一行字就可能触发擦除与
+     * 磨损均衡 = 几十毫秒）。触摸 I2C 的中断服务代码在 flash 里 ⇒ 写盘期间取指停摆 ⇒
+     * 触摸事务拖过超时 ⇒ 进 IDF 的 `i2c_master_clear_bus()`（不 yield 的 50 ms 忙等）⇒
+     * 连续几趟把中断关够 300 ms ⇒ `Interrupt wdt timeout on CPU0` + `rst:0xc`，**设备重启**。
+     * 2026-10-07 与 10-31 真机各抓到一次，addr2line 都落在 cst816_read。
+     *
+     * 参数 = 「预计要写多久」（ms）；平台层只延不缩，`_end()` 后再留 40 ms 收尾。
+     * 写大文件（几百 KB）时**每片各调一次**，别拿一次 3000 ms 去糊整段下载。
+     * ⚠️ 漏调的后果是"偶发重启"，不会编译报错 —— 这是这个 API 唯一危险的地方。 */
+    sdgoods_touch_flash_window(300);
+
     f = fopen(path, "w");
     if (!f) {
+        sdgoods_touch_flash_window_end();   /* 失败路径也要收：配对永不成对是最容易漏的一条 */
         ESP_LOGW(TAG, "write '%s' failed -> falling back to NVS", path);
         s_dir[0] = '\0';
         return false;
     }
     fprintf(f, "%u\n", n);
-    fclose(f);
+    fclose(f);          /* ⚠️ 真正落盘在 fclose（缓冲提交 + FAT 目录项更新），窗口必须罩住它 */
+
+    sdgoods_touch_flash_window_end();
 
     s_boots = (uint32_t)n;
     s_backend = "appdata";
