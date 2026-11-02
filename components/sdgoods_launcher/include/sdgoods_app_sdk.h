@@ -75,7 +75,17 @@ esp_err_t sdgoods_return_to_launcher(void);
 bool sdgoods_appdata_available(void);
 
 /* ★ 推荐入口：挂载 appdata → 建好本 app 的私有目录 → 返回可用的绝对路径。
- *   out 收到形如 "/appdata/<app_id>/"，之后直接 fopen/snprintf 拼子文件即可。
+ *   out 收到形如 "/appdata/<app_id>"，之后自己拼子文件即可：
+ *
+ *     char dir[64], path[96];
+ *     if (sdgoods_appdata_begin(SDG_APP_ID, dir, sizeof(dir)) == ESP_OK) {
+ *         snprintf(path, sizeof(path), "%s/log.txt", dir);   // ← 自己补 '/' ✓
+ *     }
+ *
+ *   🔴 **返回的路径没有尾斜杠**（2026-10-05 实测订正；此前本注释写成带斜杠的
+ *      "/appdata/<app_id>/"，照它写 `"%s%s"` 会拼出 "/appdata/launcherlog.txt"）。
+ *      实现见 app_sdk.c 的 sdgoods_appdata_path_for()：`snprintf("%s/%s", base, app_id)`。
+ *      想省事可以照抄 `%s/%s` 的两段式拼法，别信"末尾自带 /"。
  *
  *   ESP_OK                 —— 目录已就绪，out 有效
  *   ESP_ERR_NOT_FOUND      —— 本固件没有 appdata 分区（单应用精简分区表）⇒ **退 NVS**
@@ -91,7 +101,8 @@ esp_err_t sdgoods_appdata_mount(void);
 /* 卸载 appdata 分区。 */
 void sdgoods_appdata_unmount(void);
 
-/* 取得某 app 的私有目录绝对路径（如 /appdata/<app_id>/）。out 至少 64 字节。 */
+/* 取得某 app 的私有目录绝对路径（如 "/appdata/<app_id>"，**无尾斜杠**）。
+ * out 至少 64 字节。 */
 esp_err_t sdgoods_appdata_path_for(const char *app_id, char *out, size_t out_len);
 
 #ifdef __cplusplus
